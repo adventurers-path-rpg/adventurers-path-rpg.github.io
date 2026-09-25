@@ -1809,7 +1809,7 @@
     const nOwn = Object.keys(S.own).length;
     return `<h2>Run planner <span class="tag warn">beta</span></h2><p class="small">Numbers are still being tuned with player tests. If a run plays out differently in game, the game wins. </p><p><a class="hlbtn" href="report.html" target="_blank" rel="noopener">Played a run? Send a test report (2 min)</a></p>`
       + `<div class="card pl-in"><div class="pl-top"><b>Your Legacy</b> <span class="small">${nOwn ? nOwn + (nOwn > 1 ? ' lines' : ' line') + ' set' + (S.src ? ' from your save' : '') : 'nothing set yet'}</span>`
-      + `<label class="btn pl-file${S.src === 'save' ? '' : ' hlbtn'}">${S.src === 'save' ? 'Load another save' : 'Load save file'}<input type="file" id="pl-save" accept=".pld,.txt" multiple hidden></label>`
+      + `<label class="btn pl-file hlbtn">${S.src === 'save' ? 'Load another save' : 'Load save file'}<input type="file" id="pl-save" accept=".pld,.txt" multiple hidden></label>`
       + (nOwn ? `<button class="btn" id="pl-clear" type="button">Clear</button>` : '') + `</div>`
       + (S.src === 'save' ? '' : `<div class="pl-cta small"><b>Best: load your save file.</b> Your Map Level, title, Points, VIP and every Legacy item are read from it, so every plan fits your account.</div>`)
       + `<p class="small">Save file: Documents\\Warcraft III\\CustomMapData\\TheAdventurersPathRPG\\ (the .pld file, plus its _P0, _P1 ... files if it has them). It stays in your browser. Or pick your Legacy items by hand:</p>`

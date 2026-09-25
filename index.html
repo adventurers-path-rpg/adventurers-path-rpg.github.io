@@ -487,6 +487,31 @@ details.pl-how{margin:4px 0 10px}details.pl-how>summary{cursor:pointer;color:var
 .pl-fdb{margin:3px 0 0;color:var(--ink);font-size:14px}.pl-fdl{position:relative;padding:4px 0;border-top:1px solid var(--rule)}
 .pl-fdl::before{content:attr(data-n);position:absolute;left:-42px;top:4px;min-width:30px;height:21px;padding:0 3px;box-sizing:border-box;border-radius:11px;background:var(--accent-soft);color:var(--accent);font:700 12px/21px var(--body);text-align:center}
 @media (max-width:600px){.pl-steps>li.pl-fold{padding-left:42px}.pl-steps>li.pl-fold::before{left:4px;min-width:28px}.pl-fdb{font-size:13.5px}.pl-fdl::before{left:-38px;min-width:28px}}
+/* tier columns (patch_tier_columns 2026-09-26, user-approved "Stat columns"): one settings bar, STR / AGI / INT columns per tier, compact markers */
+.tr-bar{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:6px 10px;margin:0 0 6px}
+.tr-bar .sub-tabs{margin:0;min-width:0;max-width:100%}.tr-gp{display:contents}
+.tr-gp label{display:flex;flex-direction:row;align-items:center;gap:6px;font-size:13px;margin:0;color:var(--muted)}.tr-gp select{padding:4px 6px;font-size:14px}
+.tr-bar .tr-acct{white-space:nowrap}a.tr-acct.tr-ao{display:inline-block;padding:3px 9px;border:1px solid var(--gold);border-radius:4px;color:var(--gold);font-weight:700;text-decoration:none}
+.tr-qw{display:flex;align-items:center;gap:6px;flex:1 1 170px;min-width:0}.tr-bar .tr-q{flex:1 1 auto;min-width:0;max-width:250px;padding:5px 10px}
+.tr-more{margin-left:auto}.tr-more>summary{cursor:pointer;font-weight:600;font-size:14px;white-space:nowrap}.tr-dot{color:var(--gold)}
+.tr-more .tr-ol{position:absolute;right:6px;top:calc(100% + 4px);z-index:30;margin:0;background:var(--paper);border:1px solid var(--rule);border-radius:6px;padding:8px 10px;box-shadow:0 6px 18px rgba(0,0,0,.28);max-width:calc(100% - 12px);box-sizing:border-box}
+.tr-bar+.tr-need{margin:0 0 6px}.tr-sum{margin:2px 0 0;font-size:14px}.tr-leg{margin:2px 0 8px;line-height:1.6}
+.tr-k.tr-lk{display:inline-flex;align-items:center;gap:2px}.tr-lock{width:8px;height:10px;flex:none}.tr-k.tr-f{font-size:12px;line-height:1}
+.tr-3 .tr-row{grid-template-columns:40px repeat(3,minmax(0,1fr));gap:6px 10px}.tr-3 .tr-row[hidden]{display:none}
+.tr-3 .tr-hd{margin:0 0 6px;align-items:end}.tr-hd b{font:700 13px/1 var(--display);letter-spacing:.08em;padding:0 0 4px 2px;border-bottom:3px solid}
+.tr-hd b[data-c=str]{color:var(--c-str);border-color:var(--c-str)}.tr-hd b[data-c=agi]{color:var(--c-agi);border-color:var(--c-agi)}.tr-hd b[data-c=int]{color:var(--c-int);border-color:var(--c-int)}
+.tr-col{display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;min-width:0}.tr-col::after{content:'';flex:1000 0 0}
+.tr-cl{display:none}.tr-dash{color:var(--muted);padding:4px 6px}.tr-dash[hidden]{display:none}
+.tr-3 a.tr-c{min-width:0}.tr-3 .tr-n{min-width:0}.tr-3 a.tr-c[data-st]{border-left:1px solid var(--rule)}.tr-3 a.tr-c[data-st]::after{display:none}
+.tr-3 a.tr-c:hover,.tr-3 a.tr-c.armed,.tr-3 a.tr-c:focus-visible{border-left-color:var(--accent)}
+.tr-l.tr-nl{font-size:11px;line-height:1.1;text-align:center}.tr-no .tr-row{margin-top:6px}
+@media (max-width:560px){.tr-bar{padding:6px 8px;gap:6px 8px}.tr-gp select{font-size:13px;padding:3px 4px;max-width:122px}.tr-gp label{font-size:12px;gap:4px}
+.tr-bar .tr-q{max-width:none}.tr-more .tr-ol{left:6px;right:6px}
+.tr-3 .tr-row{display:grid;grid-template-columns:22px minmax(0,1fr);gap:3px 5px;margin:0 0 9px}.tr-3 .tr-row[hidden],.tr-3 .tr-row.tr-hd{display:none}
+.tr-3 .tr-l{grid-row:1/span 3;height:auto;align-self:stretch;align-items:flex-start;padding-top:3px;box-sizing:border-box}
+.tr-3 .tr-col{gap:3px}.tr-cl{display:inline-flex;align-items:center;min-width:24px;font:700 10px/20px var(--display);letter-spacing:.04em}
+.tr-col[data-c=str] .tr-cl{color:var(--c-str)}.tr-col[data-c=agi] .tr-cl{color:var(--c-agi)}.tr-col[data-c=int] .tr-cl{color:var(--c-int)}
+.tr-dash{padding:1px 4px}.tr-l.tr-nl{font-size:9px;writing-mode:vertical-rl;padding-top:4px}}
 </style>
 <div class="wrap">
 <a class="hero" href="#home"><img class="banner" src="img/banner.jpg" alt=""><span class="hero-t"><span class="hero-n">The Adventurer's Path</span><span class="hero-s">RPG Wiki</span></span></a>

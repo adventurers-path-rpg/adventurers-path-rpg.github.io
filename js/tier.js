@@ -36,27 +36,40 @@
     const canDo = id => { if (you && K.plan.fin) return K.plan.fin(id, n, { main: 'm', chall: 'c', death: 'd' }[md]); if (!cl) return true; const i = PDp.heroes.indexOf(id); return i >= 0 && cl.lv[i] !== 'x' && +cl.lv[i] <= K.plan.step((byId[id] || {}).main_stat || 'STR'); };
     cur = { why: ((bis ? T.why_bis : T.why) || {})[key] || {}, cap: (tst ? { early: 'Early (Start Camp to Steel Fortress)', mid: 'Mid (Rebel Camps to the Pirate Ship)', late: 'Late (Blood Elf Village to the end)' }[tst] : 'Whole run') + (bis ? ', best in slot, no time limit (up to hard farms)' : ", builds that fit the run's farm time (can use hard farms)") };
     const RC = (((bis ? T.reach_bis : T.reach) || {})[key]) || {};
+    /* ---- TIER COLUMNS (patch_tier_columns 2026-09-26, user-approved "Stat columns"): compact markers, legend under the bar ---- */
+    const LOCK = '<svg class="tr-lock" viewBox="0 0 10 12" aria-hidden="true"><path d="M2.6 5.2V3.6a2.4 2.4 0 0 1 4.8 0v1.6" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="5" width="8" height="6.6" rx="1.3" fill="currentColor"/></svg>';
     const card = id => { const h = byId[id], lk = lock(h), rc = RC[id], fs = !tst && K.plan && K.plan.fast && K.plan.fast(id, n, { main: 'm', chall: 'c', death: 'd' }[md], you);   /* 'fast' is a whole-run fact: Whole run view only */
       if (lk) tags[/WP$/.test(lk) ? 'WP' : /^ML/.test(lk) ? 'ML' : 'solo'] = 1; if (fs) tags.fast = 1; if (rc) tags.gets = 1;
-      return `<a class="tr-c" href="#hero/${encodeURIComponent(id)}" data-id="${esc(id)}" data-s="${esc([h.name, ...(T.tags[id] || []), lk, rc || ''].join(' ').toLowerCase())}">${K.icon(id)}<span class="tr-n">${esc(h.name)}</span>${lk ? `<span class="tr-k">${esc(lk)}</span>` : ''}${fs ? `<span class="tr-k tr-f" title="finishes with light gear, among the quickest runs">fast</span>` : ''}${rc ? `<span class="tr-k tr-x">${esc(rc)}</span>` : ''}</a>`; };
+      const mk = !lk ? '' : /WP$/.test(lk) ? `<span class="tr-k tr-lk" title="${esc(lk)} (World Points) to unlock">${LOCK}${esc(lk.replace(/ WP$/, ''))}</span>`
+        : /^ML/.test(lk) ? `<span class="tr-k tr-lk" title="Map Level ${esc(lk.slice(3))} to unlock">${LOCK}${esc(lk.replace('ML ', 'ML').replace(' or ', '/'))}</span>` : `<span class="tr-k" title="solo lobby only">solo</span>`;
+      return `<a class="tr-c" href="#hero/${encodeURIComponent(id)}" data-id="${esc(id)}" data-s="${esc([h.name, ...(T.tags[id] || []), lk, rc || '', fs ? 'fast' : ''].join(' ').toLowerCase())}">${K.icon(id)}<span class="tr-n">${esc(h.name)}</span>${mk}${fs ? `<span class="tr-k tr-f" title="fast: finishes with light gear, among the quickest runs">⚡</span>` : ''}${rc ? `<span class="tr-k tr-x" title="${esc(rc)}: can't finish, the last boss it beats">→ ${esc(rc.replace(/^gets to /, ''))}</span>` : ''}</a>`; };
     const stg = { '': 'whole run', early: 'early part', mid: 'mid part', late: 'late part' }[tst];
     const sum = you ? `Heroes that finish <b>${MODEL[md]} N${n}</b> with <b>your account</b> <span class="small">(${esc(K.plan.stepTxt('STR'))})</span>, best first · ${stg}`
       : `<b>${MODEL[md]} ${band(n)}</b> · ${stg} · normal account`;
-    const alt = you ? `<a href="#" class="tr-acct" data-acct="typ">Show for a normal player</a>` : has ? `<a href="#" class="tr-acct" data-acct="">Show for your account</a>`
-      : `<a href="#" class="tr-acct hlbtn" data-acct="need">Show for your account</a><div class="card warn tr-need" hidden>Needs your save (Map Level, title, Legacy): load it in the <a href="#planner">Run planner</a>.</div>`;
-    const nondef = !!(tst || open || bis);
+    const acct = you ? `<a href="#" class="tr-acct hlbtn" data-acct="typ" title="On: heroes your account finishes this run with. Tap: show for a normal player">Your account ✓</a>`
+      : has ? `<a href="#" class="tr-acct tr-ao" data-acct="" title="Rank with your save (Map Level, title, Legacy)">Your account</a>`
+      : `<a href="#" class="tr-acct hlbtn" data-acct="need">Your account</a>`;
+    const need = has ? '' : `<div class="card warn tr-need" hidden>Needs your save (Map Level, title, Legacy): load it in the <a href="#planner">Run planner</a>.</div>`;
+    const more = !!(open || bis);
     let tags = { WP: 0, ML: 0, solo: 0, fast: 0, gets: 0, not: 0 };
-    const html_ = `<div class="tr-b">` + ['S', 'A', 'B', 'C'].map(t => { const ids = (tiers[t] || []).filter(ok).filter(canDo); return ids.length ? `<div class="tr-row sgroup"><div class="tr-l t-${t}">${t}</div><div class="tr-cs">${ids.map(card).join('')}</div></div>` : ''; }).join('')
-      + (you ? (() => { const no = ['S', 'A', 'B', 'C'].flatMap(t => (tiers[t] || []).filter(ok).filter(id => !canDo(id))); if (no.length) tags.not = 1; return no.length ? `<details class="tr-no"><summary class="small">Not yet: ${no.length} heroes your account can't pick yet or doesn't finish this run with</summary><div class="tr-row sgroup"><div class="tr-l t-C">Not yet</div><div class="tr-cs">${no.map(card).join('')}</div></div></details>` : ''; })() : '') + `</div>`;
-    const leg = [tags.WP && tags.ML ? 'WP / ML = World Points / Map Level to unlock' : tags.WP ? 'WP = World Points to unlock' : tags.ML && 'ML = Map Level to unlock', tags.solo && 'solo = solo lobby', tags.fast && 'fast = quick run on light gear',
-                 tags.gets && "gets to X = can't finish, X = the last boss it beats", 0].filter(Boolean);
-    return `<h2 class="tr-h">Tier list</h2><p class="tr-sum">${sum}</p><p class="small tr-alt">${alt}</p>`
-      + `<div class="tr-ctl"><input class="tsearch tr-q" placeholder="Find a hero or tag: AoE, true dmg ..."><span class="tsearch-n small"></span><span class="small tr-hint">Tap or hover a hero: numbers. Tap again: its page.</span></div>`
-      + `<details class="tr-opt"${nondef ? ' open' : ''}><summary>Options</summary><div class="tr-ol">`
-      + (T.stage_tiers ? `<div>${subtabs('tier', 'tst', [['', 'Whole run'], ['early', 'Early'], ['mid', 'Mid'], ['late', 'Late']], tst)}<span class="small">rate one part of the run</span></div>` : '')
+    const COLS = ['STR', 'AGI', 'INT'], stOf = id => { const s = (byId[id] || {}).main_stat; return COLS.includes(s) ? s : 'STR'; };
+    const row = (lab, cls, ids) => `<div class="tr-row sgroup"><div class="tr-l ${cls}">${lab}</div>` + COLS.map(s => { const c = ids.filter(id => stOf(id) === s);
+      return `<div class="tr-col" data-c="${s.toLowerCase()}"><span class="tr-cl">${s}</span>${c.map(card).join('')}<span class="tr-dash"${c.length ? ' hidden' : ''}>–</span></div>`; }).join('') + `</div>`;
+    const head = `<div class="tr-row tr-hd" aria-hidden="true"><span></span>${COLS.map(s => `<b data-c="${s.toLowerCase()}">${s}</b>`).join('')}</div>`;
+    const html_ = `<div class="tr-b tr-3">` + head + ['S', 'A', 'B', 'C'].map(t => { const ids = (tiers[t] || []).filter(ok).filter(canDo); return ids.length ? row(t, 't-' + t, ids) : ''; }).join('')
+      + (you ? (() => { const no = ['S', 'A', 'B', 'C'].flatMap(t => (tiers[t] || []).filter(ok).filter(id => !canDo(id))); if (no.length) tags.not = 1; return no.length ? `<details class="tr-no"><summary class="small">Not yet: ${no.length} heroes your account can't pick yet or doesn't finish this run with</summary>${row('Not yet', 't-C tr-nl', no)}</details>` : ''; })() : '') + `</div>`;
+    const leg = [tags.fast && `<span class="tr-k tr-f">⚡</span> fast = quick run on light gear`, tags.WP && `<span class="tr-k tr-lk">${LOCK}350</span> = World Points to unlock`,
+                 tags.ML && `<span class="tr-k tr-lk">${LOCK}ML9+</span> = Map Level to unlock`, tags.solo && `<span class="tr-k">solo</span> = solo lobby`,
+                 tags.gets && `<span class="tr-k tr-x">→ X</span> = can't finish, X = the last boss it beats`].filter(Boolean);
+    return `<h2 class="tr-h">Tier list</h2>`
+      + `<div class="tr-bar"><span class="tr-gp"></span>`
+      + (T.stage_tiers ? subtabs('tier', 'tst', [['', 'Whole'], ['early', 'Early'], ['mid', 'Mid'], ['late', 'Late']], tst) : '')
+      + acct + `<span class="tr-qw"><input class="tsearch tr-q" type="search" placeholder="Find a hero or tag: AoE, true dmg ..."><span class="tsearch-n small"></span></span>`
+      + `<details class="tr-more"><summary>More${more ? ' <span class="tr-dot">•</span>' : ''}</summary><div class="tr-ol">`
       + `<div>${subtabs('tier', 'to', [['', 'All heroes'], ['open', 'Open at start']], open ? 'open' : '')}<span class="small">hide heroes a new account can't pick</span></div>`
       + (T.tiers_bis ? `<div><label class="inline tr-bis"><input type="checkbox" id="bis" ${bis ? 'checked' : ''}> Best in slot</label><span class="small">no farm-time limit, hard farms too</span></div>` : '')
-      + `</div></details>`
+      + `</div></details></div>` + need
+      + `<p class="tr-sum">${sum}<span class="small tr-hint"> · Tap or hover a hero: numbers. Tap again: its page.</span></p>`
       + (leg.length ? `<p class="small tr-leg">${leg.join(' · ')}</p>` : '')
       + html_
       + (T.notes[key] ? `<p class="small tr-note">${esc(T.notes[key])}</p>` : '')
@@ -77,6 +90,9 @@
     pop.style.left = Math.max(8, Math.min(document.documentElement.clientWidth - pw - 8, r.left)) + 'px';
     pop.style.top = (window.scrollY + (r.bottom + 6 + ph <= window.innerHeight ? r.bottom + 6 : Math.max(8, r.top - ph - 6))) + 'px'; };
   window.addEventListener('hashchange', hide);
+  /* tier columns: a column whose cards the search hides shows a dash */
+  document.addEventListener('input', e => { if (!e.target.closest || !e.target.closest('.tr-bar input.tsearch')) return;
+    document.querySelectorAll('#out .tr-col, .tr-3 .tr-col').forEach(col => { const d = col.querySelector('.tr-dash'); if (d) d.hidden = !!col.querySelector('a.tr-c:not([hidden])'); }); });
   document.addEventListener('click', e => { if (pop && !pop.hidden && !e.target.closest('.tr-c,.tr-p')) hide(); });
   const touch = () => matchMedia('(hover: none)').matches;
   K.hooks.push((page, out) => { hide(); if (page !== 'tier') return;
@@ -84,6 +100,9 @@
       a.addEventListener('mouseenter', () => { if (!touch()) show(a); }); a.addEventListener('mouseleave', () => { if (!touch()) hide(); });
       a.addEventListener('focus', () => { if (!touch()) show(a); }); a.addEventListener('blur', () => { if (!touch()) hide(); });
       a.addEventListener('click', e => { if (touch() && !a.classList.contains('armed')) { e.preventDefault(); hide(); a.classList.add('armed'); show(a); } else { hide(); e.preventDefault(); location.hash = a.getAttribute('href'); } }); });   // user 2026-09-25: go straight to the hero page
+    /* tier columns: the shared Difficulty / Mode selects move into the settings bar (same nodes: their change handlers stay) */
+    const gp = document.getElementById('gpick'), gslot = out.querySelector('.tr-gp'); if (gp && gslot) { while (gp.firstChild) gslot.appendChild(gp.firstChild); gp.hidden = true; }
+    const mo = out.querySelector('.tr-more'); if (mo) document.addEventListener('click', function cl(e) { if (!mo.isConnected) { document.removeEventListener('click', cl); return; } if (mo.open && !mo.contains(e.target)) mo.open = false; });
     const c = out.querySelector('#bis'); if (c) c.addEventListener('change', () => { K.filters.bis = c.checked ? '1' : ''; K.route(); });
     out.querySelectorAll('.tr-acct').forEach(a => a.addEventListener('click', e => { e.preventDefault(); if (a.dataset.acct === 'need') { const w = out.querySelector('.tr-need'); if (w) w.hidden = false; return; } K.filters.acct = a.dataset.acct; K.route(); })); });
   INDEX.push({ k: 'tier', id: '', t: 'Tier list', s: 'best heroes per mode and difficulty band', w: 6 });
