@@ -919,7 +919,7 @@
   /* Legacy goals: Points you can pick up on the side when the run finishes the main quest (never changes their ranking) */
   const sideTxt = r => { if (!r.fin) return ''; const i = HIDX[r.h], e = eqStep(r.h, r.n, r.m), jv = jvRate(r.h, r.n, r.m, e), x = [];
     if (jv) x.push(`farm Jarvan V after the quest: ${jvPer()} Points per kill (back 10 s after he and G.S.D both die)`);
-    if (bossAt('O007', r.n, r.m, i, e.k) >= 0 && !(r.got || []).concat(r.ugot || []).some(g => Array.isArray(g) ? g[2] === 'O007' : !!(g.a && g.a[0] && g.a[0].includes('O007')))) x.push('Shadow Monster +' + vipPts(10));   // AUDIT minor 5: killed for a pick before the quest ends = no Points, never respawns
+    if (bossAt('O007', r.n, r.m, i, e.k) >= 0 && !(r.got || []).concat(r.ugot || []).some(g => Array.isArray(g) ? g[2] === 'O007' : !!(g.a && g.a[0] && g.a[0].includes('O007')))) x.push('Shadow Monster +' + vipPts(10) + ' Points');   // AUDIT minor 5: killed for a pick before the quest ends = no Points, never respawns
     return x.length ? `<p class="small">+ side: ${x.join(' · ')}</p>` : ''; };
   /* ---- Legacy goal: every run (N x mode x hero) that upgrades the most of your items (ON THE WAY: same slot type allowed). v53 conflicts: an upgrade a run
      can do but whose slot type (or Points) another pick of that run holds counts as doable, boss or not (not picked in that run) */
@@ -1148,10 +1148,10 @@
   const chKd = (r, extra) => { const kd = new Map(), put = (b, s) => { if (b && (!kd.has(b) || kd.get(b) > +s)) kd.set(b, +s); };
     (PD.rqb || []).forEach(([b, s]) => { if (+s <= 20 + r.n) put(b, s); }); (extra || []).forEach(x => put(x[0], x[1])); return kd; };
   const chWalk = (id, t0, bs0, h, n, m, lv, lim, kd) => { const i = HIDX[h], st = []; let cur = id, s0 = +t0 || 0, fb = bs0 || [], why = null;
-    for (let g = 0; g < 8; g++) { let nx = null; why = null; const wk = y => { if (!why || why.k === 'n') why = y; };
+    for (let g = 0; g < 8; g++) { let nx = null; why = null; const wk = y => { if (!why || why.k === 'n' || why.k === 'h') why = y; };
       for (const [to, text, alts] of (PD.edges[cur] || [])) { for (const a of alts) { const k = NBX[cur + '>' + to], e = PQE[cur + '>' + to];
-          if (!OT_N(a, n) || (a[2] && a[2] !== m)) { if (!why && a[1]) why = { k: 'n', to, n: +a[1], p: a[4] === '>' }; continue; }
-          if (!hasBit(a[3], i)) continue;
+          if (!hasBit(a[3], i)) { if (!why) why = { k: 'h', to }; continue; }   // CHAINFIX: hero first, the N / mode reason wins over it
+          if (!OT_N(a, n) || (a[2] && a[2] !== m)) { if ((!why || why.k === 'h') && (a[1] || a[2])) why = { k: 'n', to, n: +a[1] || 0, p: a[4] === '>', bs: a[0], m: a[2] || '' }; continue; }
           if (!a[0].length) { wk(k && k[0] === 'k' ? { k: 'k', to, text } : k && k[0] === 'e' ? { k: 'e', to, lv: 20 } : { k: 'x', to }); continue; }
           if (e) { wk({ k: 'e', to, lv: +e[0] || 15 }); continue; }
           if (+a[5] > 1) { wk({ k: 'k', to, text }); continue; }
@@ -1162,7 +1162,7 @@
           if (at.every(x => x >= 0 && x <= lim)) { nx = { from: cur, to, text, bs: a[0], at, s: Math.max(...at) }; break; }
           wk({ k: 'r', to }); }
         if (nx) break; }
-      if (!nx) break; st.push(nx); cur = nx.to; s0 = nx.s; fb = nx.bs; }
+      if (!nx) { if (why) why.from = cur; break; } st.push(nx); cur = nx.to; s0 = nx.s; fb = nx.bs; }
     return { id, t0: +t0 || 0, st, why, last: cur }; };
   const chPostS = r => { const i = HIDX[r.h], n = r.n, m = r.m, c = cellOf(n, m, i, r.lv); r.ch = []; r.chn = 0; if (!c) return;
     const kd = chKd(r, r.got.filter(x => x[1] in r.at && x[2]).map(x => [x[2], r.at[x[1]]]));
@@ -1204,8 +1204,24 @@
       if (y.k === 'n') { const t = `${iname(y.to)} N${y.n}${y.p ? '+' : ''}`; if (!nN.includes(t)) nN.push(t); }
       else if (y.k === 'e') eN.push(`${iname(w.last)} needs +${y.lv}`); });
     return nN.length ? `<p class="small pl-otw">Next steps are on other N: ${esc(nN.join(', '))}.${eN.length ? ' ' + esc(eN.join('. ')) + '.' : ''}</p>` : ''; };
+  /* ---- CHAINFIX (patch_page_chainfix 2026-09-26, user: "Bonus on this run lists Broken Emerald N3 and Secret Helm N7 that I can't
+     do"). First Legacy: the chained upgrades of the run's new items go UNDER their goal line ('You get', one sub-line per step: A → B · kill
+     <boss> (route step)); the steps you cannot do on this run are ONE greyed 'Next' line (the step closest to this N), never in 'Also' */
+  const chYg = o => { const L = o.L.filter(w => w.st.length); if (!L.length) return '';
+    return `<div class="pl-chg">${L.map(w => { const pl = Math.max(0, ...w.st.map(y => y.s)) - o.stop;
+      return w.st.map((y, j) => { const bag = !j && !o.bag.includes(w.id) ? chBag(w.id, o.bag, o.h, o.gk) : '', swap = /^swap/.test(bag) ? ' · ' + bag : '';
+        return `<div class="pl-yc" data-id="${esc(w.id)}" data-f="${esc(y.from)}" data-t="${esc(y.to)}">${ilink(y.from)} → ${ilink(y.to)} <span class="small">· kill ${andJ(y.bs.map(b => K.ulink(b, bname(b))))}<span class="pl-ys"></span>${esc(swap)}${j === w.st.length - 1 && pl > 0 ? ` (play on ${pl} step${pl > 1 ? 's' : ''})` : ''}</span></div>`; }).join(''); }).join('')}</div>`; };
+  const chNx = (w, n) => { const y = w.why; if (!y || !y.to || !y.from) return null; const hd = `${ilink(y.from)} → ${ilink(y.to)}`;
+    if (y.k === 'n') return { s: Math.abs((y.n || n) - n) - (y.n > n ? 0.5 : 0), h: `${hd} needs ${y.bs && y.bs.length ? andJ(y.bs.map(b => K.ulink(b, bname(b)))) + ' on ' : ''}N${y.n || n}${y.p ? '+' : ''}${y.m ? ' ' + MN[y.m] : ''}` };
+    if (y.k === 'e') return { s: 20, h: `${hd} needs ${esc(iname(y.from))} at +${y.lv}` };
+    if (y.k === 'p') return { s: 30, h: `${hd} needs a Points ticket` };
+    if (y.k === 'k') return { s: 40, h: `${hd} · farm: ${esc(y.text || '')}` };
+    if (y.k === 'h') return { s: 50, h: `${hd} needs another hero` };
+    return null; };
+  const chNext = (o, c) => { const b = o.L.map(w => chNx(w, +c.n)).filter(Boolean).sort((a, z) => a.s - z.s)[0];
+    return b ? `<div class="small pl-nx"><b>Next</b> ${b.h}</div>` : ''; };
   const chHtml = c => { const o = chOf(c); if (!o) return '';
-    if (!o.lg) { const L = o.L.filter(w => w.st.length); return L.length ? `<div class="small pl-otw"><b>Don't leave yet</b><ul class="pl-ul">${L.map(w => chLi(w, o)).join('')}</ul></div>` : chHint(o.L); }
+    if (!o.lg) return chYg(o) + chNext(o, c);   // CHAINFIX
     return o.L.length ? `<div class="small pl-otw"><b>Free pickups</b><ul class="pl-ul">${o.L.map(w => chLi(w, o)).join('')}</ul><span class="small">-save keeps only the Bag and storage: move new Legacy there first.</span></div>` : ''; };
   const chCard = c => { const o = chOf(c); if (!o) return '';
     if (!o.lg) { const t = o.L.flatMap(w => w.st.map(y => iname(y.to))); return t.length ? `<div class="pl-cf">+ then ${esc(t.join(', '))}</div>` : ''; }
@@ -1536,6 +1552,19 @@
       ns.forEach(n => { const v = n.nodeValue.replace(re, to); if (v !== n.nodeValue) n.nodeValue = v; }); },
     q: (more, lab) => more ? `<details class="pl-q"><summary title="more">${lab || '?'}</summary><div>${more}</div></details>` : '',
     head: li => { const b = li.querySelector(':scope > b'); return b ? DCL.txt(b) : ''; } };
+  /* CHAINFIX: boss / hero / zone names in text -> wiki links (longest name first, whole words, never inside a link or a summary) */
+  const DCL_LK = { re: null, map: null };
+  DCL.lk = root => { if (!root) return;
+    if (!DCL_LK.re) { const mp = new Map(), put = (nm, h) => { nm = String(nm || '').trim(); if (nm.length >= 4 && !mp.has(nm)) mp.set(nm, h); };
+      Object.entries(W.boss || {}).forEach(([id, b]) => { if (b && b.name) put(b.name, K.ulink(id, b.name)); });
+      (W.zones || []).forEach(z => { if (z && z.id && z.name) put(z.name, K.zlink(z.id)); });
+      PD.heroes.forEach(h => { const nm = (HERO[h] || {}).name; if (nm) put(nm, `<a href="#hero/${encodeURIComponent(h)}">${esc(nm)}</a>`); });
+      const ks = [...mp.keys()].sort((a, b) => b.length - a.length);
+      DCL_LK.map = mp; DCL_LK.re = new RegExp('(?<![A-Za-z])(' + ks.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(?![A-Za-z])', 'g'); }
+    const w = document.createTreeWalker(root, 4), ns = []; while (w.nextNode()) ns.push(w.currentNode);
+    ns.forEach(nd => { if (nd.parentElement && nd.parentElement.closest('a, summary')) return; const v = nd.nodeValue, re = DCL_LK.re; re.lastIndex = 0;
+      let m, last = 0, h = ''; while ((m = re.exec(v))) { h += esc(v.slice(last, m.index)) + DCL_LK.map.get(m[0]); last = m.index + m[0].length; }
+      if (!last) return; h += esc(v.slice(last)); const t = document.createElement('template'); t.innerHTML = h; nd.parentNode.replaceChild(t.content, nd); }); };
   /* one tag at most: warnings first; 'needs: A bit more' (every run's floor) and 'Jarvan V farm' (every Points run) say nothing */
   const dclTags = tags => { const pr = t0 => { const t = String(t0).replace(/ (?:title|data-tip)="[^"]*"/g, ''); return /needs: A bit more/.test(t) || /Jarvan V farm/i.test(t) ? -1 : /rare drops|needs: /.test(t) ? 0 : /tight/i.test(t) ? 1
       : /Beginner-friendly/i.test(t) ? 2 : /no quest steps/i.test(t) ? 3 : /Full clear OK/i.test(t) ? 4 : 5; };
@@ -1607,10 +1636,12 @@
     const box = DCL.box(dclRoute(html)), f = box.querySelector('.pl-focus'); if (!f || f.classList.contains('pl-dcf')) return html;
     f.classList.add('pl-dcf'); const T = DCL.txt, one = s => f.querySelector(':scope > ' + s);
     const fw = one('.pl-fw'), fh = one('.pl-fh'), gsw = one('.pl-gsw'), bag = one('.pl-bag'), ol = one('ol.pl-steps'), rt = one('h4.pl-rt');
-    const pre = [], bon = [], after = [], top = {}; let aw = '', fin = '', goalUl = null;
+    const pre = [], bon = [], after = [], top = {}, chg = []; let aw = '', fin = '', goalUl = null, nxE = null;   // CHAINFIX: chg / nxE
     const s = ol ? +ol.dataset.souls || 0 : 0, sr = s >= 1000 ? Math.round(s / 100) * 100 : s >= 100 ? Math.round(s / 50) * 50 : Math.max(10, Math.round(s / 10) * 10);
     [...f.children].forEach(e => { const t = T(e); let m;
       if (e === fw || e === fh || e === gsw || e === bag || e === ol || e === rt || e.matches('.pl-fbar, .pl-bk2')) return;
+      if (e.matches('div.pl-chg')) { [...e.children].forEach(x => chg.push(x)); e.remove(); return; }   // CHAINFIX
+      if (e.matches('div.pl-nx')) { nxE = e; e.remove(); return; }
       if (e.matches('.pl-dcb')) { [...e.children].forEach(x => bon.push(x.innerHTML)); e.remove(); return; }
       if (e.matches('div.pl-otw')) { const items = [...e.querySelectorAll(':scope > ul > li')];
         items.forEach(li => { DCL.tn(li, / · Bag it before the kill$/, ''); DCL.tn(li, /, step \d+(?= · |$)/, ''); DCL.tn(li, / · avg [\d.]+/, ''); DCL.tn(li, / · keep it in the Legacy Bag all run/, ' (keep it in the Bag)');
@@ -1626,8 +1657,8 @@
       if (e.matches('p') && /^Gear: /.test(t)) { e.remove(); return; }   // the gear switch shows it
       if (/^No quest steps needed/.test(t) && fw) { fw.querySelectorAll('.tag').forEach(x => { if (/no quest steps/i.test(T(x))) x.remove(); }); return; }
       if (/^\+\d+ Points for Map Level \d+ or lower\.$/.test(t) && fw && /low Map Level bonus/.test(T(fw))) { const tg = fw.querySelector('.tag'), d = DCL.box(DCL.q(esc(t))).firstChild; if (tg) fw.insertBefore(d, tg); else fw.appendChild(d); e.remove(); return; }
-      if (/^\+ side: /.test(t)) { const x = t.replace(/^\+ side:\s*/, '').replace(/^farm Jarvan V after the quest: /, 'Jarvan V after the quest, ');
-        const mm = /^(.*?) \((back 10 s[^)]*)\)(.*)$/.exec(x); bon.push('<b>Side farm</b> ' + (mm ? esc(mm[1]) + DCL.q(esc(mm[2])) + esc(mm[3]) : esc(x))); e.remove(); return; }
+      if (/^\+ side: /.test(t)) { const x = e.innerHTML.replace(/^\s*\+ side:\s*/, '').replace(/^farm Jarvan V after the quest: /, 'Jarvan V after the quest, ');   // CHAINFIX: html kept
+        const mm = /^([\s\S]*?) \((back 10 s[^)]*)\)([\s\S]*)$/.exec(x); bon.push('<b>Side farm</b> ' + (mm ? mm[1] + DCL.q(mm[2]) + mm[3] : x)); e.remove(); return; }
       if (/^Also works with: /.test(t)) { aw = e.innerHTML; e.remove(); return; }
       if (/^Finish the run \(stage boss/.test(t)) { top.fin = e.innerHTML; e.remove(); return; }
       if (/^Jarvan V: \d+ Points per kill/.test(t)) { top.jv = t; top.jvH = e.innerHTML; e.remove(); return; }
@@ -1649,15 +1680,22 @@
     b0.push(...pre.filter(x => !/^<b>Skills/.test(x)));
     const bys = b0.length ? `<div class="pl-bys"><b class="pl-bt">Before you start</b><ul class="pl-ul">${b0.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
     const awH = aw ? `<div class="pl-aw">${aw}</div>` : '';
-    const bonH = bon.length ? `<div class="pl-bon"><b class="pl-bt">Bonus on this run</b>${DCL.q('Extras you can grab on the way. Only Legacy items in the Legacy Bag evolve. The route says when.')}<ul class="pl-ul">${bon.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>`
+    const bonH = bon.length ? `<div class="pl-bon pl-also"><b class="pl-bt">Also</b>${DCL.q('Extras you can grab on the way. Only Legacy items in the Legacy Bag evolve. The route says when.')}<ul class="pl-ul">${bon.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>`
       + (bon.length > 3 ? `<details class="pl-more"><summary>show all (${bon.length})</summary><ul class="pl-ul">${bon.slice(3).map(x => `<li>${x}</li>`).join('')}</ul></details>` : '') + `</div>` : '';
-    if (goalUl) { goalUl.classList.add('pl-goal'); goalUl.insertAdjacentHTML('beforebegin', '<div class="pl-gl"><b class="pl-bt">Your goal</b></div>'); }
+    if (goalUl) { goalUl.classList.add('pl-goal', 'pl-yg'); goalUl.insertAdjacentHTML('beforebegin', '<div class="pl-gl"><b class="pl-bt">You get</b></div>');   // CHAINFIX: chains under their goal line
+      chg.forEach(x => { const li = [...goalUl.children].find(l => l.querySelector(`a[href="#item/${encodeURIComponent(x.dataset.id)}"]`)); if (li) li.appendChild(x); else { const nl = document.createElement('li'); nl.appendChild(x); goalUl.appendChild(nl); } }); }
     if (rt) { const sm = rt.querySelector('.small'); if (sm) sm.textContent = sm.textContent.replace(/ quest steps?$/, ' steps'); }
     const ins = (h, before) => { if (!h) return; const t = document.createElement('template'); t.innerHTML = h; f.insertBefore(t.content, before || null); };
     const after0 = fw || fh;
     ins(awH + bys, after0 ? after0.nextSibling : f.firstChild);
-    const rest = bonH + after.join('');
+    const rest = (nxE ? nxE.outerHTML : '') + bonH + after.join('');   // CHAINFIX: the Next line right under 'You get'
     if (goalUl) ins(rest, goalUl.nextSibling); else ins(rest, rt || ol || one('.pl-bk2'));
+    /* CHAINFIX: each chain sub-line gets the route's own step number of its 'Then' line; names -> links */
+    const rol = f.querySelector('ol.pl-steps');
+    f.querySelectorAll('.pl-yc').forEach(d => { const k = iname(d.dataset.f) + ' → ' + iname(d.dataset.t), sp = d.querySelector('.pl-ys'); if (!rol || !sp) return;
+      const hit = [...rol.querySelectorAll('li, .pl-fdl')].reverse().find(x => T(x).includes(k)), nb = hit ? (hit.closest('[data-n]') || { dataset: {} }).dataset.n : null;
+      if (nb) sp.textContent = ` (step ${nb})`; });
+    f.querySelectorAll('.pl-yg, .pl-nx, .pl-also').forEach(DCL.lk);
     return box.innerHTML; };
   const focusHtml = (c, k, tot, body) => dclCard(focusHtml0(c, k, tot, body));
   const focusHtml0 = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
