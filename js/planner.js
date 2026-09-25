@@ -1226,8 +1226,8 @@
      TIGHT: a boss fight is won only if the hero lives 1.3 x the kill time; 'tight' = won with less than 1.6 x. PD.rt[N|m][hero] = the
      required bosses each replay won tight (10 account steps ',' x 5 gear levels '.', base-36 codes into PD.rtb); PD.bt[beat row] = per
      hero '1' where that row's passing fight is tight at the row's own account step */
-  const TG_TXT = 'tight: survive only 30-60% longer than the kill takes - Safer / A bit more helps';
-  const TG_TAG = `<span class="tag warn" title="${esc(TG_TXT)}">tight</span>`;
+  const TG_TXT = 'Boss fights are won with little room (you live only 30-60% longer than the kill takes). A bit more gear helps.';
+  const TG_TAG = `<span class="tag warn pl-tip" title="${esc(TG_TXT)}" data-tip="${esc(TG_TXT)}" tabindex="0">tight</span>`;
   const RTC = new Map(), RQB = new Set((PD.rqb || []).map(x => x[0]));
   const rtOf = (h, n, m, k, L) => { const T = (PD.rt || {})[n + '|' + m]; if (!T || !PD.rtb || k == null || k < 0 || L == null || L < 0 || (G.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
     const key = n + m + '|' + h + '|' + k + '|' + L; if (RTC.has(key)) return RTC.get(key);
@@ -1387,24 +1387,34 @@
     const ok = runs.filter(r => t(r) <= mx); if (ok.length || !runs.length) return { runs: ok, note: '' };
     return { runs: runs.slice().sort((a, b) => t(a) - t(b)), note: `No run fits in ${f.len} h: the shortest ones instead.` }; };
   const hName = h => (HERO[h] || {}).name || h, stOf = h => String((HERO[h] || {}).main_stat || '').toLowerCase();
-  const tagH = (t, c) => `<span class="tag${c ? ' ' + c : ''}">${esc(t)}</span>`;
+  const tagH = (t, c, tip) => `<span class="tag${c ? ' ' + c : ''}${tip ? ' pl-tip' : ''}"${tip ? ` title="${esc(tip)}" data-tip="${esc(tip)}" tabindex="0"` : ''}>${esc(t)}</span>`;
+  /* PLANNER TAGS (2026-09-26): plain names + one-line tips (tap on phones, hover on desktop); TAGS_KEY = the folded key under the filters */
+  const finTag = n => tagH('Full clear OK', 'ok', `Beats the N${n} final boss (step ${20 + n}) if you keep playing after your goal.`);
+  const newTag = () => tagH('Beginner-friendly', 'ok', 'Also finishes when played slowly by a new player.');
+  const f10H = (v, reach) => { const x = f10(v); return `<span class="pl-cf pl-tip" title="Replayed 10 times with random drops: ${x} ${reach ? 'got there' : 'finished'}." data-tip="Replayed 10 times with random drops: ${x} ${reach ? 'got there' : 'finished'}." tabindex="0">${x}/10 test runs ${reach ? 'reached it' : 'finished'}</span>`; };
+  const TAGS_KEY = () => `<details class="pl-d pl-tagkey small"><summary>What the tags mean</summary><ul class="pl-ul">`
+    + [['X/10 test runs finished', 'the run was replayed 10 times with random drops, X of them finished'], ['Full clear OK', 'beats the final boss of that N if you keep playing after your goal'],
+       ['Beginner-friendly', 'also finishes when played slowly by a new player'], ['tight', 'boss fights are won with little room: a bit more gear helps'],
+       ['needs: ...', 'the gear level this run needs'], ['needs rare drops', 'only works if you farm rare drops'], ['untested', 'upgrades the replays could not confirm'],
+       ['no quest steps', 'the goal needs no main quest steps'], ['spends Points', 'the run buys something with Points']]
+      .map(([a, b]) => `<li><b>${esc(a)}</b> <span class="small">· ${esc(b)}</span></li>`).join('') + `</ul></details>`;
   const f10 = v => Math.max(0, Math.min(10, Math.round(v * 10)));
   const namesH = ids => { const nm = ids.map(iname); return esc(nm.slice(0, 2).join(', ')) + (nm.length > 2 ? ` <span class="small">+${nm.length - 2} more</span>` : ''); };
   const gearP = L => L >= 0 ? `<p class="small">Gear: ${esc(gearTxt(L))}.</p>` : '';
   const stLi = x => `<li>${ilink(x[1])} <span class="small">· ${esc(x[7])}</span></li>`;
   /* ---- Legacy goal cards (legacyRuns: every run (N x mode x hero) that upgrades the most of your items, chained steps included) */
   const lgCard = r => { const i = HIDX[r.h], all = r.got.concat(r.ugot || []), full = r.stop >= 20 + r.n, tags = [];
-    if ((r.ugot || []).length) tags.push(tagH(r.ugot.length + ' untested', 'warn'));
-    if (!(r.stop > 0)) tags.push(tagH('no quest steps', 'acc')); else if (r.fin && !full) tags.push(tagH('can finish', 'ok'));
-    if (nbSpend(r)) tags.push(tagH('spends Points', ''));
+    if ((r.ugot || []).length) tags.push(tagH(r.ugot.length + ' untested', 'warn', 'Upgrades the replays could not confirm.'));
+    if (!(r.stop > 0)) tags.push(tagH('no quest steps', 'acc', 'This goal needs no main quest steps.')); else if (r.fin && !full) tags.push(finTag(r.n));
+    if (nbSpend(r)) tags.push(tagH('spends Points', '', 'The run buys something with Points.'));
     if (tgCard(r.h, r.n, r.m, r.lv, r.L, r.stop, r.got.filter(g => !g.nb).flatMap(g => g.a[0]))) tags.push(TG_TAG);   // TIGHT
-    if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(tagH('safe for new players', 'ok'));   // LAB WIRE: same gear level
+    if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(newTag());   // LAB WIRE: same gear level
     return { key: 'legacy|' + r.h + '|' + r.n + '|' + r.m + '|' + all.map(g => g.u.to).sort().join(','), r, h: r.h, n: r.n, m: r.m, mins: r.mins, tags,
       ids: all.map(g => g.u.to), unit: 'upgrade', fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
   const lgFocus = c => { const r = c.r, full = r.stop >= 20 + r.n, fw = !full && r.stop > 0 ? fcAt(r.n, r.m, HIDX[r.h], r.lv, r.L) : null;
     return `<ul class="pl-ul">${r.got.concat(r.ugot || []).map(g => upLine(g, r)).join('')}</ul>`
       + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
-      + (r.stop > 0 || pqRoute0(r) ? `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after your last upgrade boss. The whole run is borderline for your account.' : 'Stop after your last upgrade boss: not expected to finish this run.'}${fw != null ? ` The whole run finishes ${f10(fw)} in 10.` : ''}</p>`
+      + (r.stop > 0 || pqRoute0(r) ? `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after your last upgrade boss. The whole run is borderline for your account.' : 'Stop after your last upgrade boss: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
           + sideTxt(r) + nbSpend(r) + gearP(r.L) + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, bagNeeds(r, rtNeeds(r)).concat(chNeeds(c)), false, r.L)
         : `<p class="small">No quest steps needed: start a game on N${r.n} ${MN[r.m]} and do ${r.got.length + (r.ugot || []).length > 1 ? 'them' : 'it'} right away${stop0At(r)}.</p>` + nbSpend(r)); };   // AUDIT minor 16
   function legacyList() {
@@ -1418,14 +1428,14 @@
   /* ---- First Legacy items (user 2026-09-25): the run that STARTS the most Legacy lines you do not have yet (PD.starts = how each line
      starts: free ticket, drop, craft, Points buy), the Points buys you can afford, and the long farms */
   const stCard = r => { const i = HIDX[r.h], full = r.stop >= 20 + r.n, tags = [];
-    if (r.fin && !full) tags.push(tagH('can finish', 'ok'));
+    if (r.fin && !full) tags.push(finTag(r.n));
     if (tgCard(r.h, r.n, r.m, r.lv, r.L, r.stop, r.got.map(x => x[2]).filter(Boolean))) tags.push(TG_TAG);   // TIGHT
-    if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(tagH('safe for new players', 'ok'));   // LAB WIRE: same gear level
+    if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(newTag());   // LAB WIRE: same gear level
     return { key: 'start|' + r.h + '|' + r.n + '|' + r.m + '|' + r.got.map(x => x[1]).sort().join(','), r, h: r.h, n: r.n, m: r.m, mins: r.mins, tags,
       ids: r.got.map(x => x[1]), unit: 'Legacy line', fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
   const stFocus = c => { const r = c.r, full = r.stop >= 20 + r.n, fw = !full ? fcAt(r.n, r.m, HIDX[r.h], r.lv, r.L) : null;
     return `<ul class="pl-ul">${r.got.map(stLi).join('')}</ul>` + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
-      + `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after the last boss you need. The whole run is borderline for your account.' : 'Stop after the last boss you need: not expected to finish this run.'}${fw != null ? ` The whole run finishes ${f10(fw)} in 10.` : ''}</p>`
+      + `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after the last boss you need. The whole run is borderline for your account.' : 'Stop after the last boss you need: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
       + sideTxt(r) + gearP(r.L)
       + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, r.got.filter(x => x[1] in r.at).map(x => ({ id: x[2], label: 'Get ' + iname(x[1]), st: r.at[x[1]] })).concat(chNeeds(c), otNeeds(c)), false, r.L); };   // ON THE WAY
   function startList() {
@@ -1467,9 +1477,9 @@
      is 5 or lower */
   const lowPts = n => ((S.ml || 1) < 5 ? (n === 9 ? 15 : 10) : 0) + ((S.ml || 1) <= 5 ? 2 * n : 0);
   const ptCard = r => { const b = r.best, i = HIDX[b.h], tags = [];
-    if (b.jv) tags.push(tagH('Jarvan V farm', 'acc'));
+    if (b.jv) tags.push(tagH('Jarvan V farm', 'acc', 'Farm Jarvan V after the main quest for Points.'));
     if (tgCard(b.h, r.n, r.m, b.k, b.L, 20 + r.n, [])) tags.push(TG_TAG);   // TIGHT
-    if (paceOk(r.n, r.m, i, b.k, b.L)) tags.push(tagH('safe for new players', 'ok'));   // LAB WIRE: same gear level, whole run
+    if (paceOk(r.n, r.m, i, b.k, b.L)) tags.push(newTag());   // LAB WIRE: same gear level, whole run
     return { key: 'points|' + b.h + '|' + r.n + '|' + r.m, r, h: b.h, n: r.n, m: r.m, mins: b.mins, tags, fc: fcAt(r.n, r.m, i, b.k, b.L),
       what: `<b>${fmt(r.pay)}</b> Point${r.pay === 1 ? '' : 's'} stage boss${r.low ? ` <span class="small">+${fmt(r.low)} low Map Level bonus</span>` : ''}` }; };
   const ptFocus = c => { const r = c.r, b = r.best, jvMost = b.jv && b.mins < SESS && b.jv * (SESS - b.mins) / 60 > b.sess / 2;   // the Jarvan V farm is over half of the ranked Points: say why a short run wins
@@ -1510,7 +1520,7 @@
       + `<div class="pl-ch"><span class="pl-rk">${k + 1}</span>${K.icon(c.h)}<span class="pl-hn">${esc(hName(c.h))}</span>${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}</div>`
       + `<div class="pl-cr"><b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span>${lenW(c.mins)} run</span>` : ''}</div>`
       + `<div class="pl-cg">${c.what}</div>` + otwCard(c) + chCard(c)   // ON THE WAY
-      + (c.fc != null ? `<div class="pl-cf">finishes ${f10(c.fc)} in 10</div>` : c.fr != null ? `<div class="pl-cf">reaches it ${f10(c.fr)} in 10</div>` : '')
+      + (c.fc != null ? `<div>${f10H(c.fc)}</div>` : c.fr != null ? `<div>${f10H(c.fr, 1)}</div>` : '')
       + (dclTags(c.tags).length ? `<div class="pl-ct">${dclTags(c.tags).join('')}</div>` : '') + `</div>`; };
   /* ---- DECLUTTER (patch_page_declutter 2026-09-25, user: "make the planner clearer, more compact and simpler"). The open run card is
      rebuilt from the SAME html the planner wrote (nothing is recomputed here and no fact is dropped: long text moves behind a small '?'
@@ -1527,8 +1537,8 @@
     q: (more, lab) => more ? `<details class="pl-q"><summary title="more">${lab || '?'}</summary><div>${more}</div></details>` : '',
     head: li => { const b = li.querySelector(':scope > b'); return b ? DCL.txt(b) : ''; } };
   /* one tag at most: warnings first; 'needs: A bit more' (every run's floor) and 'Jarvan V farm' (every Points run) say nothing */
-  const dclTags = tags => { const pr = t => /needs: A bit more/.test(t) || /Jarvan V farm/i.test(t) ? -1 : /rare drops|needs: /.test(t) ? 0 : /tight/i.test(t) ? 1
-      : /safe for new/i.test(t) ? 2 : /no quest steps/i.test(t) ? 3 : /can finish/i.test(t) ? 4 : 5;
+  const dclTags = tags => { const pr = t0 => { const t = String(t0).replace(/ (?:title|data-tip)="[^"]*"/g, ''); return /needs: A bit more/.test(t) || /Jarvan V farm/i.test(t) ? -1 : /rare drops|needs: /.test(t) ? 0 : /tight/i.test(t) ? 1
+      : /Beginner-friendly/i.test(t) ? 2 : /no quest steps/i.test(t) ? 3 : /Full clear OK/i.test(t) ? 4 : 5; };
     return (tags || []).filter(t => pr(t) >= 0).sort((a, b) => pr(a) - pr(b)).slice(0, 1); };
   const dclRoute = html => { if (!DCL_ON || !html || html.indexOf('pl-steps') < 0 || /class="pl-steps pl-dc/.test(html)) return html;
     const box = DCL.box(html), ol = box.querySelector('ol.pl-steps'); if (!ol) return html;
@@ -1612,7 +1622,7 @@
       if (e.matches('p.pl-otw') && /^Next steps are on other N:/.test(t)) { bon.push('<b>Next</b> on other N: ' + esc(t.replace(/^Next steps are on other N:\s*/, ''))); e.remove(); return; }
       if (e.matches('ul.pl-ul')) { goalUl = e; e.querySelectorAll(':scope > li').forEach(li => { DCL.tn(li, /, keep it in your Legacy Bag all run/, '');
           li.querySelectorAll(':scope > span.small').forEach(x => { const mm = /^([\s\S]*?) · (farm to [\s\S]*)$/.exec(x.innerHTML); if (mm) x.innerHTML = mm[1] + ' ' + DCL.q(mm[2], 'farm'); }); }); return; }
-      if ((m = /^Can also finish the whole run\.(?: The whole run finishes (\d+) in 10\.)?$/.exec(t))) { fin = m[1] ? `full run: finishes ${m[1]} in 10` : 'can finish the full run'; e.remove(); return; }
+      if ((m = /^Can also finish the whole run\.(?: The whole run: (\d+)\/10 test runs finished\.)?$/.exec(t))) { fin = m[1] ? `full run: ${m[1]}/10 test runs finished` : 'Full clear OK'; e.remove(); return; }
       if (e.matches('p') && /^Gear: /.test(t)) { e.remove(); return; }   // the gear switch shows it
       if (/^No quest steps needed/.test(t) && fw) { fw.querySelectorAll('.tag').forEach(x => { if (/no quest steps/i.test(T(x))) x.remove(); }); return; }
       if (/^\+\d+ Points for Map Level \d+ or lower\.$/.test(t) && fw && /low Map Level bonus/.test(T(fw))) { const tg = fw.querySelector('.tag'), d = DCL.box(DCL.q(esc(t))).firstChild; if (tg) fw.insertBefore(d, tg); else fw.appendChild(d); e.remove(); return; }
@@ -1624,8 +1634,8 @@
       if (/^Skill priority/.test(t)) { pre.unshift(e.innerHTML.replace(/<b>Skill priority<\/b>\s*·\s*/, '<b>Skills</b> ')); e.remove(); return; }
     });
     /* header: what you get + the finish line + one tag */
-    if (fw && fin) fw.querySelectorAll('.tag').forEach(x => { if (/can finish/i.test(T(x))) x.remove(); });
-    if (fw && fin && !/finishes \d+ in 10/.test(T(fw))) { const tg = fw.querySelector('.tag'), sp = document.createElement('span'); sp.className = 'pl-cf'; sp.textContent = ' · ' + fin; if (tg) fw.insertBefore(sp, tg); else fw.appendChild(sp); }
+    if (fw && fin) fw.querySelectorAll('.tag').forEach(x => { if (/Full clear OK/i.test(T(x))) x.remove(); });
+    if (fw && fin && !/\d+\/10 test runs finished/.test(T(fw))) { const tg = fw.querySelector('.tag'), sp = document.createElement('span'); sp.className = 'pl-cf'; sp.textContent = ' · ' + fin; if (tg) fw.insertBefore(sp, tg); else fw.appendChild(sp); }
     /* Before you start: 3-5 lines */
     const b0 = [];
     if (gsw) { const h = gsw.querySelector('.pl-ghint'), ht = h ? h.innerHTML : ''; if (h) h.remove(); const fl = gsw.querySelector('.pl-fl'); if (fl) fl.remove();
@@ -1653,7 +1663,7 @@
   const focusHtml0 = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
     return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs' : `Run ${k + 1} of ${tot}`}</span></div>` + (FO ? gearSw() : '')   // GEAR LEVEL IN THE CARD
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
-      + `<div class="pl-fw">${c.what}${c.fc != null ? ` · <span class="pl-cf">finishes ${f10(c.fc)} in 10</span>` : c.fr != null ? ` · <span class="pl-cf">reaches it ${f10(c.fr)} in 10</span>` : ''}${dclTags(c.tags).length ? ' ' + dclTags(c.tags).join('') : ''}</div>`
+      + `<div class="pl-fw">${c.what}${c.fc != null ? ` · ${f10H(c.fc)}` : c.fr != null ? ` · ${f10H(c.fr, 1)}` : ''}${dclTags(c.tags).length ? ' ' + dclTags(c.tags).join('') : ''}</div>`
       + bagHtml(c) + chHtml(c) + otwHtml(c) + body + `<button type="button" class="pl-bk pl-bk2">← Back to all runs</button></div>`; };
   const filtHtml = () => { const f = CF(), hs = PD.heroes.filter(unlocked).map(h => hName(h)).sort((a, b) => a.localeCompare(b));
     return `<div class="pl-fb">`
@@ -1684,7 +1694,7 @@
   const cardCmp = (goal, byLen) => byLen ? (a, b) => a.mins - b.mins : goal === 'points' ? (a, b) => b.r.best.sess - a.r.best.sess
     : (a, b) => rkV(b.r) - rkV(a.r) || a.r.mins - b.r.mins || a.n - b.n || EASE2[a.m] - EASE2[b.m] || (b.r.sc || 0) - (a.r.sc || 0);
   const needRk = c => c.rf ? 9 : c.gl;
-  const needTag = c => c.rf ? tagH('needs rare drops', 'warn') : tagH('needs: ' + GLN[c.gl], c.gl >= 2 ? 'warn' : '');
+  const needTag = c => c.rf ? tagH('needs rare drops', 'warn', 'Only works if you farm rare drops.') : tagH('needs: ' + GLN[c.gl], c.gl >= 2 ? 'warn' : '', 'Gear level this run needs: ' + GLN[c.gl] + '.');
   function mergedList(goal) {
     const base = listAt(goal, GL_MIN, false, false); if (base.msg) return base;
     const hasR = (R, h, n, m) => !!(R && !R.msg && R.has && R.has(h, n, m)), Rs = { [GL_MIN]: base };
@@ -1735,7 +1745,7 @@
     const lost = !!(FO && FO.g === goal); FO = null;
     if (lost) R.note = (R.note ? R.note + ' ' : '') + 'The run you had open is not on the list any more.';
     const f = CF(), filt = f.h || f.ns.length || f.m || f.len;
-    return filtHtml() + (R.note ? `<p class="small pl-note">${esc(R.note)}</p>` : '')
+    return filtHtml() + TAGS_KEY() + (R.note ? `<p class="small pl-note">${esc(R.note)}</p>` : '')
       + (R.cards.length ? `<div class="pl-cards">${R.cards.map((c, k) => withG({ gl: c.gl, rf: c.rf }, () => cardHtml(c, k))).join('')}</div>`
         : `<p class="small">${R.none ? esc(R.none) : filt ? 'No run matches these filters.' : 'No run found.'}</p>`)
       + (R.extra || '');
@@ -1820,6 +1830,10 @@
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && FO && document.body.dataset.page === 'planner' && document.querySelector('.pl-focus')) plBack(); });
   K.hooks.push((page, out) => {
     if (page !== 'planner') return;
+    if (!out._plTip) { out._plTip = 1;   /* PLANNER TAGS: a tap on a tag shows its tip under the line (phones have no hover), the card stays shut */
+      out.addEventListener('click', e => { const t = e.target.closest && e.target.closest('.pl-tip'); if (!t || document.body.dataset.page !== 'planner') return; e.preventDefault(); e.stopPropagation();
+        const nx = t.nextElementSibling; if (nx && nx.classList.contains('pl-tipx')) { nx.remove(); return; }
+        const d = document.createElement('span'); d.className = 'small pl-tipx'; d.style.display = 'block'; d.textContent = t.dataset.tip || t.title || ''; t.after(d); }, true); }
     const fi = out.querySelector('#pl-save');
     if (fi) fi.addEventListener('change', e => { const fs = [...e.target.files]; if (!fs.length) return;
       Promise.all(fs.map(f => f.text().then(text => ({ name: f.name, text })))).then(files => { const r = readSave(files);

@@ -39,16 +39,16 @@
     const need = top ? 0 : (T.find(t => t.tier === goal) || T[T.length - 1]).total - (cur ? (T.find(t => t.tier === cur) || { total: 0 }).total : 0);
     const runs = t => t > 0 ? Math.ceil(need / t) : 0;
     const ins = fld('Difficulty', sel('c-n', R.map(r => [r.n, r.label]), row.n)) + fld('Mode', sel('c-mode', MODES, mode))
-      + fld('Game length (hours, AFK Points)', `<input type="number" id="c-hours" min="0" max="24" step="0.25" value="${esc(S.hours || 0)}">`)
-      + fld('Flow of Wealth book level', sel('c-fow', [0, 1, 2, 3, 4, 5].map(x => [x, x ? 'Level ' + x : 'none']), S.fow || 0))
+      + fld('Hours in game (for AFK Points)', `<input type="number" id="c-hours" min="0" max="24" step="0.25" value="${esc(S.hours || 0)}">`)
+      + fld('Flow of Wealth level', sel('c-fow', [0, 1, 2, 3, 4, 5].map(x => [x, x ? 'Level ' + x : 'none']), S.fow || 0))
       + fld('Your Map Level', sel('c-ml', [['lo', '1 to 4'], ['5', '5'], ['hi', '6 or higher']], S.ml))
       + fld('Other players at Map Level 5 or lower', sel('c-lowers', [0, 1, 2, 3].map(x => [x, x]), S.lowers || 0))
       + (T.length ? fld('Your title', sel('c-tier', [[0, 'none'], ...T.map(t => [t.tier, t.name])], cur)) + (top ? '' : fld('Goal title', sel('c-goal', T.filter(t => t.tier > cur).map(t => [t.tier, t.name]), goal))) : '')
       + `<div class="cl-bx"><span class="small">Killed:</span>${box('c-arch', 'Archangel')}${box('c-frost', 'Frost Lord')}${box('c-shadow', 'Shadow Monster (after the main quest)')}</div>`
       + fld('Jarvan V kills after the main quest', `<input type="number" id="c-jarvan" min="0" max="999" step="1" value="${esc(jk)}">`)
-      + '<p class="small cl-note">Only the stage boss of the difficulty you picked pays.</p>';
+      + '<p class="small cl-note">Only the last main quest boss of your difficulty pays Points, earlier stage bosses pay nothing.</p>';
     const res = `<div class="big">${fmt(total)} <span class="cl-u">Points per run</span></div>
-      <p class="small">Stage boss ${fmt(stage)}${low ? ` · low Map Level +${low}` : ''}${lowers ? ` · lobby bonus +${fmt(lowers)}` : ''}${arch ? ` · Archangel / Frost Lord +${fmt(arch)}` : ''}${jv ? ` · Jarvan V +${fmt(jv)}` : ''}${sh ? ` · Shadow Monster +${sh}` : ''}${afk ? ` · AFK +${fmt(afk)}` : ''}</p>`
+      <p class="small">Final boss ${fmt(stage)}${low ? ` · low Map Level +${low}` : ''}${lowers ? ` · low-level lobby bonus +${fmt(lowers)}` : ''}${arch ? ` · Archangel / Frost Lord +${fmt(arch)}` : ''}${jv ? ` · Jarvan V +${fmt(jv)}` : ''}${sh ? ` · Shadow Monster +${sh}` : ''}${afk ? ` · AFK +${fmt(afk)}` : ''}</p>`
       + (!T.length ? '' : top ? '<p>You already have the top title.</p>'
         : `<div class="big">${fmt(runs(total))} <span class="cl-u">runs to ${esc(tname(goal))}</span></div><p class="small">${fmt(need)} Points from ${esc(tname(cur))} to ${esc(tname(goal))}${T.filter(t => t.tier > cur && t.tier <= goal && GATE[t.name]).map(t => ` · ${esc(t.name)} ${esc(GATE[t.name])}`).join('')}</p>`);
     /* every difficulty at once, same mode and settings (folded): answers "which N pays best for me" without flipping the picker */
@@ -77,9 +77,9 @@
     const tok = (E.find(e => e.token) || {}).token, tokName = tok && tok.name ? tok.name + 's' : 'tokens';
     const opts = [...Array(max + 1).keys()].map(x => [x, '+' + x]);
     const ins = (LEGE.length ? fld('Gear', sel('c-gear', [['normal', 'Normal gear'], ['legacy', 'Legacy gear']], leg ? 'legacy' : 'normal')) : '') + fld('From', sel('c-ea', opts.slice(0, -1), a)) + fld('To', sel('c-eb', opts.filter(o => o[0] > a), b))
-      + `<div class="cl-bx">${box('c-prot', 'Enhancement Protection Stone on every fail that would drop a level')}</div>`
-      + `<p class="small cl-note">Average for one item, base chances from ${link('systems', 'enhancing', 'Game systems · Enhancing')}.</p>`;
-    const res = `<div class="big">${fmt(Math.round(souls))} <span class="cl-u">Boss Souls</span></div><p class="small">About ${fmt(Math.round(tries))} tries${tokens ? ` · ${fmt(Math.round(tokens * 10) / 10)} ${esc(tokName)}` : ''}${prots ? ` · ${fmt(Math.round(prots * 10) / 10)} Protection Stones` : ''}</p>${!leg && DEATH_LV && b > DEATH_LV ? `<p class="small">+${DEATH_LV + 1} and up: Death mode only.</p>` : ''}`;
+      + `<div class="cl-bx">${box('c-prot', 'Use a Protection Stone on every fail that would drop a level')}</div>`
+      + `<p class="small cl-note">Average for one item at base chances (see ${link('systems', 'enhancing', 'Game systems · Enhancing')}).</p>`;
+    const res = `<div class="big">${fmt(Math.round(souls))} <span class="cl-u">Boss Souls</span></div><p class="small">About ${fmt(Math.round(tries))} tries${tokens ? ` · also ${fmt(Math.round(tokens * 10) / 10)} ${esc(tokName)}` : ''}${prots ? ` · ${fmt(Math.round(prots * 10) / 10)} Protection Stones` : ''}</p>${!leg && DEATH_LV && b > DEATH_LV ? `<p class="small">+${DEATH_LV + 1} and up can only be done in Death mode only.</p>` : ''}`;
     return wrap(ins, res);
   }
 

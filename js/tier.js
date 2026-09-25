@@ -34,35 +34,35 @@
     /* Your account (user quiz 2026-09-25): with a Run planner save / account set, heroes you can finish a run at this exact N and mode come first */
     const has = !!(K.plan && K.plan.saved && K.plan.saved()), you = has && f.acct !== 'typ', PDp = you ? K.plan.PD : null, cl = you ? (PDp.clear[n + '|' + { main: 'm', chall: 'c', death: 'd' }[md]] || null) : null;
     const canDo = id => { if (you && K.plan.fin) return K.plan.fin(id, n, { main: 'm', chall: 'c', death: 'd' }[md]); if (!cl) return true; const i = PDp.heroes.indexOf(id); return i >= 0 && cl.lv[i] !== 'x' && +cl.lv[i] <= K.plan.step((byId[id] || {}).main_stat || 'STR'); };
-    cur = { why: ((bis ? T.why_bis : T.why) || {})[key] || {}, cap: (tst ? { early: 'Early (Start Camp to Steel Fortress)', mid: 'Mid (Rebel Camps to the Pirate Ship)', late: 'Late (Blood Elf Village to the end)' }[tst] : 'Whole run: Early 25%, Mid 35%, Late 40%') + (bis ? ', builds with hard farms' : ', builds with easy + medium items') };
+    cur = { why: ((bis ? T.why_bis : T.why) || {})[key] || {}, cap: (tst ? { early: 'Early (Start Camp to Steel Fortress)', mid: 'Mid (Rebel Camps to the Pirate Ship)', late: 'Late (Blood Elf Village to the end)' }[tst] : 'Whole run') + (bis ? ', best in slot, no time limit (up to hard farms)' : ", builds that fit the run's farm time (can use hard farms)") };
     const RC = (((bis ? T.reach_bis : T.reach) || {})[key]) || {};
-    const card = id => { const h = byId[id], lk = lock(h), rc = RC[id], fs = K.plan && K.plan.fast && K.plan.fast(id, n, { main: 'm', chall: 'c', death: 'd' }[md], you);
+    const card = id => { const h = byId[id], lk = lock(h), rc = RC[id], fs = !tst && K.plan && K.plan.fast && K.plan.fast(id, n, { main: 'm', chall: 'c', death: 'd' }[md], you);   /* 'fast' is a whole-run fact: Whole run view only */
       if (lk) tags[/WP$/.test(lk) ? 'WP' : /^ML/.test(lk) ? 'ML' : 'solo'] = 1; if (fs) tags.fast = 1; if (rc) tags.gets = 1;
       return `<a class="tr-c" href="#hero/${encodeURIComponent(id)}" data-id="${esc(id)}" data-s="${esc([h.name, ...(T.tags[id] || []), lk, rc || ''].join(' ').toLowerCase())}">${K.icon(id)}<span class="tr-n">${esc(h.name)}</span>${lk ? `<span class="tr-k">${esc(lk)}</span>` : ''}${fs ? `<span class="tr-k tr-f" title="finishes with light gear, among the quickest runs">fast</span>` : ''}${rc ? `<span class="tr-k tr-x">${esc(rc)}</span>` : ''}</a>`; };
-    const stg = { '': 'whole run', early: 'Early part of the run only', mid: 'Mid part of the run only', late: 'Late part of the run only' }[tst];
+    const stg = { '': 'whole run', early: 'early part', mid: 'mid part', late: 'late part' }[tst];
     const sum = you ? `Heroes that finish <b>${MODEL[md]} N${n}</b> with <b>your account</b> <span class="small">(${esc(K.plan.stepTxt('STR'))})</span>, best first · ${stg}`
-      : `Best heroes to finish <b>${MODEL[md]} ${band(n)}</b> as a <b>normal player</b> · ${stg}`;
+      : `<b>${MODEL[md]} ${band(n)}</b> · ${stg} · normal account`;
     const alt = you ? `<a href="#" class="tr-acct" data-acct="typ">Show for a normal player</a>` : has ? `<a href="#" class="tr-acct" data-acct="">Show for your account</a>`
-      : `<a href="#" class="tr-acct hlbtn" data-acct="need">Show for your account</a><div class="card warn tr-need" hidden><b>Load your save file first.</b> The account view needs your save (Map Level, title, Legacy). <a href="#planner">Go to the Run planner and tap Load save file</a>.</div>`;
+      : `<a href="#" class="tr-acct hlbtn" data-acct="need">Show for your account</a><div class="card warn tr-need" hidden>Needs your save (Map Level, title, Legacy): load it in the <a href="#planner">Run planner</a>.</div>`;
     const nondef = !!(tst || open || bis);
     let tags = { WP: 0, ML: 0, solo: 0, fast: 0, gets: 0, not: 0 };
     const html_ = `<div class="tr-b">` + ['S', 'A', 'B', 'C'].map(t => { const ids = (tiers[t] || []).filter(ok).filter(canDo); return ids.length ? `<div class="tr-row sgroup"><div class="tr-l t-${t}">${t}</div><div class="tr-cs">${ids.map(card).join('')}</div></div>` : ''; }).join('')
       + (you ? (() => { const no = ['S', 'A', 'B', 'C'].flatMap(t => (tiers[t] || []).filter(ok).filter(id => !canDo(id))); if (no.length) tags.not = 1; return no.length ? `<details class="tr-no"><summary class="small">Not yet: ${no.length} heroes your account can't pick yet or doesn't finish this run with</summary><div class="tr-row sgroup"><div class="tr-l t-C">Not yet</div><div class="tr-cs">${no.map(card).join('')}</div></div></details>` : ''; })() : '') + `</div>`;
-    const leg = [tags.WP && 'WP = World Points to unlock', tags.ML && 'ML = Map Level to unlock', tags.solo && 'solo = solo lobby only', tags.fast && 'fast = among the quickest runs with light gear',
+    const leg = [tags.WP && tags.ML ? 'WP / ML = World Points / Map Level to unlock' : tags.WP ? 'WP = World Points to unlock' : tags.ML && 'ML = Map Level to unlock', tags.solo && 'solo = solo lobby', tags.fast && 'fast = quick run on light gear',
                  tags.gets && "gets to X = can't finish, X = the last boss it beats", 0].filter(Boolean);
     return `<h2 class="tr-h">Tier list</h2><p class="tr-sum">${sum}</p><p class="small tr-alt">${alt}</p>`
-      + `<div class="tr-ctl"><input class="tsearch tr-q" placeholder="Find a hero or tag: AoE, true dmg ..."><span class="tsearch-n small"></span><span class="small tr-hint">Hover or tap: numbers. Click or tap again: hero page.</span></div>`
+      + `<div class="tr-ctl"><input class="tsearch tr-q" placeholder="Find a hero or tag: AoE, true dmg ..."><span class="tsearch-n small"></span><span class="small tr-hint">Tap or hover a hero: numbers. Tap again: its page.</span></div>`
       + `<details class="tr-opt"${nondef ? ' open' : ''}><summary>Options</summary><div class="tr-ol">`
       + (T.stage_tiers ? `<div>${subtabs('tier', 'tst', [['', 'Whole run'], ['early', 'Early'], ['mid', 'Mid'], ['late', 'Late']], tst)}<span class="small">rate one part of the run</span></div>` : '')
       + `<div>${subtabs('tier', 'to', [['', 'All heroes'], ['open', 'Open at start']], open ? 'open' : '')}<span class="small">hide heroes a new account can't pick</span></div>`
-      + (T.tiers_bis ? `<div><label class="inline tr-bis"><input type="checkbox" id="bis" ${bis ? 'checked' : ''}> Best in slot</label><span class="small">count gear that takes long farming too</span></div>` : '')
+      + (T.tiers_bis ? `<div><label class="inline tr-bis"><input type="checkbox" id="bis" ${bis ? 'checked' : ''}> Best in slot</label><span class="small">no farm-time limit, hard farms too</span></div>` : '')
       + `</div></details>`
-      + html_
       + (leg.length ? `<p class="small tr-leg">${leg.join(' · ')}</p>` : '')
+      + html_
       + (T.notes[key] ? `<p class="small tr-note">${esc(T.notes[key])}</p>` : '')
       + `<details class="tcol tr-how"><summary>How it's ranked</summary><ul class="small">`
-      + `<li>A damage calculator runs every hero's checked skill formulas with its own best easy or medium items for each stage of the run (Best in slot: hard farms too) and a typical Legacy bag from the band before.</li>`
-      + `<li>It fights this band's reference boss and monster pack, scored for this mode: boss kill (after boss Armor, magic resist and the mode's damage cut), pack clear (AoE, and when the main skill comes online) and survival against the mode's extra hits. Whole run = Early 25% + Mid 35% + Late 40%.</li>`
+      + `<li>Each hero is simulated with its real skill numbers, the best gear it can farm in the run's time for each part of the run (hard farms included, Best in slot: no time limit) and the Legacy a player brings from the band before.</li>`
+      + `<li>Score = boss kill time (after Armor, magic resist and the mode's damage cut) + pack clear (AoE, when the main skill comes online) + survival vs the mode's extra hits. Whole run = Early 25% + Mid 35% + Late 40%.</li>`
       + `<li>Unlock cost is not scored. Your account: every hero's run is replayed with your Map Level, title and Legacy (Run planner).</li></ul></details>`;
   };
   /* numbers on hover or keyboard focus (desktop) or first tap (touch); a click or second tap opens the hero's page */

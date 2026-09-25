@@ -20,7 +20,7 @@
   /* short unlock tag on a card (full text in the tooltip and on the hero page): 250 WP / ML 9+ / ML ≤14 or 25+ / solo */
   const gateTag = h => { const u = unlockOf(h); if (u === 'Open') return ''; const n = h.gate.match(/\d[\d,]*/g) || [];
     const s = u === 'World Points' ? fmt(wp(h)) + ' WP' : u === 'Map Level' ? (/ or /.test(h.gate) && n.length > 1 ? `ML ≤${n[1]} or ${n[0]}+` : `ML ${n[0] || ''}+`) : u === 'Solo lobby' ? 'solo' : h.gate;
-    return `<span class="tag" title="${esc(h.gate)}">${esc(s)}</span>`; };
+    return `<span class="tag" title="${esc(h.gate)}"${s === 'solo' ? ' style="text-transform:none"' : ''}>${esc(s)}</span>`; };
   /* item bonus text: each item it names links to that item's card (only when exactly one item has the name) */
   let INM = null;
   const noteHtml = s => { if (!INM) { INM = Object.create(null); for (const i of Object.values(item)) { const n = i.dn || i.name; INM[n] = n in INM ? '' : i.id; } }
@@ -78,7 +78,7 @@
     const br = [ex.join(', '), first.length ? 'first rank: ' + first.join(', ') : '', one.length ? '1 rank: ' + one.join(', ') : ''].filter(Boolean).join('; ');
     const rule = md ? `each rank needs ${md} more hero levels${ms ? ` from Lv ${ms}` : ''}${br ? ` (${br})` : ''}` : br;
     const G = []; for (const [x, v] of rest) { const g = G[G.length - 1]; if (g && v != null && g.v === v) g.a.push(x); else G.push({ v, a: [x] }); }
-    const line = [R ? nm(R) : '', ...G.map(g => g.a.map(nm).join(' = '))].filter(Boolean).join(' › ');
+    const line = [R ? nm(R) : '', ...G.map(g => g.a.map(nm).join(' <span title="same value, any order">=</span> '))].filter(Boolean).join(' › ');
     return row(line, fx.join(' · '));
   };
   K.hxOrder = hxOrder;   /* TESTER PAGE FIXES (2026-09-25): the Run planner shows the same skill priority line */
@@ -93,11 +93,11 @@
     S.forEach(A => { if (A.some(x => seen.has(x[0]))) keep = true; A.forEach(x => seen.add(x[0])); });
     const PB3 = ['early', 'mid', 'late'].map(st => best[st + '_pet'] || []), seenP = new Set();   // PET BAG rows: hard / keep / free tags too
     PB3.forEach(A => { if (A.some(x => x[1] !== 'g' && seenP.has(x[0]))) keep = true; A.forEach(x => seenP.add(x[0])); }); U.push(...PB3.flat().filter(x => x[1] === 'h' || x[1] === 'v').map(x => ['', x[1]]));
-    if (U.some(x => x[1] === 'h' || x[1] === 'v')) L.push('<b>hard</b> long farm');
-    if (U.some(x => x[5])) L.push('<b>+10</b> enhance it that far with Boss Souls');
-    if (keep) L.push('<b>keep</b> from the part before');
-    if (U.some(x => x[1] === 'b')) L.push('<b>basic</b> cheap starter gear');
-    if (PB3.flat().some(x => x[1] === 'g')) L.push('<b>free</b> from your Map Level');
+    if (U.some(x => x[1] === 'h' || x[1] === 'v')) L.push('<b>hard</b> = long farm');
+    if (U.some(x => x[5])) L.push('<b>+N</b> = enhance it to +N with Boss Souls');
+    if (keep) L.push('<b>keep</b> = from the part before');
+    if (U.some(x => x[1] === 'b')) L.push('<b>basic</b> = cheap starter gear');
+    if (PB3.flat().some(x => x[1] === 'g')) L.push('<b>free</b> = from your Map Level');
     if (U.some(x => KEY.has(x[0]))) L.push('gold frame = key item');
     return L.join(' · '); };
   /* Heroes tab: one column per main stat (World separate), compact cards sorted by tier at the picked difficulty + mode; a card opens the hero page.
@@ -110,10 +110,10 @@
     const live = cols.filter(([c]) => L[c].length); const hs = live.some(([c]) => c === f.hs) ? f.hs : (live[0] || [''])[0]; const pick = live.length > 1;
     const card = h => `<a class="hcard" href="#hero/${encodeURIComponent(h.id)}">${TL(tierOf(h.id).t)}${K.icon(h.id)}<span class="nm">${esc(h.name)}</span>${gateTag(h)}</a>`;
     const key = tierOf('').key.split('|'); const nOpen = HS.filter(h => unlockOf(h) === 'Open').length;
-    return `<h2>Heroes <span class="hr-sub">tier letters: ${MODE[key[0]]} · ${key[1]}</span></h2>`
+    return `<h2>Heroes <span class="hr-sub">Tier: ${MODE[key[0]]} ${key[1]}</span></h2>`
       + ((W.heroes_intro || []).length ? `<details class="hr-rules"><summary>Hero pick rules</summary><p class="small">${W.heroes_intro.map(esc).join(' ')}</p></details>` : '')
       + `<div class="hr-f">${pick ? `<div class="hr-stat">${subtabs('heroes', 'hs', live.map(([c]) => [c, `${c} ${L[c].length}`]), hs)}</div>` : ''}`
-      + subtabs('heroes', 'ul', [['', `All ${HS.length}`], ['Open', `Open ${nOpen}`], ['Locked', `Locked ${HS.length - nOpen}`]], ul) + '<span class="small hr-u3">WP = World Points · ML = Map Level</span></div>'
+      + subtabs('heroes', 'ul', [['', `All ${HS.length}`], ['Open', `Open ${nOpen}`], ['Locked', `Locked ${HS.length - nOpen}`]], ul) + '<span class="small hr-u3">WP / ML = World Points / Map Level to unlock · solo = solo lobby</span></div>'
       + `<div class="hcols${pick ? ' hr-pick' : ''}">${live.map(([c, nm]) => `<div class="hcol${c === hs ? '' : ' hr-off'}" data-col="${c}"><h3>${nm} <span class="small">${L[c].length}</span></h3>${L[c].map(card).join('')}</div>`).join('')}</div>`;
   };
   P.hero = id => {
@@ -121,14 +121,14 @@
     const sk = h.skills || [];
     const t0 = tierOf(h.id), key = t0.key.split('|');
     const bare = h.trait && !/:/.test(h.trait) && kit(h);   // ux2: trait name only = the starting item's bonus
-    const facts = [unlockOf(h) !== 'Open' ? ['Unlock', esc(h.gate)] : null, bare ? ['Trait', `${esc(h.trait)} <span class="small">from its starting</span> ${kit(h)}`] : h.trait ? ['Trait', esc(h.trait)] : null, kit(h) && !bare ? ['Starts with', kit(h)] : null, h.note ? ['Item bonus', noteHtml(h.note)] : null].filter(Boolean);
+    const facts = [unlockOf(h) !== 'Open' ? ['Unlock', esc(h.gate)] : null, bare ? ['Trait', `${esc(h.trait)} <span class="small">· starts with</span> ${kit(h)}`] : h.trait ? ['Trait', esc(h.trait)] : null, kit(h) && !bare ? ['Starts with', kit(h)] : null, h.note ? ['Item bonus', noteHtml(h.note)] : null].filter(Boolean);
     /* one header card: icon, name, stat + tavern, tier badge at the picked difficulty + mode (links to the Tier tab), then only the facts this hero has */
     const head = `<div class="card hi hr-head" data-st="${String(h.main_stat || '').toLowerCase()}"><div class="hr-top">${K.icon(h.id).replace('class="ico', 'class="ico big')}<div class="hr-id"><h2>${esc(h.name)}</h2><div class="small">${esc(h.main_stat)} hero · ${esc(h.tavern)} tavern</div>${hxKey(h.id, key[1])}</div>`
       + (t0.t ? `<a class="hr-tier" href="#tier" title="Tier list">${TL(t0.t)}<span class="small">${MODE[key[0]]} ${key[1]}</span></a>` : '') + '</div>'
       + (facts.length ? `<div class="hr-kv">${facts.map(([k, v]) => `<div><b>${k}</b>${v}</div>`).join('')}</div>` : '') + '</div>';
     /* skills folded with a one-line preview (hidden when open); levels / hero levels / cooldown in one small line inside */
     const meta = s => [s.levels ? `${s.levels} level${s.levels == 1 ? '' : 's'}` : '', Array.isArray(s.req) && s.req.length ? `hero level ${lv(s.req)}` : '',
-      s.cooldown && !/cool\s*down/i.test(s.text || '') ? `cooldown ${Array.isArray(s.cooldown) ? fmt(s.cooldown[0]) + '-' + fmt(s.cooldown[s.cooldown.length - 1]) : fmt(s.cooldown)} s` : ''].filter(Boolean).join(' · ');
+      s.cooldown && !/cool\s*down/i.test(s.text || '') ? `cooldown ${Array.isArray(s.cooldown) ? fmt(s.cooldown[0]) + ' → ' + fmt(s.cooldown[s.cooldown.length - 1]) : fmt(s.cooldown)} s` : ''].filter(Boolean).join(' · ');
     const skills = `<div class="hr-sk"><div class="hr-skh"><h3>Skills</h3><a href="#" data-expand="1" class="small">Expand all</a></div>`
       + sk.map(s => `<details class="skill"><summary>${s.icon ? K.icon(s.icon) : ''}<span class="key">${esc(s.key || '')}</span><span class="nm">${esc(s.name || '')}</span><span class="pv">${esc(preview(s.text))}</span></summary><div class="body"><p>${esc(s.text || '')}</p>${meta(s) ? `<p class="small">${meta(s)}</p>` : ''}</div></details>`).join('') + '</div>';
     const guide = ''
@@ -154,17 +154,17 @@
             const html = G.map(([x, n]) => `<span class="gi${KEY.has(x[0]) ? ' gk' : ''}" title="${esc(KEY.has(x[0]) ? ['Key item: its hero bonus makes boss kills ' + (KI.find(k => k[0] === x[0]) || [])[1] + 'x faster', why(x) ? 'its stats: ' + why(x) : ''].filter(Boolean).join('; ') : why(x))}">${K.ilink(x[0])}${x[5] ? ` <span class="small">+${x[5]}</span>` : ''}${n > 1 ? ` <span class="small">x${n}</span>` : ''}${seen.has(x[0]) ? ' <span class="small">keep</span>' : ''}${x[1] === 'h' ? ' <span class="small">hard</span>' : x[1] === 'v' ? ' <span class="small">very hard</span>' : ''}${x[1] === 'b' ? ' <span class="small">basic</span>' : ''}</span>`).join(', ');
             L.forEach(x => seen.add(x[0]));
             const ad = ((((W.addons || {})[h.id] || {})[gk]) || {})[st] || [];
-            const adh = ad.some(Boolean) ? `<span class="gi-ad small">${ad[0] ? 'Rune ' + K.ilink(ad[0]) : ''}${ad[1] ? (ad[0] ? ' · ' : '') + 'Skills ' + ad.slice(1).filter(Boolean).map(K.ilink).join(', ') : ''}</span>` : '';
+            const adh = ad.some(Boolean) ? `<span class="gi-ad small">${ad[0] ? 'Rune: ' + K.ilink(ad[0]) : ''}${ad[1] ? (ad[0] ? ' · ' : '') + 'Universal: ' + ad.slice(1).filter(Boolean).map(K.ilink).join(', ') : ''}</span>` : '';
             return `<b>${{ early: 'Early', mid: 'Mid', late: 'Late' }[st]}${where ? `<span class="small gw">${where}</span>` : ''}</b><span>${html}${petLine(st)}${adh}</span>`; };
-          return `<div class="card guide"><h4 style="margin-top:0">Build guide <span class="small">· ${band} ${{ main: 'Main', chall: 'Challenge', death: 'Death' }[md]}</span></h4><div class="row2">`
+          return `<div class="card guide"><h4 style="margin-top:0">Build guide</h4><div class="row2">`
             + (hxStats(g).length ? `<b>Stat priority</b><span>${hxStats(g).map(x => esc(x[0])).join(' › ')}</span>` : '')
             + hxOrder(h, gk)
             + ['early', 'mid', 'late'].map(row).join('')
             + (leg.length ? `<b>Legacy goals</b><span>${hxLeg(leg)}</span>` : '')
             + (() => { const b = K.plan && K.plan.best6 ? K.plan.best6(h.id, gk) : null;   // LEGACY BAG (patch_legacy_bag): your save's strongest 6 by this hero's stat weights
                 return b && b.bag.length ? `<b>Your best 6</b><span>${b.bag.map(K.ilink).join(', ')} <span class="small">in your Legacy Bag${b.rest.length ? ', the rest in storage' : ''}</span></span>` : ''; })()
-            + (((W.leg_hero || {})[h.id] || []).length ? `<b>Legacy only it can push</b><span><details class="gi-lh"><summary>${(W.leg_hero[h.id]).length} upgrades</summary>${W.leg_hero[h.id].map(([sid, what]) => `<div>${K.ilink(sid)} <span class="small">· ${esc(what)}</span></div>`).join('')}</details></span>` : '')
-            + `</div><p class="small" style="margin:6px 0 0">Best first, only what a normal run can farm by then (an empty slot = your starter gear stays).${u3Leg(best, KEY) ? ' ' + u3Leg(best, KEY) + '.' : ''} Hover an item for what it adds.</p></div>`; })()
+            + (((W.leg_hero || {})[h.id] || []).length ? `<b>Legacy with a hero rule</b><span><details class="gi-lh"><summary>${(W.leg_hero[h.id]).length} upgrades</summary>${W.leg_hero[h.id].map(([sid, what]) => `<div>${K.ilink(sid)} <span class="small">· ${esc(what)}</span></div>`).join('')}</details></span>` : '')
+            + `</div><p class="small" style="margin:6px 0 0">Best first, farmable by then (empty slot = keep starter gear).${u3Leg(best, KEY) ? ' ' + u3Leg(best, KEY) + '.' : ''} Hover or tap an item for what it adds.</p></div>`; })()
       ;   /* end of the build guide expression above */
     return head + guide + skills;                                     // user quiz 2026-09-25: build guide above skills
   };

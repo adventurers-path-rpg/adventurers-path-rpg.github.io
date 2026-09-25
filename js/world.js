@@ -145,7 +145,7 @@ window.AP = (function () {
     const z = Z[id], zi = ZONES.indexOf(z), n = nsel();
     const mons = znMons(z), bos = znBosses(z), shops = znShops(z), qs = znQuests(z);
     const qg = [], at = {}; for (const q of qs) { const k = (q.npc && q.npc.id) || '?'; if (!(k in at)) { at[k] = qg.length; qg.push([q.npc, []]); } qg[at[k]][1].push(q); }
-    const circ = (z.circles || []).length ? `<span class="small"><b>Energy Circles:</b> ${z.circles.map(esc).join(', ')}</span>` : '';
+    const circ = (z.circles || []).length ? `<span class="small"><b>Teleports:</b> ${z.circles.map(esc).join(', ')}</span>` : '';
     const st = znStory(z), hw = [reach(z.id) ? `<b>How to get there:</b> ${reach(z.id)}` : '', circ, st.length ? `<span class="small"><b>Story:</b> ${st.map(t => zoneLinks(esc(t))).join(' · ')}</span>` : '',
       ...znNotes(z).map(t => `<span class="small zn-nt">${zoneLinks(esc(t))}</span>`)].filter(Boolean);
     /* keep '<b>How to get there:</b>... </p>': map.js drops the mini map right after that paragraph */
@@ -276,7 +276,7 @@ window.AP = (function () {
   /* page body under the stat boxes: Drops | Map side by side on wide screens, drops first on phones; map.js fills the slot (and skips its own boss map) */
   const moTwo = (left, z, attr) => { const mp = moHasMap(z); return `<div class="mo-two${mp ? ' mo-2c' : ''}"><div>${left}</div>${mp ? `<div><h4 class="mo-h">Map</h4><div class="mp-slot" data-zone="${z}"${attr}></div></div>` : ''}</div>`; };
   const bArmor = b => { if (b.def == null) return ''; const A = b.def + ((b.agi || 0) + (D.boss || [])[nsel() - 1]) * 0.01;
-    return moSt(`${fmt(Math.round(A))} <small>blocks ${Math.round(0.02 * A / (1 + 0.02 * A) * 100)}% phys.</small>`, 'Armor'); };
+    return moSt(`${fmt(Math.round(A))} <small>-${Math.round(0.02 * A / (1 + 0.02 * A) * 100)}% phys.</small>`, 'Armor'); };
   const bMres = b => moSt(b.immune ? 'immune' : (b.spell_reduction_pct || 0) + '%', 'Magic resist');
   const bDps = b => { const x = bossXDps(), md = { chall: 'Challenge', death: 'Death' }[filters.md];
     return moSt(big(bossDps(b)) + (b.crit ? ` <small>with ${fmt(Math.round(b.crit[0] * 100))}% crit x${fmt(b.crit[1])}</small>` : '')
@@ -304,14 +304,14 @@ window.AP = (function () {
       const bk = ['stage', 'field', 'challenge', 'special', 'points', 'all'].includes(f.mbk) ? f.mbk : f.bp === '1' ? 'points' : 'stage';
       const inK = b => bk === 'all' || (bk === 'points' ? bpPays(b, n) : bk === 'special' ? b.kind === 'hidden' || b.kind === 'world' : b.kind === bk);
       const G = byZone(Object.values(BOSS).sort((a, b) => zord(a.id) - zord(b.id) || a.str - b.str));
-      return head + `<div class="mo-list">` + bar(subtabs('monsters', 'mbk', [['stage', 'Main quest'], ['field', 'Field'], ['challenge', 'Challenge'], ['special', 'Hidden & World'], ['points', 'Pays Points'], ['all', 'All']], bk), 'Search bosses or drops')
+      return head + `<div class="mo-list">` + bar(subtabs('monsters', 'mbk', [['stage', 'Story kills'], ['field', 'Field'], ['challenge', 'Challenge'], ['special', 'Hidden & World'], ['points', 'Pays Points'], ['all', 'All']], bk), 'Search bosses or drops')
         + fold('Boss rules', [`HP and damage per hit (before your Armor) × ${(D.boss || []).map(fmt).join(' / ')} on N1 to N9.`,
-          'DPS = damage per hit ÷ time between attacks. More boss Agility = faster attacks (up to 5x).',
-          "Only your difficulty's stage boss pays stage Points, once per run. Points tags use your difficulty and mode.",
+          "Die and the fight resets: 10 s without taking damage and the boss teleports home at full HP. You revive in town after 5 s (uses one of your revives), so a solo death resets the fight. Challenge Arena: 10 s with none of your units inside ends the challenge (boss removed).",
+          "Stage Points: only your N's stage boss, once per run. Tags follow your N and mode.",
           'Challenge bosses are summoned in the Boss Challenge Arena: no Boss Souls, no respawn.'])
         + `<div class="tbl compact"><table><tr><th>Boss</th><th class="num">HP (N${n})</th><th class="num">Dmg/hit</th><th class="num">DPS</th><th class="num">Souls</th></tr>`
         + G.map(([z, L]) => grp(z, L.some(inK)) + L.map(b => row(b, inK(b), 'boss', [b.name, (Z[zoneOf(b.id)] || {}).name, MO_KIND[b.kind], (b.summon || {}).name, ...(b.drops || []).map(d => d.id ? iname(d.id) : d.name)],
-          `<td>${ulink(b.id)}${bpTag(b, n, mi)}</td><td class="num">${big(bossHp(b))}</td><td class="num">${big(bossHit(b))}</td><td class="num">${big(bossDps(b))}</td><td class="num">${fmt(souls(b))}</td>`)).join('')).join('') + `</table></div></div>`;
+          `<td>${ulink(b.id)}${bpTag(b, n, mi)}</td><td class="num">${big(bossHp(b))}</td><td class="num">${big(bossHit(b))}</td><td class="num">${big(bossDps(b))}</td><td class="num">${souls(b) ? fmt(souls(b)) : '-'}</td>`)).join('')).join('') + `</table></div></div>`;
     }
     const stg = moStage(), ST = [['0', 'Early'], ['1', 'Mid'], ['2', 'Late'], ['3', 'After main quest']].filter(([k]) => Object.values(MON).some(m => stg(zoneOf(m.id)) === +k));
     const sk = f.mst === 'all' || !ST.length ? 'all' : (ST.find(x => x[0] === f.mst) || ST[0])[0];
@@ -329,7 +329,7 @@ window.AP = (function () {
   P.unit = id => {
     const m = MON[id]; if (!m) return BOSS[id] ? P.boss(id) : shopByCode[id] ? P.shop(id) : '<p>Unknown monster.</p>';
     const z = zoneOf(id), sp = (W.mon_spawn || {})[id] || [], cnt = sp.reduce((a, q) => a + (q[2] || 1), 0), mq = moQuest(id);
-    return `<h2>${esc(m.name)}</h2><p class="small mo-sub">Monster · Lv ${fmt(m.level)}${Z[z] ? ' · ' + zlink(z) : ''}${cnt ? ` · ${fmt(cnt)} on the map` : ''} · ${m.respawns ? 'respawns in 60 s' : 'no respawn'}</p>`
+    return `<h2>${esc(m.name)}</h2><p class="small mo-sub">Monster · Lv ${fmt(m.level)}${Z[z] ? ' · ' + zlink(z) : ''}${cnt ? ` · ${fmt(cnt)} on the map` : ''}${m.respawns ? '' : ' · no respawn'}</p>`
       + `<div class="mo-stats">${moSt(big(monHp(m)), `HP (N${nsel()})`)}${monStats(m)}</div>` + (mq ? `<div class="kv mo-kv"><b>Main quest</b><span>${mq}</span></div>` : '')
       + moTwo(`<h4 class="mo-h">Drops</h4>` + dropTable(m.drops), z, ` data-mon="${esc(id)}"`);
   };
@@ -340,7 +340,7 @@ window.AP = (function () {
     return `<h2>${esc(b.name)}</h2><p class="small mo-sub">${bSub(b, true)}</p>`
       + `<div class="mo-stats">${moSt(big(bossHp(b)), b.scales_with_difficulty === false ? 'HP' : `HP (N${n})`)}${moSt(big(bossHit(b)), 'Damage per hit')}${bDps(b)}${bArmor(b)}${bMres(b)}${moSt(fmt(souls(b)), `Boss Souls (N${n})`)}${bResp(b)}</div>`
       + (kv ? `<div class="kv mo-kv">${kv}</div>` : '') + moTwo(`<h4 class="mo-h">Drops</h4>` + dropTable(b.drops), moZone(id), ` data-boss="${esc(id)}"`)
-      + (ms.length ? `<details class="mo-fold"><summary>How it fights <span class="small">· ${ms.length}</span><span class="mo-pv">${esc(ms[0])}</span></summary><ul>${ms.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '');
+      + (ms.length ? `<details class="mo-fold" open><summary>How it fights <span class="small">· ${ms.length}</span><span class="mo-pv">${esc(ms[0])}</span></summary><ul>${ms.map(x => `<li>${esc(x)}</li>`).join('')}</ul></details>` : '');
   };
   /* ---------- items ---------- */
   const normal = (W.items || []).filter(i => !i.legacy && !i.sealed_of);
@@ -354,7 +354,7 @@ window.AP = (function () {
   const SN = W.stat_names || {};
   let itemQuery = '';
   /* ux2 2026-09-25: tooltip leftovers that are not effects ('Hidden Quest Reward', 'Exclusive Item', 'Created through synthesis', 'Boss drop:...') never show as an effect */
-  const EFF_JUNK = /^(?:Hidden Quest Reward|Exclusive Item|Created through synthesis|Crafted through a synthesis scroll|Boss drop:[^.]*)\.?$/i;
+  const EFF_JUNK = /^(?:Hidden Quest Reward|Exclusive Item|Created through synthesis|Crafted through a synthesis scroll|Boss drop:[^.]*|Evolution:[^.]*|Acquisition:[^.]*|Hidden Can only be obtained from quests)\.?$/i;
   const effClean = t => String(t || '').split(/(?<=\.)\s+/).filter(x => !EFF_JUNK.test(x.trim())).join(' ').trim();
   const statTxt = i => [i.stats || (i.real ? '' : effClean(i.effect).split(/(?<=\.)\s/)[0]), i.xs].filter(Boolean).join(', ');
   const AV = W.avail || {}, BANDS = ['N1-3', 'N4-6', 'N7-9', 'post'], EFF = ['easy', 'medium', 'hard', 'very hard'];
@@ -376,11 +376,11 @@ window.AP = (function () {
     : [(c => c ? `${WST[w.s]} in a ${BANDS[w.b]} run: ${c}` : '')(zRange((SCUT[BANDS[w.b]] || {})[WST[w.s]])), w.ml ? `needs Map Level ${w.ml}+` : ''].filter(Boolean).join(' · ');
   /* one row per item: the per-player-slot copies (Sword of Divine Might(2) to (4), same stats as (1)) stay out of the list */
   const SLOTCOPY = new Set(normal.filter(i => { const m = /^(.*)\(([2-9])\)$/.exec(i.name || ''); return m && normal.some(x => x.name === m[1] + '(1)' && x.stats === i.stats); }).map(i => i.id));
-  const stkTxt = t => String(t).replace(/^1 counts/, 'only one copy counts');
+  const stkTxt = t => String(t).replace(/^1 counts/, 'only one copy counts').replace(/every copy counts/, 'every copy stacks');
   const FLAT = new Set(['ad', 'str', 'agi', 'int', 'hp', 'mana', 'armor', 'move_speed', 'all_stats', 'hp_regen']);   /* every other stat value is a % */
   const IPAGE = 20; let itemLimit = IPAGE, itemKey = '';
   const ISX = {}; const itemSx = i => ISX[i.id] || (ISX[i.id] = [i.name, statTxt(i), i.effect || '', Object.keys(i.st || {}).map(k => SN[k] || k).join(' ')].join(' ').toLowerCase());
-  const whenCell = i => { const w = whenOf(i); return `<span class="it-w" title="${esc(whenTip(w))}"><span class="it-b">${esc(whenTxt(w))}</span>${w.ml && w.b < 3 ? ` <span class="tag ix-ml">ML ${w.ml}+</span>` : ''}${w.e ? ` <span class="small it-e${EFF.indexOf(w.e)}">${esc(w.e)}</span>` : ''}</span>`; };
+  const whenCell = i => { const w = whenOf(i); return `<span class="it-w" title="${esc(whenTip(w))}"><span class="it-b">${esc(whenTxt(w))}</span>${w.ml && w.b < 3 ? ` <span class="tag ix-ml">ML ${w.ml}+</span>` : ''}${w.e ? ` <span class="small it-e${EFF.indexOf(w.e)}">· ${esc(w.e)}</span>` : ''}</span>`; };
   const fromCell = i => (i.sources || []).length ? `<div class="it-c small">${srcShort(i.sources[0])}${i.sources.length > 1 ? ` +${i.sources.length - 1}` : ''}</div>` : '-';
   P.items = (_, f) => {
     const grp = IGROUPS.find(g => g[0] === f.ig) || IGROUPS[0]; const types = grp[1].filter(t => SLOTS.includes(t));
@@ -405,10 +405,10 @@ window.AP = (function () {
       + `<div class="search isearch"><input id="isearch" type="search" placeholder="search items: all stats, magic resist, dawn shield ..." value="${esc(itemQuery)}"><span class="small" id="icount"></span></div>`
       + subtabs('items', 'ig', IGROUPS.map(g => [g[0], g[0]]), grp[0])
       + `<div class="it-bar">${subtabs('items', 'slot', [['', 'All'], ...types.map(t => [t, t])], slot)}${filt ? `<div class="row it-f">${filt}</div>` : ''}</div>`   /* ux3: type chips + filters on one row */
-      + `<p class="small">${rows.length} items, ${sk ? 'highest ' + esc(SN[sk] || sk) + ' first' : 'earliest first' + (showW && ECUT ? ` (N1-3 early = ${esc(ECUT)})` : '')}.${note}${grp[0] === 'Gear' ? ` Legacy gear is on the ${link('legacy', '', 'Legacy').replace('/"', '"')} tab.` : ''}</p>`
+      + `<p class="small">${rows.length} items, ${sk ? 'highest ' + esc(SN[sk] || sk) + ' first' : 'earliest first' + (showW && ECUT ? `. N1-3 early = ${esc(ECUT)}. easy / medium / hard = how much farming it takes` : '')}.${note}${grp[0] === 'Gear' ? ` Legacy gear: ${link('legacy', '', 'Legacy').replace('/"', '"')} tab.` : ''}</p>`
       + `<div class="tbl compact it-tbl" data-slots="${esc((slot ? [slot] : types).join('|'))}"><table><tr><th>Item</th>${sk ? `<th>${esc(SN[sk] || sk)}</th>` : ''}<th class="it-z">Zone</th><th>${showW && showF ? 'When / from' : showW ? 'When' : 'From'}</th></tr>`
       + rows.map((i, n) => `<tr class="xr" data-x="item/${encodeURIComponent(i.id)}" data-s="${esc(itemSx(i))}"${n >= itemLimit ? ' hidden' : ''}>`
-        + `<td><div class="it-c">${ilink(i.id)}${sealedOf[i.id] ? ' <span class="tag" title="A sealed copy also exists: base stats only until unsealed">sealed copy</span>' : ''} <span class="small">${showT ? esc(i.slot) + (statTxt(i) ? ' · ' : '') : ''}${esc(statTxt(i))}</span></div></td>`
+        + `<td><div class="it-c">${ilink(i.id)}${sealedOf[i.id] ? ' <span class="tag" title="A sealed copy also exists: base stats only until unsealed">sealed copy</span>' : ''} <span class="small">${showT && !String(iname(i.id)).toLowerCase().endsWith(' ' + String(i.slot).toLowerCase()) ? esc(i.slot) + (statTxt(i) ? ' · ' : '') : ''}${esc(statTxt(i))}</span></div></td>`
         + (sk ? `<td><b>${sval(i.st[sk])}</b></td>` : '') + `<td class="it-z"><span class="small">${Z[i.zone] ? zlink(i.zone) : '-'}</span></td><td>${bandOf(i) >= 0 ? whenCell(i) : fromCell(i)}</td></tr>`).join('')
       + `</table></div><div class="it-more" id="imore"></div>`;
   };
@@ -437,7 +437,7 @@ window.AP = (function () {
   const ACQ_ST = ['early', 'mid', 'late'], ACQ_EF = { e: 'easy', m: 'medium', h: 'hard', v: 'very hard' };
   const acqLine = id => { const q = (W.acq || {})[id]; if (!q) return ''; const same = q.every(x => x[0] === q[0][0] && x[1] === q[0][1]), ml = item[id] ? whenOf(item[id]).ml : 0;
     return (ml ? `<span class="tag ix-ml" title="every source needs this Map Level">ML ${ml}+</span> ` : '') + (same ? [['N1-9', 0]] : ['N1-3', 'N4-6', 'N7-9'].map((b, k) => [b, k])).map(([b, k]) => `<span class="aq${q[k][0] > 2 ? ' aq-no' : ''}"><b>${b}</b> ${q[k][0] > 2 ? 'not in this run' : ACQ_ST[q[k][0]] + (ACQ_EF[q[k][1]] ? ', ' + ACQ_EF[q[k][1]] : '')}</span>`).join(' ')
-      + (q.some(x => x[0] < 3 && x[2]) ? `<div class="small aq-why">Decided by: ${esc([...new Set(q.filter(x => x[0] < 3 && x[2]).map(x => x[2]))].join(' / '))}</div>` : ''); };
+      + (q.some(x => x[0] < 3 && x[2]) ? `<div class="small aq-why">Gated by: ${esc([...new Set(q.filter(x => x[0] < 3 && x[2]).map(x => x[2]))].join(' / '))}</div>` : ''); };
   /* effect text: '[Name]text' reads as a bold 'Name:' label */
   const effFmt = t => esc(t).replace(/\[([^\]]{1,40})\]\s*:?\s*/g, '<b class="efn">$1:</b> ');
   const madeBy = id => (W.recipes || []).filter(r => (r.result || (r.results || [])[0] || {}).id === id || (r.unseal && r.unseal.result.id === id));
@@ -469,7 +469,7 @@ window.AP = (function () {
     const tails = leaves.filter(l => ((EVO.tail || {})[l] || []).length).map(l => { const L = EVO.tail[l];
       return `<div class="evo-tail small">${esc(iname(l))} crafts into ${L.slice(0, 4).map(ilink).join(', ')}${L.length > 4 ? ` +${L.length - 4} more` : ''}</div>`; });
     const hint = [...new Set([...kinds].map(k => (EVO.hint || {})[k]).filter(Boolean))].join(' ');
-    return `<div class="card evo"><h4 style="margin-top:0">Evolution</h4>${rows.join('')}${tails.join('')}${hint ? `<div class="evo-tail small">${esc(hint)}</div>` : ''}</div>`; };
+    return `<div class="card evo"><h4 style="margin-top:0">Upgrade path</h4>${rows.join('')}${tails.join('')}${hint ? `<div class="evo-tail small">${esc(hint)}</div>` : ''}</div>`; };
   const recipeRow = r => tr([r.unseal ? ref(r.unseal.result) + ` <span class="small">crafted sealed, then ${fmt(r.unseal.count)}x ${ref(r.unseal.talisman)}</span>` : (r.results || [r.result]).map(x => ref(x) + (x.chance != null && r.results ? ` <span class="small">${pct(x.chance)}</span>` : '')).join(' or '), r.parts.map(p => (p.count > 1 ? p.count + 'x ' : '') + ref(p)).join(' + '), r.scroll_from ? ref(r.scroll_from) : r.scroll ? '<span class="small">scroll</span>' : '<span class="small">-</span>']);
   /* item page: sources grouped by kind (group row), the note ending shared by a whole group shown once on its group row */
   const KORD = ['free', 'shop', 'craft', 'quest', 'drop', 'chest', 'evolves', 'points', 'exchange', 'world_points', 'hero kit'];
@@ -494,7 +494,7 @@ window.AP = (function () {
     const q = s.kind === 'quest' ? (QRW[id] || []).find(x => !s.from || !x.npc || x.npc.id === s.from.id) : null, qr = q && (q.reward_items || []).find(x => x.id === id);
     const extra = [q ? esc(znQName(q)) + (qr && qr.count > 1 ? `, ${fmt(qr.count)}${q.repeat ? ' per turn-in' : 'x'}` : '') : '', s.chance != null ? pct(s.chance) : '', s.kind === 'shop' && s.note ? esc(s.note) : '', s.kind === 'drop' && /each nearby hero/.test(s.note || '') ? 'every hero nearby rolls' : '',
       s.kind === 'drop' && /talk to|only after|N[0-9]\+/.test(s.note || '') ? esc(s.note) : ''].filter(Boolean).join(', ');   // clue drops: the NPC talk / N gate that switches the drop on
-    return `${verb} ${s.from ? ref(s.from) : esc(s.note || '')}${htWhere(s.from)}${extra ? ` <span class="small">${extra}</span>` : ''}${L.length > 1 ? (short ? ` <span class="small">+${L.length - 1} more</span>` : ` <span class="small">· or ${L.length - 1} more (item page)</span>`) : ''}`; };
+    return `${verb} ${s.from ? ref(s.from) : esc(s.note || '')}${htWhere(s.from)}${extra ? ` <span class="small">${extra}</span>` : ''}${L.length > 1 ? (short ? ` <span class="small">+${L.length - 1} more</span>` : ` <span class="small">· +${L.length - 1} more source${L.length > 2 ? 's' : ''}</span>`) : ''}`; };
   const htScroll = r => { if (!r.scroll) return ''; const sc = item[r.scroll.id], src = sc && (sc.sources || [])[0], f = r.scroll_from;
     const how = r.scroll_via === 'drop' ? `: it drops from ${ref(f)}${htWhere(f)}` : src && src.kind === 'free' ? ` free at ${ref(f || src.from)}${htWhere(f || src.from)}` : f ? ` at ${ref(f)}${htWhere(f)}${src && src.note && src.kind === 'shop' ? ` <span class="small">${esc(src.note)}</span>` : ''}` : ': ' + htSrc(r.scroll.id);
     return `Get the <a href="#item/${encodeURIComponent(r.scroll.id)}">recipe scroll</a>${how}`; };
@@ -528,8 +528,8 @@ window.AP = (function () {
       steps.push(`Get ${p.count > 1 ? fmt(p.count) + 'x ' : ''}${ref(p)}: ${sub ? 'craft it' + sub : madeBy(p.id).length ? `craft it <span class="small">(see its page)</span>` : htSrc(p.id) || '<span class="small">see its page</span>'}`); }
     const odds = (r.results || []).length > 1 ? ` <span class="small">${r.results.map(x => ref(x) + ' ' + pct(x.chance)).join(', ')}</span>` : '';
     const pu = htPowerup(r);
-    if (r.scroll) steps.push(htScroll(r) + (pu ? ` <span class="small">(pick it up last: it is used on pickup, so every part must already be on that unit)</span>` : ''));
-    steps.push(`${pu ? 'With every part on one unit (hero or pet), the scroll turns them' : r.scroll ? 'With the scroll and every part on one unit (hero or pet), they combine' : 'With every part on one unit (hero or pet), they combine'} into ${ref(made)}${odds}${r.note && !r.unseal ? ` <span class="small">(${esc(r.note)})</span>` : ''}.`);
+    if (r.scroll) steps.push(htScroll(r) + (pu ? ` <span class="small">(pick it up last, it fires on pickup)</span>` : ''));
+    steps.push(`${depth ? 'They combine' : pu ? 'With every part on one unit (hero or pet), the scroll turns them' : r.scroll ? 'With the scroll and every part on one unit (hero or pet), they combine' : 'With every part on one unit (hero or pet), they combine'} into ${odds ? r.results.map(x => ref(x) + ' ' + pct(x.chance)).join(' or ') : ref(made)}${r.note && !r.unseal ? ` <span class="small">(${esc(r.note)})</span>` : ''}.`);
     if (r.unseal && r.unseal.result.id === id) {
       steps.push(`Get ${fmt(r.unseal.count)}x ${ref(r.unseal.talisman)}: ${htSrc(r.unseal.talisman.id)}`);
       steps.push(`Keep them on the unit that holds ${ref(r.result)}: at its next item pickup ${fmt(r.unseal.count)} are used and it unseals into ${ref(r.unseal.result)} <span class="small">(the named hero's bonus switches on)</span>.`); }
@@ -553,7 +553,7 @@ window.AP = (function () {
   const LG_W = { early: 'Early run', mid: 'Mid run', late: 'Late run', hi: 'N4 and up', pts: 'Bought with Points', rng: 'Random drop' };
   const lgWhen = ln => { const t = String(ln.start || ''), p = /(\d[\d,]*) Points/.exec(t), n = /\bon N(\d)/.exec(t); if (p) return ['pts', p[1] + ' Points'];
     if (n && +n[1] >= 4) return ['hi', 'N' + n[1]];
-    const z = lgZone(ln); if (!Z[z]) return /%/.test(t) ? ['rng', 'RNG'] : ['', ''];
+    const z = lgZone(ln); if (!Z[z]) return /%/.test(t) ? ['rng', 'Random drop'] : ['', ''];
     const cut = (W.stage_cut || {})['N1-3'] || {}, ord = nm => (ZONES.find(x => x.name === nm) || {}).order, e = ord((cut.early || [])[1]), m = ord((cut.mid || [])[1]), o = Z[z].order;
     return e == null ? ['', ''] : o <= e ? ['early', 'Early'] : m != null && o <= m ? ['mid', 'Mid'] : ['late', 'Late']; };
   const lgPts = ln => /\d[\d,]* Points/.test(String(ln.start || ''));
@@ -573,7 +573,7 @@ window.AP = (function () {
   const lgHow = (id, short) => { const g = lgOf(id); if (!g) return ''; const { ln, k, prev, how } = g;
     const start = k === 0 ? `<b>Get it:</b> ${lgStartH(ln)}` : `<b>Start the line:</b> ${ref(ln.root)} · ${lgStartH(ln)}`;
     const up = k > 0 && prev ? `<b>Then evolve:</b> ${esc(how).split(' OR ').join(' <i>or</i> ')} <span class="small">(${ref(prev)} → step ${fmt(k + 1)} of ${fmt(ln.steps.length)})</span>` : '';
-    const need = ln.first_needs && k < 3 ? `<span class="small">First steps need: ${esc(ln.first_needs)}</span>` : '';
+    const need = ln.first_needs && k < 3 ? `<span class="small">Next steps need: ${esc(ln.first_needs)}</span>` : '';
     return short ? [start, up].filter(Boolean).join('<br>') : `<ol class="ht"><li>${start}</li>${up ? `<li>${up}</li>` : ''}</ol>${need}${k === 0 && lgPts(ln) ? `<p class="small">${lgPtsNote()}</p>` : ''}`; };
   P.item = id => {
     const i = item[id]; if (!i) return '<p>Unknown item.</p>';
@@ -648,15 +648,15 @@ window.AP = (function () {
   const rcIt = (id, nm) => item[id] ? `<a href="#item/${encodeURIComponent(id)}"><span class="${item[id].rar ? 'r-' + item[id].rar : ''}">${esc(iname(id))}</span></a>` : esc(nm || id);
   let rcSells = null; const rcSell = id => { if (!rcSells) { rcSells = {}; for (const s of SHOPS) for (const x of s.sells || []) if (x.id && !rcSells[x.id]) rcSells[x.id] = x; } return id ? rcSells[id] : null; };
   const rcUni = rs => { const c = [...new Set(rs.filter(r => r.unseal).map(r => r.unseal.count))]; return c.length === 1 ? rs.find(r => r.unseal).unseal : null; };
-  const rcHead = (rs, uni) => { const r = rs[0], k = rcKind(r), sh = r.scroll_from, at = sh ? ulink(sh.id, sh.name) + ((shopByCode[sh.id] || {}).where ? ` <span class="small">${esc(shopByCode[sh.id].where)}</span>` : '') : '';
+  const rcHead = (rs, uni) => { const r = rs[0], k = rcKind(r), sh = r.scroll_from, at = sh ? ulink(sh.id, sh.name) + ((shopByCode[sh.id] || {}).where ? `, <span class="small">${esc(shopByCode[sh.id].where)}</span>` : '') : '';
     if (k === 'parts') return 'No scroll needed';
     if (k === 'boss') return 'Scroll drops from a boss';
     if (k === 'shop') return at ? (htPowerup(r) ? 'Free scroll at ' : 'Scroll sold at ') + at : 'Scroll';
-    return (at ? 'Sealed hero gear · ' + at : 'Unseal a sealed copy') + (uni ? ` · unseal: ${fmt(uni.count)}x ${rcIt(uni.talisman.id, uni.talisman.name)}` : ''); };
+    return (at ? 'Hero gear (sealed) · ' + at : 'Unseal a sealed copy') + (uni ? ` · unseal with ${fmt(uni.count)}x ${rcIt(uni.talisman.id, uni.talisman.name)}` : ''); };
   const rcRow = (r, i, uni, off) => { const res = rcRes(r), it = item[res.id] || {}, k = rcKind(r), sl = rcSell((r.scroll || {}).id);
     const main = (r.results || []).find(x => x.id === res.id), alt = (r.results || []).filter(x => x.id !== res.id);
     const extra = [main && main.chance != null ? pct(main.chance) : '', ...alt.map(x => `or ${rcIt(x.id, x.name)} ${pct(x.chance)}`)].filter(Boolean).join(' · ');
-    const tail = [k === 'boss' && r.scroll_from ? ulink(r.scroll_from.id, r.scroll_from.name) : '', k === 'shop' && sl && sl.price ? esc(sl.price) : '', k === 'seal' && sl && sl.note ? esc(sl.note) : '',
+    const tail = [k === 'boss' && r.scroll_from ? ulink(r.scroll_from.id, r.scroll_from.name) : '', k === 'shop' && sl && sl.price && !htPowerup(r) ? esc(sl.price) : '', k === 'seal' && sl && sl.note ? esc(sl.note) : '',
       r.unseal && !uni ? `then ${fmt(r.unseal.count)}x ${rcIt(r.unseal.talisman.id, r.unseal.talisman.name)}` : '', r.note && !/^sealed item:/.test(r.note) ? esc(r.note) : ''].filter(Boolean).join(' · ');
     const s = [iname(res.id), res.name, (r.result || {}).name, ...(r.results || []).map(x => x.name), ...r.parts.map(p => p.name), (r.scroll_from || {}).name, sl && sl.note, rcSlot(r)].filter(Boolean).join(' ').toLowerCase();
     return `<tr class="xr${off ? ' rc-off' : ''}" data-x="recipe/${i}" data-s="${esc(s)}"><td>${icon(res.id)}<span class="${it.rar ? 'r-' + it.rar : ''}">${esc(iname(res.id))}</span>${extra ? ` <span class="small">${extra}</span>` : ''}${it.id && whenOf(it).b >= 0 ? ` <span class="small ix-rw" title="${esc(whenTip(whenOf(it)))}">· ${esc(whenTxt(whenOf(it)))}</span>` : ''}</td>`
@@ -677,7 +677,7 @@ window.AP = (function () {
     const R = W.recipes || [], ORD = ['Weapon', 'Accessory', 'Armor', 'Boots', 'Material'], LAB = { Material: 'Materials' };
     const slots = [...new Set(R.map(rcSlot))].sort((a, b) => (ORD.indexOf(a) + 1 || 99) - (ORD.indexOf(b) + 1 || 99));
     const rs = f.rs === 'all' || slots.includes(f.rs) ? f.rs : slots[0], inS = r => rs === 'all' || rcSlot(r) === rs;
-    const kinds = [['all', 'Any'], ['parts', 'No scroll'], ['shop', 'Shop scroll'], ['boss', 'Boss scroll'], ['seal', 'Sealed gear']].map(([k, l]) => [k, l, R.filter(r => inS(r) && (k === 'all' || rcKind(r) === k)).length]).filter(x => x[2]);
+    const kinds = [['all', 'All'], ['parts', 'No scroll'], ['shop', 'Shop scroll'], ['boss', 'Boss scroll'], ['seal', 'Sealed gear']].map(([k, l]) => [k, l, R.filter(r => inS(r) && (k === 'all' || rcKind(r) === k)).length]).filter(x => x[2]);
     const rk = kinds.some(x => x[0] === f.rck) ? f.rck : (kinds.find(x => x[0] === 'parts') || kinds[0] || ['all'])[0];
     const on = r => inS(r) && (rk === 'all' || rcKind(r) === rk);
     const G = new Map(); R.forEach((r, i) => { const g = rcGroup(r); if (!G.has(g)) G.set(g, []); G.get(g).push([r, i]); });
@@ -687,7 +687,7 @@ window.AP = (function () {
     const solo = rk !== 'all' && groups.filter(g => rcKind(g[0][0]) === rk).length === 1;   // one group only: its header would repeat the chip
     const body = groups.map(g => { const rs2 = g.map(x => x[0]), uni = rcUni(rs2), vis = rs2.some(on);
       return `<tr class="grp${vis && !solo ? '' : ' rc-off'}"><td colspan="2">${rcHead(rs2, uni)}</td></tr>` + g.map(([r, i]) => rcRow(r, i, uni, !on(r))).join(''); }).join('');
-    return `<h2>Recipes</h2><p class="small">Scroll (if any) and every part on one unit (hero or pet): the item forms on the spot. Earliest first.</p>`
+    return `<h2>Recipes</h2><p class="small">Put the scroll (if any) and every part on one hero or pet: the item forms on the spot. Earliest first.</p>`
       + `<div class="rc-find"><input class="tsearch" placeholder="Search all ${R.length} recipes: result, part or hero"> <span class="tsearch-n small"></span></div>`
       + `<div class="rc-ch">${subtabs('recipes', 'rs', slots.map(s => [s, `${LAB[s] || s} ${R.filter(r => rcSlot(r) === s).length}`]).concat([['all', `All ${R.length}`]]), rs)}${subtabs('recipes', 'rck', kinds.map(([k, l, n]) => [k, `${l} ${n}`]), rk)}</div>`
       + ((rk === 'seal' || rk === 'all') && W.sealed_rule && R.some(r => on(r) && rcKind(r) === 'seal') ? `<p class="small"><b>Sealed gear:</b> ${esc(W.sealed_rule)}</p>` : '')
@@ -729,7 +729,7 @@ window.AP = (function () {
       const st = f.qst === 'all' ? null : ST.find(t => String(t.a) === f.qst) || ST[0]; const vis = st ? steps.filter(s => s.step >= st.a && s.step <= st.b) : steps;
       const nx = st && ST[ST.indexOf(st) + 1]; let pz = '';
       body = ((G.before || []).length ? `<div class="card hi one"><p><b>Before you start:</b> ${G.before.map(tok).join(' ')}</p></div>` : '')
-        + (Array.isArray(G.intro) ? `<div class="card qs-rules"><ul>${G.intro.map(x => `<li>${tok(x)}</li>` + (/-save/.test(x) ? qSave() : '')).join('')}${G.intro.some(x => /-save/.test(x)) ? '' : qSave()}</ul></div>` : G.intro ? `<p class="small">${tok(G.intro)}</p>` : '')
+        + (Array.isArray(G.intro) ? `<div class="card qs-rules"><ul>${G.intro.map(x => `<li>${tok(x)}</li>` + (/-save/.test(x) && !/Legacy Equipment Load/.test(x) ? qSave() : '')).join('')}${G.intro.some(x => /-save/.test(x)) ? '' : qSave()}</ul></div>` : G.intro ? `<p class="small">${tok(G.intro)}</p>` : '')
         + `<div class="qs-stg">${subtabs('quests', 'qst', [...ST.map(t => [String(t.a), `${t.a}-${t.b} ${t.nm}`]), ['all', 'All']], st ? String(st.a) : 'all')}</div>`
         + `<div class="qs-steps">` + vis.map(s => { const zl = s.zone && s.zone !== pz && Z[s.zone] ? `<div class="qs-z">${link('zones', s.zone, Z[s.zone].name)}</div>` : ''; pz = s.zone;
           return `<div class="qs-st"><span class="qs-n">${fmt(s.step)}${s.on && s.on !== 'N1+' ? `<small>${esc(s.on)}</small>` : ''}</span><div>${zl}<div>${tok(s.do)}</div>${s.note ? `<div class="small">${tok(s.note)}</div>` : ''}${s.reward && s.reward !== '-' ? `<div class="qs-r"><b>Reward</b>${tok(s.reward)}</div>` : ''}</div></div>`; }).join('') + `</div>`
@@ -740,7 +740,7 @@ window.AP = (function () {
       const groups = []; const at = {}; for (const q of L) { const key = (q.npc && q.npc.id) || '?'; if (!(key in at)) { at[key] = groups.length; groups.push([q, []]); } groups[at[key]][1].push(q); }
       const zo = q => Z[q.zone] ? Z[q.zone].order : 999; groups.sort((x, y) => zo(x[0]) - zo(y[0]));
       const row = q => `<tr class="xr" data-x="quest/${encodeURIComponent(q.id)}" data-s="${esc([q.name, q.npc && q.npc.name, (Z[q.zone] || {}).name, q.zone_hint, q.needs, q.reward, ...(q.reward_items || []).map(x => item[x.id] ? iname(x.id) : x.name), q.repeat ? '' : 'once', qIsBoss(q) ? 'boss' : ''].filter(Boolean).join(' ').toLowerCase())}"><td>${esc(qName(q))}${q.repeat ? '' : ' <span class="tag">once</span>'}${qIsHid(q) ? ' <span class="tag">hidden</span>' : ''}</td><td><div class="qs-pv">${esc(qPv(q) || '-')}</div></td></tr>`;
-      body = `<p class="small">Side quests repeat, except the ones tagged once.</p>`
+      body = `<p class="small">Side quests repeat unless tagged once.</p>`
         + `<div class="qs-bar">${subtabs('quests', 'sq', [['', `All (${S.length})`], ['boss', `Boss kills (${S.filter(qIsBoss).length})`], ['hidden', `Hidden (${S.filter(qIsHid).length})`]], sq)}<input class="tsearch" placeholder="Quest, NPC, item or monster"><span class="tsearch-n small"></span></div>`
         + `<div class="tbl compact qs-sq nosort"><table><tr><th>Quest</th><th>Reward</th></tr>` + groups.map(([g, qs]) => `<tr class="grp"><td colspan="2">${g.npc ? ref(g.npc) : 'No quest giver'}${g.zone ? ` <span class="small">· ${zlink(g.zone)}</span>` : ''}</td></tr>` + qs.map(row).join('')).join('') + `</table></div>`; }
     return `<h2>Quests</h2>${(Q.how || []).length ? `<div class="card"><h4 style="margin-top:0">How</h4><ol>${Q.how.map(x => `<li>${esc(x)}</li>`).join('')}</ol></div>` : ''}`
@@ -794,12 +794,12 @@ window.AP = (function () {
   };
   /* Legacy line page: chips pick the rows (key steps, 1-20, 21-40... all); stats that changed since the step before are bold;
      long 'to evolve' text folds to 2 lines with a 'more' button; on a phone a step = item + stats on one line, then 'to evolve' */
-  const LL_CH = 20;
+  const LL_CH = 50;
   const llStats = (l, i, hl) => { const cur = (l.steps[i].stats || '').split(', ').filter(Boolean); if (!hl || !i) return esc(cur.join(', '));
     const prev = new Set((l.steps[i - 1].stats || '').split(', ')); return cur.map(t => prev.has(t) ? esc(t) : `<b class="ll-up">${esc(t)}</b>`).join(', '); };
   const llNext = (l, i) => { const s = l.steps[i], nx = l.steps[i + 1];
     return `<span class="ll-nx">${s.to && (!nx || nx.id !== s.to.id) ? `→ ${ref(s.to)}: ` : ''}${esc(s.next || '').split(' OR ').join('<br><i>or</i> ')}</span>`; };
-  const llTable = (l, idx, hl, me) => `<div class="tbl compact ll-t"><table><tr><th class="num">#</th><th>Item</th><th>Stats</th><th>To evolve</th></tr>${idx.map(i => `<tr${i === me ? ' class="ll-me"' : ''}><td class="num">${fmt(i + 1)}</td><td>${ref(l.steps[i])}</td><td class="small">${llStats(l, i, hl)}</td><td class="small">${llNext(l, i)}</td></tr>`).join('')}</table></div>`;
+  const llTable = (l, idx, hl, me) => `<div class="tbl compact ll-t"><table><tr><th class="num">#</th><th>Item</th><th>Stats</th><th>Next step</th></tr>${idx.map(i => `<tr${i === me ? ' class="ll-me"' : ''}><td class="num">${fmt(i + 1)}</td><td>${ref(l.steps[i])}</td><td class="small">${llStats(l, i, hl)}</td><td class="small">${llNext(l, i)}</td></tr>`).join('')}</table></div>`;
   const llFold = root => root.querySelectorAll('.ll-nx').forEach(e => { const b = e.nextElementSibling; if (b && b.classList.contains('ll-more')) return; if (e.scrollHeight > e.clientHeight + 2) e.insertAdjacentHTML('afterend', '<button type="button" class="ll-more">more</button>'); });
   out.addEventListener('click', e => { const b = e.target.closest('button.ll-more'); if (!b) return; const on = b.previousElementSibling.classList.toggle('full'); b.textContent = on ? 'less' : 'more'; });
   P.legacyline = (id, f) => { const l = LEG.lines.find(x => x.root.id === id); if (!l) return '<p>Unknown line.</p>';
@@ -962,7 +962,7 @@ window.AP = (function () {
       const ki = (((W.key_items || {})[id] || {})[band]) || [], kit = (h.kit_items || []).filter(i => i && i.id).map(i => item[i.id] ? ilink(i.id) : esc(i.name)).join(', ');
       const gs = ((((W.guide || {})[id] || {})[band + '|' + md]) || []).filter(x => x[1] > 0), mv = (gs.find(x => x[0] === 'Main stat') || [])[1];
       const pri = gs.filter(x => !(x[0] === 'All stats' && mv != null && x[1] <= mv * 1.05)).map(x => esc(x[0])).join(' › ');
-      const tr = h.trait ? esc(h.trait) + (!/:/.test(h.trait) && kit ? ` <span class="small">from its starting</span> ${kit}` : '') : '';
+      const tr = h.trait ? esc(h.trait) + (!/:/.test(h.trait) && kit ? ` <span class="small">· starts with</span> ${kit}` : '') : '';
       return head(icon(id) + esc(h.name), [h.main_stat, h.gate && h.gate !== 'none' ? h.gate : 'open at start'].map(esc).join(' · '))
         + (t ? `<div>Tier <b>${t}</b> <span class="small">${ml} · ${band}</span></div>` : '')
         + (ki.length ? `<div>Key item: ${ki.map(x => ilink(x[0])).join(', ')} <span class="small">boss kills ${ki[0][1]}x faster</span></div>` : '')
@@ -986,7 +986,7 @@ window.AP = (function () {
         + (sib.length > 1 ? `<div class="small">${sib.length} stand side by side, each with its own list</div>` : '') + open(); }
     if (page === 'legacyline') { const l = LEG.lines.find(x => x.root.id === id); if (!l) return ''; const w = lgWhen(l);
       return head(esc(l.name), esc(l.slot || '') + ' · ' + fmt(l.steps.length) + ' steps' + (w[1] ? ' · ' + esc(w[1]) : ''))
-        + `<div style="margin:4px 0"><b>Get ${ref(l.root)}:</b> ${lgStartH(l)}</div>` + (l.first_needs ? `<div class="small">First steps need: ${esc(l.first_needs)}</div>` : '')
+        + `<div style="margin:4px 0"><b>Get ${ref(l.root)}:</b> ${lgStartH(l)}</div>` + (l.first_needs ? `<div class="small">Next steps need: ${esc(l.first_needs)}</div>` : '')
         + (l.final ? `<div class="small">Ends at ${ref(l.final)}</div>` : '') + open(); }
     return '';
   };

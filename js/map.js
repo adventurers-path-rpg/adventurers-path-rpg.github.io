@@ -84,16 +84,16 @@
   function info(p) {
     const qs = ((W.quests || {}).side || []).filter(q => q.npc && q.npc.id === p.id), card = p.k === 'boss' ? peek('boss', p.id) : p.k === 'quest' || p.k === 'npc' ? peek('shop', p.id) : '';
     let x = '';   // what this tab adds: where it leads, what it needs, what leads here
-    if (p.k === 'boss' && (p.ids || p.xn)) { const all = [...p.ids.filter(b => W.boss[b]).map(b => K.link('boss', b, W.boss[b].name)), ...(p.xn || []).map(esc)];
-      x += `<div class="small">${all.length} bosses spawn here:</div><div class="small mp-scroll">${all.join(', ')}</div>`; }
+    if (p.k === 'boss' && (p.ids || p.xn)) { const all = (p.ids || []).filter(b => W.boss[b]).map(b => K.link('boss', b, W.boss[b].name)), xn = (p.xn || []).map(v => v === 'Jarvan V' ? 'Impostor Jarvan V' : v).map(esc);
+      x += (all.length ? `<div class="small">${all.length} bosses spawn here:</div><div class="small mp-scroll">${all.join(', ')}</div>` : '') + (xn.length ? `<div class="small">${all.length ? 'Legacy fights here too' : 'Legacy fights here'}: ${xn.join(', ')}</div>` : ''); }
     else if (p.k === 'portal') x += (dest(p) ? `<div class="mp-to">→ ${zlk(dest(p))}</div>` : '') + `<div class="small">${esc(rule(p))}</div>`;
     else if (p.k === 'door') { const j = p.ti != null ? p.ti : (p.fi || [])[0];
       x += (j != null ? `<div class="mp-to">↔ ${ptl(j)}</div>` : p.tz ? `<div class="mp-to">→ ${zlk(p.tz)}</div>` : '') + '<div class="small">On foot</div>'; }
     else if (p.k === 'gate') x += (p.tz ? `<div class="mp-to">→ ${zlk(p.tz)}</div>` : '') + `<div class="small">${esc(opens(p.needs))}</div>`;
-    else if (p.k === 'stone' || p.k === 'circle') x += `<div class="small">${p.needs ? esc(cap(p.needs)) + ', then' : 'Walk onto it once to light it, then'} Teleport (P) here from anywhere.</div>`;
+    else if (p.k === 'stone' || p.k === 'circle') x += `<div class="small">${p.needs ? esc(cap(p.needs)) + ', then' : 'Walk onto it once to light it, then'} Teleport (P) here.</div>`;
     else if (p.k === 'dock') x += '<div class="small">Buy a boat here (4,000 gold, carries 10 units).</div>' + ((p.tzs || []).length ? `<div class="mp-to">Sail to ${p.tzs.map(zlk).join(', ')}</div>` : '');
-    if (!card && qs.length) x += `<div class="small">Quests: ${qs.map(q => esc(q.name.replace(/^Hidden Quest - /, ''))).join(', ')}</div>`;
-    if (p.k === 'boss' && card && qs.length) x += `<div class="small">Quests: ${qs.map(q => esc(q.name.replace(/^Hidden Quest - /, ''))).join(', ')}</div>`;
+    if (!card && qs.length) x += `<div class="small">Gives quests: ${qs.map(q => esc(q.name.replace(/^Hidden Quest - /, '').replace(/\s*\(Boss\)$/, ''))).join(', ')}</div>`;
+    if (p.k === 'boss' && card && qs.length) x += `<div class="small">Gives quests: ${qs.map(q => esc(q.name.replace(/^Hidden Quest - /, '').replace(/\s*\(Boss\)$/, ''))).join(', ')}</div>`;
     if ((p.k === 'quest' || p.k === 'npc') && p.ti != null) x += `<div class="mp-to">→ ${zlk(dest(p))}</div>${p.needs ? `<div class="small">Needs: ${esc(p.needs)}</div>` : ''}`;
     const fiW = p.k === 'door' ? [] : (p.fi || []).filter(j => PTS[j].k === 'door'), fiP = p.k === 'door' ? [] : (p.fi || []).filter(j => PTS[j].k !== 'door');
     if (fiW.length) x += fiW.map(j => `<div class="mp-to">↔ ${ptl(j)}</div>`).join('') + '<div class="small">On foot</div>';
