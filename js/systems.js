@@ -204,6 +204,7 @@
         'Legacy step stats fixed: +1,000 was read as +1 and AGI/INT +30 was dropped on 1,163 steps.',
       ]],
       ['Game systems', [
+        'Fixed -fuhuo (checked in the map): the new copy loses its EXP bar, bonus stats and hero passives and counts as Human for Legacy race upgrades. Gender affects nothing.',
         'New Spending Points page: VIP (15,000 / 30,000 / 45,000 / 800,000 Points for VIP 1 / 2 / 4 / 10: more Boss Souls and gold, more Points, safer enhancing, stats per level), gear you start every run with, titles, the coin-flip game, random gear rolls and Legacy evolve items. Boss Souls, Points and enhancing pages note what VIP adds.',
         'Commands: only commands every player can use (Player 1 kick commands removed), -save and -qc texts fixed, -ms and -bug added. Tips trimmed to the useful ones.',
         'New tip: Points you hold pay a bonus every run (Points).',
