@@ -56,6 +56,7 @@
     if (!pr.length) {   // no numbers for this difficulty + mode: the order most of them use
       const C = {}; for (const v of Object.values(P)) if ((v || []).length) { const k = v.map(x => x[0]).join(); (C[k] = C[k] || [0, v])[0]++; }
       const b = Object.values(C).sort((x, y) => y[0] - x[0])[0]; if (b) { pr = b[1]; most = 'order most difficulties use'; } }
+    const fo = (W.skill_order_fix || {})[h.id]; if (fo && fo.length) { pr = fo.map(k => [k, null]); most = ''; }   /* BM ORDER (2026-09-25): a fixed order (checks/skill_order_override.json, user choice) beats the value order */
     const by = new Map(sk.map(x => [x.key, x])), R = by.get('R');
     const rest = pr.filter(x => x[0] !== 'R' && by.has(x[0])).map(x => [by.get(x[0]), x[1]]);
     for (const x of sk) if (x !== R && !rest.some(y => y[0] === x)) rest.push([x, null]);
