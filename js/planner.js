@@ -464,7 +464,7 @@
       else if (k === 'g') { const g = R ? (+R[0][st] || 0) * f : 0, s = R ? (+R[1][st] || 0) * gsF(n) : 0;
         t += (+p[2] > 0 ? (g > 0 ? +p[2] / g : 600) : 0) + (+p[3] > 0 ? (s > 0 ? +p[3] / s : 600) : 0) + PQW + PQA; }
       else if (k === 'p') t += PQW + PQA;
-      else if (k === 'h') t += (+((PQH[m + '|' + band(n)] || [])[st]) || 8) * (pqRepH(PD.heroes[i], n, m, L) ? Math.max(0, 1 - pqFr(n, m, stop)) : 1);   // the whole chain (7 kills + walks + the scroll trip), minus what the replay already played
+      else if (k === 'h') t += (+((PQH[m + '|' + band(n)] || [])[st]) || 8) * (pqRepH(PD.heroes[i], n, m, L) ? Math.max(0, 1 - pqFr(n, m, stop)) : 1) + rwMin(PD.heroes[i], n, m, L, stop);   // MAGIC RING: + the Ringwraith // the whole chain (7 kills + walks + the scroll trip), minus what the replay already played
       else if (k === 'w') t += +p[2] || 0;
       else if (k === 'f') t += (+p[6] || (+p[4] || 0) / (KPM[1] || 30)) + PQW;
       else if (k === 'y') t += pqKt(p[1], n, m, i) / 60 + PQW; }));
@@ -488,12 +488,12 @@
     const r = st >= 0 && st <= 20 + n ? st : -1; PQHC.set(k, r); return r; };
   const pqHasH = b => !!PD.pq && (PQ[b] || []).some(p => p[0] === 'h');
   const bossAt = (b, n, m, i, lv) => { const s = bossAt0(b, n, m, i, lv); if (s < 0 || !pqHasH(b)) return s; const c = pqChain(n, m, i, lv, true); return c < 0 ? -1 : Math.max(s, c); };
-  const pqChainHtml = (why, notes) => `<details class="zn-rules"><summary>Show steps</summary><ul class="pl-ul">`
+  const pqChainHtml = (why, notes, rw) => `<details class="zn-rules"><summary>Show steps</summary><ul class="pl-ul">`
     + `<li>Step 7 (${ilink('I02Y')} to Frodo) opens his hidden Boss Hunt: kills before it do not count.</li>`
     + `<li>Kill in this order: ${PQHB.map(b => esc(bname(b))).join(' › ')}. Each counts only after the one before, each comes back 90 s after a kill.${notes.length ? ' ' + notes.join(' ') : ''}</li>`
     + `<li>Back to ${esc(bname('n009') === 'n009' ? 'Frodo' : bname('n009'))} for the <a href="#item/I03C">${K.icon('I03C')}Firelands Transfer Scroll</a>: keep it and use it when you go (one use per game, the Firelands teleport stone stays open for your party).</li>`
     + `<li>In the Firelands kill the ${esc(bname('O003'))} (he comes back after a kill).</li>`
-    + `<li>Back to Frodo: ${ilink('I03L')} for every player.</li></ul></details>`;
+    + `<li>Back to Frodo: ${ilink('I03L')} for every player.</li>${rw ? '<li>' + rwTxt() + '</li>' : ''}</ul></details>`;   // MAGIC RING
   /* the chain line at its step, before that step's goal lines; not needed = the optional line at step 7 (collapsed the same way) */
   const pqHuntAt = (li, i, X, need, FPL) => { const x = X.steps[i]; if (!x) return;
     if (!X.hunt) { const why = [], add = t => { if (t && !why.includes(t)) why.push(t); };
@@ -507,7 +507,8 @@
     const H = X.hunt;
     if (!H.why.length) { if (+x.step === 7) li.push(`<li class="pl-rp"><span class="small">Optional: Frodo's quest chain gives every player a ${ilink('I03L')}. Nothing on this run needs it.</span>${pqChainHtml('', [])}</li>`); return; }
     if (H.at < 0) { if (+x.step === 7) tpHunt(li, X.steps, X.stop, need, FPL); return; }   // no hero data: the old block
-    if (i === H.at) li.push(`<li class="pl-rb pl-n"><b>Frodo's quest chain</b> · opens the Firelands, needed for ${andJ(H.why)}${pqChainHtml(andJ(H.why), H.notes)}</li>`); };
+    if (i === H.at) li.push(`<li class="pl-rb pl-n"><b>Frodo's quest chain</b> · opens the Firelands, needed for ${andJ(H.why)}${pqChainHtml(andJ(H.why), H.notes, !!(FPL && FPL.rw && FPL.rw.i >= H.at))}</li>`);
+    if (FPL && FPL.rw && FPL.rw.i >= H.at && i === FPL.rw.i) li.push(`<li class="pl-rb pl-n"><b>Absolute Ring</b> · ${rwTxt()}</li>`); };   // MAGIC RING: right after the chain (N4+) / in Late (N1-3)
   /* route lines before a goal line (b = a routeHtml need, X = the route: seen, n, steps) */
   const pqLi = (lb, t, note, warn) => `<li class="pl-rb pl-n"><b>${lb}</b> · ${t}${note ? ' <span class="small">· ' + note + '</span>' : ''}${warn ? ' <span class="small warntext">' + warn + '</span>' : ''}</li>`;
   const pqZ = u => { const z = bzone(u); return z ? ` <span class="small">(${esc(zname(z))})</span>` : ''; };
@@ -594,6 +595,7 @@
     steps.slice(0, stop + 1).forEach((x, i) => { const o = ZO[x.zone] || 0; c = Math.max(c, o > 18 ? 2 : o > 6 ? 1 : 0); po[i] = c; if (pS[c] == null) pS[c] = i; pE[c] = i; });
     const head = {}, at = {}, end = {}, kept = {}, lvDone = {}, enh = String((((PD.enh || {})[key] || {})[h]) || '').split('|');
     const fire = [];                                                  // TESTER PAGE FIXES: what needs the Firelands (Frodo's Boss Hunt)
+    const rwP = rwPlan(h, n, m, L, steps, stop), rwUp = rwP.i >= 0 || rwP.abs;   // MAGIC RING: the run upgrades the ring = no + levels on it
     const f = (0.8 + 0.2 * n) / (0.8 + 0.2 * ((PD.sn || {})[band(n)] || n)) * gsF(n), useEnh = true;   // BOSS SOULS: every gear level (only the free +30 stone line reads PD.enh now)
     let spent = 0, farmed = 0, stoneAt = ''; const bsIS = [0, 0, 0];   // BOSS SOULS: item Boss Soul prices per part // AUDIT minor 14: the run's one +30 stone (one copy of one item)
     for (let p = 0; p <= 2; p++) {
@@ -615,9 +617,10 @@
           for (let i = pS[p]; i <= pE[p]; i++) if (steps[i].zone === w[3]) { j = i; break; }
           if (j < 0 && zo != null && zo > (ZO[steps[pS[p]].zone] || 0)) { for (let i = pS[p]; i <= pE[p]; i++) if ((ZO[steps[i].zone] || 0) >= zo) { j = i; break; } if (j < 0) j = pE[p]; }
         }
+        if (id === RW_A && w[0] === 'c') { if (rwP.i >= 0) continue; (j < 0 ? (head[p] = head[p] || []) : (at[j] = at[j] || [])).push(`<li>${ilink(id)} <span class="small">· ${rwTxt()}</span></li>`); continue; }   // MAGIC RING: the route's 'Absolute Ring' line
         (j < 0 ? (head[p] = head[p] || []) : (at[j] = at[j] || [])).push(line);
       }
-      if (useEnh) (enh[p] || '').split(',').forEach(e => { const mt = /^(\w{4})\+(\d+)(?:x(\d+))?$/.exec(e); if (!mt || !cnt[mt[1]]) return;
+      if (useEnh) (enh[p] || '').split(',').forEach(e => { const mt = /^(\w{4})\+(\d+)(?:x(\d+))?$/.exec(e); if (!mt || !cnt[mt[1]] || (rwUp && mt[1] === RW_R)) return;
         const id = mt[1], stone = +mt[2] >= 30 && (+S.ml || 0) >= 90 && (!stoneAt || stoneAt === id), lv = stone ? 30 : Math.min(20, +mt[2]), l0 = lvDone[id] || 0; if (lv <= l0 || (+mt[2] >= 30 && !stone)) return;   // no stone below Map Level 90 (or already used): that item stays as is
         if (stone) { stoneAt = id; lvDone[id] = 30; up.push(`+30 ${ilink(id)} (free +30 stone${+(mt[3] || 1) > 1 ? ', one copy: one stone per run' : ''})`); return; }   // Map Level 90+: the stone costs no Boss Souls; tokens (+21..+25) not in the save -> +20
         lvDone[id] = lv; });   // BOSS SOULS: + levels = the Enhance lines before the bosses (paid by the route's bosses), not farmed
@@ -649,7 +652,7 @@
         return { st: +mt[1], b: mt[2] || '', ups: mt[3].split(',').map(z => { const x = /^(.+)\+(\d+)$/.exec(z); return x ? [x[1], +x[2]] : null; }).filter(Boolean) }; }).filter(Boolean); })();
     if (bsEv) {                                                       // a) the replay's own enhance events
       const lvE = {};
-      bsEv.forEach(ev => { let i = -1;
+      bsEv.forEach(ev => { let i = -1; if (rwUp) ev = Object.assign({}, ev, { ups: ev.ups.filter(u => u[0] !== RW_R) }); if (!ev.ups.length) return;
         if (ev.b) { i = steps.findIndex((x, k) => k <= stop && +x.step === ev.st && bsKills(x).includes(ev.b)); if (i < 0) i = steps.findIndex((x, k) => k <= stop && +x.step >= ev.st); }
         else i = steps.findIndex((x, k) => k <= stop && +x.step > ev.st);
         if (i < 0 || i > stop) return;
@@ -664,14 +667,14 @@
         if (sby.length === 3) { const b0 = p > 0 ? +sby[p - 1] * f : 0, add = (+sby[p] - (p > 0 ? +sby[p - 1] : 0)) * f;
           const last = steps.findIndex((x, k) => k > i && bp[k] === p) < 0; inc[i] = b0 + (RP[p] > 0 ? add * cp[p] / RP[p] : last ? add : 0); }
         else { cum += v * gsF(n); inc[i] = cum; } });
-      const got = {}, nf = {};                                        // got = route step an item's farm line sits at (not held before it)
+      const got = {}, nf = {}; if (rwP.i >= 0 && rwP.abs) got[RW_A] = rwP.i;   // MAGIC RING: held from the route line on // got = route step an item's farm line sits at (not held before it)
       Object.keys(at).forEach(j => at[j].forEach(t => { const mm = /#item\/([^"]+)"/.exec(t); if (mm) { const id = decodeURIComponent(mm[1]); got[id] = Math.min(got[id] == null ? 1e9 : got[id], +j); } }));
       const fc = [0, 0, 0]; for (let p = 0, sc = 0; p < 3; p++) { sc += bsIS[p]; fc[p] = Math.max(p ? fc[p - 1] : 0, sby.length === 3 ? sc - +sby[p] * f : 0); }   // Boss Souls farmed for item prices by the end of each part (the farm line)
       const lv = {}; let used = 0;
       for (let i = 1; i <= stop; i++) {
         const p = bp[i]; if (p < 1 || !bsKills(steps[i]).some(b => RQ.has(b))) continue;
         if (!nf[p]) nf[p] = tpFit(h, n, m, L, p);                     // 'may not fit this gear level's farm time': not planned
-        const items = [...new Set((g[FPS[p]] || []).concat(g[FPS[p] + '_b'] || []))].filter(id => lvDone[id] !== 30 && !(got[id] >= i) && !nf[p].has(id)).map(id => [id, bsW(id, q)]).filter(x => x[1] > 0);
+        const items = [...new Set((g[FPS[p]] || []).concat(g[FPS[p] + '_b'] || []))].filter(id => lvDone[id] !== 30 && !(rwUp && id === RW_R) && !(got[id] >= i) && !nf[p].has(id)).map(id => [id, bsW(id, q)]).filter(x => x[1] > 0);
         let avail = (inc[i - 1] || 0) + fc[p] - bsIS.slice(0, p + 1).reduce((a, x) => a + x, 0) - (p < 2 ? bsIS[p + 1] : 0) - used;
         const ch = {}; let c = 0;
         while (avail > 0 && items.length) { let best = null;
@@ -686,11 +689,37 @@
     return {
       head: (li, p, gb) => { if (any(p) || gb) li.push(`<li class="pl-rp pl-gh"><b>${FPN[p]} gear</b>${any(p) ? ' <span class="small">(farm while you pass)</span>' : ''}${gb ? `<div class="pl-gb">${gb}</div>` : ''}${head[p] ? `<ul class="pl-ul">${head[p].join('')}</ul>` : ''}</li>`); },
       step: (li, i) => { if (bsPre[i] && li.length) li.splice(li.length - 1, 0, ...bsPre[i]); if (at[i] && li.length) li[li.length - 1] = li[li.length - 1].replace(/<\/li>$/, `<ul class="pl-ul">${at[i].join('')}</ul></li>`); },
-      end: (li, p) => { if (end[p]) { li.push(end[p]); delete end[p]; } }, fire };
+      end: (li, p) => { if (end[p]) { li.push(end[p]); delete end[p]; } }, fire, rw: rwP };
   }
   /* AUDIT minor 4: a boss behind the 4,000-gold boat (PD.boat) listed before the main-quest step that buys the boat says so */
   const BOAT = new Set(PD.boat || []), BOATSTEP = ((((W.qguide || {}).steps) || []).find(x => /Boat \(4,000 gold\)/.test(String(x.do || ''))) || {}).step;
   const BOATTXT = 'buy the boat first (4,000 gold, Goblin Shipyard in Pirate Outpost Ruins, behind the Dragon Turtle Key gate)';
+  /* ---- MAGIC RING (patch_page_ring 2026-09-25, user-approved; findings/public/audit_math/magic_ring.md). Magic Ring I03L + 5 Wraith Souls
+     I051 -> Absolute Ring I050 on any item pickup, a fresh +0 ring. The
+     Ringwraith returns 30 s after a kill, STR / INT x1.5 each time. rwPlan -> {i: route index of the 'Absolute Ring' line
+     or -1, abs: the build has the Absolute Ring}: the latest of the chain step (pqChain), the Ringwraith's first open step (fsOf), the
+     hero's Ringwraith beat row (bossAt0) and the first part where PD.fw has an Absolute Ring route (acq ring_route: all 5 kills x1.5,
+     median hero: N1-3 Late, N4+ Mid). rwMin = its minutes for pqMins */
+  const RW_B = 'H00M', RW_R = 'I03L', RW_A = 'I050', RW_S = 'I051', RWC = new Map();
+  const rwTxt = () => `Sail to Ringwraith Island (boat), kill the ${srcA(RW_B, 'Ringwraith')} 5 times, keep the 5 <a href="#item/${RW_S}">${K.icon(RW_S)}Wraith Souls</a> with the ${ilink(RW_R)}: it becomes the ${ilink(RW_A)} when you pick up any item.`;
+  const rwPlan = (h, n, m, L, steps, stop) => { const hi = HIDX[h]; if (!FW || hi == null || !steps || !steps.length) return { i: -1, abs: false };
+    const k = eqStep(h, n, m).k, ck = [h, n, m, L, stop, steps.length, k, +S.gl || 0, S.rf ? 1 : 0, +S.ml || 1].join('|'); if (RWC.has(ck)) return RWC.get(ck);
+    const T = FW.k[MK[m] + '|' + band(n)] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
+    const abs = [0, 1, 2].some(p => (g[FPS[p]] || []).concat(g[FPS[p] + '_b'] || []).includes(RW_A)), r = { i: -1, abs };
+    const c = pqChain(n, m, hi, k, true), s1 = c >= 0 ? bossAt0(RW_B, n, m, hi, k) : -1, aw = T[RW_A] || [], p0 = [0, 1, 2].find(p => aw[p] != null && aw[p] >= 0);
+    if (c >= 0 && s1 >= 0 && p0 != null) {
+      const at = s => { const j = steps.findIndex(x => +x.step >= s); return j < 0 ? steps.length - 1 : j; };
+      const po = []; let cm = -1; steps.forEach((x, j) => { const o = ZO[x.zone] || 0; cm = Math.max(cm, o > 18 ? 2 : o > 6 ? 1 : 0); po[j] = cm; });
+      const fs = fsOf(RW_B, n), pi = po.findIndex(p => p >= p0);
+      if (pi >= 0) { const i = Math.max(at(c), at(fs == null ? 0 : Math.max(0, fs - 1)), at(s1), pi); if (i <= stop) r.i = i; } }
+    RWC.set(ck, r); return r; };
+  const rwMin = (h, n, m, L, stopStep) => { const steps = (((W.qguide || {}).steps) || []).filter(x => +x.step <= 20 + n); let si = -1;
+    steps.forEach((x, j) => { if (+x.step <= stopStep) si = j; }); if (si < 0) return 0;
+    const R = rwPlan(h, n, m, L, steps, si); if (R.i < 0) return 0;
+    const o = ZO[steps[R.i].zone] || 0, p = Math.max(...steps.slice(0, R.i + 1).map(x => { const z = ZO[x.zone] || 0; return z > 18 ? 2 : z > 6 ? 1 : 0; }), o > 18 ? 2 : o > 6 ? 1 : 0);
+    const T = FW.k[MK[m] + '|' + band(n)] || {}, wa = (T[RW_A] || [])[p], wr = (T[RW_R] || [])[p];
+    const a = wa != null && wa >= 0 ? +FW.t[wa][7] || 0 : 0, b = wr != null && wr >= 0 ? +FW.t[wr][7] || 0 : 0, mn = a > b && b > 0 ? Math.min(15, Math.max(2, a - b)) : 3;
+    return mn * (R.abs && pqRepH(h, n, m, L) ? Math.max(0, 1 - pqFr(n, m, stopStep)) : 1); };
   /* ---- TESTER PAGE FIXES (patch_tester_page 2026-09-25; tester feedback findings/public/audit_math/tester_feedback_0925.md, user-approved,
      no re-simulation). Per run part under its gear line: pet bag, rune, universal skills (tpPart); once per route: the hero page's skill
      priority line (tpSkill, heroes.js K.hxOrder); Frodo's hidden Boss Hunt at step 7 when the route needs the Firelands (tpHunt); the gear
