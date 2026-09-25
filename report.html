@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Planner Test Report</title>
+</head><body>
+<style>
+:root{
+  --bg:#f4f5f0; --panel:#ffffff; --ink:#1d2327; --muted:#5d676b; --line:#d9ddd6;
+  --gold:#a8740f; --gold-soft:#f3e6c6; --chip:#eef0ea; --chip-on:#1f4e4a; --chip-on-ink:#ffffff;
+  --good:#2e7d4f; --warn:#b3541e; --focus:#c9920f;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11171a; --panel:#182126; --ink:#e6ebe8; --muted:#9aa7a8; --line:#2b3a40;
+    --gold:#e2b04a; --gold-soft:#3a3019; --chip:#223037; --chip-on:#e2b04a; --chip-on-ink:#16110a;
+    --good:#6cc28f; --warn:#f08a54; --focus:#e2b04a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11171a; --panel:#182126; --ink:#e6ebe8; --muted:#9aa7a8; --line:#2b3a40;
+  --gold:#e2b04a; --gold-soft:#3a3019; --chip:#223037; --chip-on:#e2b04a; --chip-on-ink:#16110a;
+  --good:#6cc28f; --warn:#f08a54; --focus:#e2b04a; color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif;padding-inline:16px;padding-block:24px 64px}
+.wrap{max-width:720px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header h1{font-size:1.55rem;margin:0 0 4px;letter-spacing:.2px;text-wrap:balance}
+header p{margin:0;color:var(--muted);max-width:62ch}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.steps span{background:var(--gold-soft);color:var(--ink);border-radius:999px;padding:3px 10px;font-size:.82rem}
+section{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px}
+section h2{margin:0;font-size:.78rem;text-transform:uppercase;letter-spacing:.09em;color:var(--gold)}
+.q{display:flex;flex-direction:column;gap:7px}
+.q > label, .q > .ql{font-weight:600}
+.hint{font-weight:400;color:var(--muted);font-size:.85rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips input{position:absolute;opacity:0;pointer-events:none}
+.chips label{background:var(--chip);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer;user-select:none;font-size:.92rem}
+.chips input:checked + label{background:var(--chip-on);color:var(--chip-on-ink);border-color:var(--chip-on)}
+.chips input:focus-visible + label{outline:2px solid var(--focus);outline-offset:2px}
+input[type=text],input[type=number],textarea{width:100%;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:9px 11px;font:inherit}
+textarea{min-height:76px;resize:vertical}
+input:focus-visible,textarea:focus-visible,button:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.cond[hidden]{display:none}
+.out{background:var(--panel);border:1px solid var(--gold);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.out h2{margin:0;font-size:1rem}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button{font:inherit;font-weight:600;border-radius:8px;padding:10px 16px;cursor:pointer;border:1px solid var(--line);background:var(--chip);color:var(--ink)}
+button.primary{background:var(--gold);border-color:var(--gold);color:#16110a}
+#report{white-space:pre-wrap;font:13px/1.45 ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:12px;max-height:340px;overflow:auto;margin:0}
+.msg{font-size:.9rem;color:var(--good);min-height:1.2em}
+.msg.bad{color:var(--warn)}
+.foot{color:var(--muted);font-size:.85rem}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header>
+    <p style="margin:0 0 8px"><a href="index.html#planner" style="color:var(--gold)">&larr; Back to the Run planner</a></p>
+    <h1>Planner Test Report</h1>
+    <p>For The Adventurer's Path Run planner. Play one run the planner suggested, then fill this in. Tap the answers, it takes 2 minutes.</p>
+    <div class="steps"><span>1 · Fill in</span><span>2 · Tap “Copy my report”</span><span>3 · Paste it on Discord + send your save file</span></div>
+  </header>
+
+  <section>
+    <h2>You</h2>
+    <div class="q"><label for="who">Your name (Discord)</label><input type="text" id="who" autocomplete="off" placeholder="e.g. PlayerName"></div>
+  </section>
+
+  <section>
+    <h2>The run the planner gave you</h2>
+    <div class="q"><span class="ql">Planner goal you picked</span>
+      <div class="chips" data-name="goal"></div></div>
+    <div class="row">
+      <div class="q"><label for="hero">Hero</label><input type="text" id="hero" autocomplete="off" placeholder="e.g. Blademaster"></div>
+      <div class="q"><label for="rank">Card # you picked <span class="hint">(1 = top card)</span></label><input type="number" id="rank" min="1" max="8" placeholder="1"></div>
+    </div>
+    <div class="q"><span class="ql">Difficulty</span><div class="chips" data-name="n"></div></div>
+    <div class="q"><span class="ql">Mode</span><div class="chips" data-name="mode"></div></div>
+    <div class="q"><span class="ql">Gear setting</span><div class="chips" data-name="gear"></div></div>
+    <div class="q"><span class="ql">“I'll farm rare drops” switch</span><div class="chips" data-name="rare"></div></div>
+  </section>
+
+  <section>
+    <h2>Your account</h2>
+    <div class="row">
+      <div class="q"><label for="ml">Map Level</label><input type="number" id="ml" min="1" max="999" placeholder="e.g. 28"></div>
+      <div class="q"><label for="pts">Points you had</label><input type="number" id="pts" min="0" placeholder="e.g. 76"></div>
+    </div>
+    <div class="q"><span class="ql">VIP</span><div class="chips" data-name="vip"></div></div>
+    <div class="q"><span class="ql">Did you load your save file into the planner?</span><div class="chips" data-name="loaded"></div></div>
+  </section>
+
+  <section>
+    <h2>How it went</h2>
+    <div class="q"><span class="ql">Result</span><div class="chips" data-name="result"></div></div>
+    <div class="q cond" id="failbox" hidden><label for="failat">Where did it end? <span class="hint">(boss name or quest step)</span></label><input type="text" id="failat" autocomplete="off" placeholder="e.g. Spider Lord, step 23"></div>
+    <div class="q"><span class="ql">How hard did it feel?</span><div class="chips" data-name="feel"></div></div>
+    <div class="q"><span class="ql">Deaths in the whole run</span><div class="chips" data-name="deaths"></div></div>
+    <div class="q"><label for="diedto">What killed you? <span class="hint">(bosses, monster packs on the way, leave empty if nothing)</span></label><input type="text" id="diedto" autocomplete="off" placeholder="e.g. Spider Lord x2, a creep pack in Dark Forest"></div>
+    <div class="q"><span class="ql">How long did the run take you?</span><div class="chips" data-name="time"></div></div>
+  </section>
+
+  <section>
+    <h2>The plan itself</h2>
+    <div class="q"><span class="ql">Did you get the items the planner listed?</span><div class="chips" data-name="items"></div></div>
+    <div class="q"><label for="missing">Items you could NOT get, and why <span class="hint">(optional)</span></label><input type="text" id="missing" autocomplete="off" placeholder="e.g. Nature Strength: crate unreachable"></div>
+    <div class="q"><span class="ql">Did the route (steps) make sense?</span><div class="chips" data-name="route"></div></div>
+    <div class="q"><label for="legacy">Legacy items you got or upgraded this run <span class="hint">(optional)</span></label><input type="text" id="legacy" autocomplete="off" placeholder="e.g. Scale Armor, Cloth Helmet 1 → 3"></div>
+    <div class="q"><label for="wrong">What was wrong, missing or confusing? <span class="hint">(anything, short is fine)</span></label><textarea id="wrong" placeholder="e.g. never told me to do Frodo's hunt; rune not mentioned"></textarea></div>
+  </section>
+
+  <div class="out">
+    <h2>Your report</h2>
+    <pre id="report"></pre>
+    <div class="btns"><button type="button" class="primary" id="copy">Copy my report</button><button type="button" id="clear">Start a new report</button></div>
+    <div class="msg" id="msg" role="status"></div>
+    <p class="foot">Paste the report on Discord and also send your save file: Documents\Warcraft III\CustomMapData\TheAdventurersPathRPG\ (the .pld file). Your answers stay on this device until you copy them.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  const OPTS = {
+    goal:["Points farm","First Legacy items","Legacy upgrades"],
+    n:["N1","N2","N3","N4","N5","N6","N7","N8","N9"],
+    mode:["Main","Challenge","Death"],
+    gear:["Just enough","A bit more","Overgeared"],
+    rare:["Off","On"],
+    vip:["None","1","2","4","10","Don't know"],
+    loaded:["Yes","No, typed it"],
+    result:["Finished the run","Died and gave up","Ran out of revives","Quit for another reason"],
+    feel:["Too easy","About right","Too hard"],
+    deaths:["0","1-2","3-5","6+"],
+    time:["Under 1 h","1-2 h","2-3 h","3 h+"],
+    items:["All of them","Most","Few or none"],
+    route:["Yes","Partly","No"]
+  };
+  const KEY = "ap_test_report_v1";
+  const TEXT = ["who","hero","rank","ml","pts","failat","diedto","missing","legacy","wrong"];
+  const state = {};
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+
+  document.querySelectorAll(".chips[data-name]").forEach(box => {
+    const name = box.dataset.name;
+    OPTS[name].forEach((txt, i) => {
+      const id = "c_" + name + "_" + i;
+      const inp = document.createElement("input"); inp.type = "radio"; inp.name = name; inp.id = id; inp.value = txt;
+      if (saved[name] === txt) { inp.checked = true; state[name] = txt; }
+      const lab = document.createElement("label"); lab.htmlFor = id; lab.textContent = txt;
+      inp.addEventListener("change", () => { state[name] = txt; update(); });
+      box.append(inp, lab);
+    });
+  });
+  TEXT.forEach(id => { const el = document.getElementById(id); if (saved[id] != null) el.value = saved[id]; state[id] = el.value; el.addEventListener("input", () => { state[id] = el.value; update(); }); });
+
+  const v = k => (state[k] || "").toString().trim();
+  function build(){
+    const L = [];
+    L.push("PLANNER TEST REPORT" + (v("who") ? " - " + v("who") : ""));
+    L.push("Run: " + [v("hero") || "?", v("n") || "N?", v("mode") || "?"].join(" · ") + " | goal: " + (v("goal") || "?") + (v("rank") ? " | card #" + v("rank") : ""));
+    L.push("Gear: " + (v("gear") || "?") + " | rare drops: " + (v("rare") || "?"));
+    L.push("Account: Map Level " + (v("ml") || "?") + " | Points " + (v("pts") || "?") + " | VIP " + (v("vip") || "?") + " | save loaded: " + (v("loaded") || "?"));
+    L.push("Result: " + (v("result") || "?") + (v("failat") && v("result") !== "Finished the run" ? " at " + v("failat") : ""));
+    L.push("Felt: " + (v("feel") || "?") + " | deaths: " + (v("deaths") || "?") + " | took: " + (v("time") || "?"));
+    if (v("diedto")) L.push("Killed by: " + v("diedto"));
+    L.push("Items: " + (v("items") || "?") + (v("missing") ? " | couldn't get: " + v("missing") : ""));
+    L.push("Route made sense: " + (v("route") || "?"));
+    if (v("legacy")) L.push("Legacy this run: " + v("legacy"));
+    if (v("wrong")) L.push("Notes: " + v("wrong"));
+    return L.join("\n");
+  }
+  function update(){
+    document.getElementById("failbox").hidden = !(state.result && state.result !== "Finished the run");
+    document.getElementById("report").textContent = build();
+    try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  const msg = document.getElementById("msg");
+  document.getElementById("copy").addEventListener("click", () => {
+    const need = ["hero","n","mode","result"].filter(k => !v(k));
+    if (need.length) { msg.className = "msg bad"; msg.textContent = "Please fill in: " + need.map(k => ({hero:"Hero",n:"Difficulty",mode:"Mode",result:"Result"})[k]).join(", ") + "."; return; }
+    const text = build();
+    const done = () => { msg.className = "msg"; msg.textContent = "Copied. Paste it on Discord and send your save file too."; };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(document.getElementById("report")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); msg.className = "msg"; msg.textContent = "Copy didn't work here: the report is selected, press Ctrl+C (or long-press → Copy)."; };
+    try { navigator.clipboard.writeText(text).then(done, fallback); } catch (e) { fallback(); }
+  });
+  document.getElementById("clear").addEventListener("click", () => {
+    Object.keys(state).forEach(k => delete state[k]);
+    document.querySelectorAll(".chips input").forEach(i => i.checked = false);
+    TEXT.forEach(id => { document.getElementById(id).value = ""; state[id] = ""; });
+    try { localStorage.removeItem(KEY); } catch (e) {}
+    msg.className = "msg"; msg.textContent = "Cleared. Ready for your next run."; update();
+  });
+  update();
+})();
+</script>
+
+</body></html>
