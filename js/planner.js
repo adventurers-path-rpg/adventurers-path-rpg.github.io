@@ -1358,7 +1358,7 @@
     const goal = ['points', 'legacy', 'start'].includes(f.goal) ? f.goal : (S.goal || (Object.keys(S.own).length ? 'legacy' : 'start'));
     if (goal !== S.goal) { S.goal = goal; save(); }
     const nOwn = Object.keys(S.own).length;
-    return `<h2>Run planner <span class="tag warn">beta</span></h2><p class="small">Numbers are still being tuned with player tests. If a run plays out differently in game, the game wins. Played a run? <a href="report.html" target="_blank" rel="noopener">Send a test report</a> (2 minutes).</p>`
+    return `<h2>Run planner <span class="tag warn">beta</span></h2><p class="small">Numbers are still being tuned with player tests. If a run plays out differently in game, the game wins. </p><p><a class="hlbtn" href="report.html" target="_blank" rel="noopener">Played a run? Send a test report (2 min)</a></p>`
       + `<div class="card pl-in"><div class="pl-top"><b>Your Legacy</b> <span class="small">${nOwn ? nOwn + (nOwn > 1 ? ' lines' : ' line') + ' set' + (S.src ? ' from your save' : '') : 'nothing set yet'}</span>`
       + `<label class="btn pl-file${S.src === 'save' ? '' : ' hlbtn'}">${S.src === 'save' ? 'Load another save' : 'Load save file'}<input type="file" id="pl-save" accept=".pld,.txt" multiple hidden></label>`
       + (nOwn ? `<button class="btn" id="pl-clear" type="button">Clear</button>` : '') + `</div>`
