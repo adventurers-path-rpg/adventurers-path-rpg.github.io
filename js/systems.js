@@ -214,6 +214,7 @@
         'Modes table: the Challenge / Death cut hits true damage too, damage dealt by illusions is never cut.',
       ]],
       ['Calculators', [
+        'Run planner (tester feedback): a Don’t leave yet note lists the further evolutions your new Legacy items can still make in the same run (each counts as half an item in the ranking), Legacy upgrades lists free pickups, and Enhance lines show where to spend your Boss Souls before the hard bosses on every gear level.',
         'Run planner routes now show every step a goal needs first: gate bosses before portal bosses (Nature Guardian, Spider Queen + Green Dragon Key, Storm Beast Gatekeeper, Evil Jaina), arena ticket farms (the arena must be empty), Spirit King tickets (250,000-350,000 gold in Light Guardian Fortress), Shadow Lord (1,000 Points + 10 Challenge Tokens from Challenge clears), the Windmill Village Chief chain, and "enhance to +N first". Each step is timed and every boss on the way is checked.',
         'Run planner: Frodo’s quest chain is one line with a Show steps button. It sits where your hero beats all 7 hunt bosses, before anything in the Firelands (his scroll is the only way in).',
         'Run planner: chance evolutions are farm goals (e.g. Cloth Helmet to 5: any monsters + any bosses + Wyverns, 85% luck per step). "Any boss" steps name no boss; your route’s kills already count.',

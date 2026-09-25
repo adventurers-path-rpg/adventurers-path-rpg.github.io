@@ -268,7 +268,17 @@
   /* AUDIT M4: below Map Level PD.nsml (90) there is no +30 stone and the save holds no Challenge Tokens: PD.bns[k] = the same rows
      [opening, stage 0, 1, 2] ('' = no row) with the ladder's stone / tokens / ML 190 boots off, stored where they differ from PD.beat */
   const bnsOf = k => (+S.ml || 1) < (+PD.nsml || 90) ? ((PD.bns || {})[k] || null) : null;
-  const bossAt0 = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, ns = bnsOf(k), s0 = ns ? ns[0] : (PD.beat || {})[k]; if (s0 === undefined) return -1;   // PREREQ GATES: bossAt = this + the hunt
+  /* AFTER-RUN FIGHTS (patch_page_afterrun 2026-09-25, user-approved; data planner_pack PD.abf / PD.abon from sim_account's end-of-run
+     fights): PD.abf['N|m'][hero][account step][gear level] = the bosses the replay's END gear loses at that gear level (comma list; null =
+     not replayed). A boss the beat rows let you fight is not doable when the replay at the gear level of this run (lvlFor to the end of the
+     run; no finishing level: to the fight's step) loses it with everything it holds at the end. No data / 'I'll farm rare drops' = the
+     beat rows alone */
+  const abLost = (b, n, m, i, lv, st) => { if (!PD.abon || st < 0 || (S.rf && PD.rpf)) return false;
+    const r = ((PD.abf || {})[n + '|' + m] || {})[PD.heroes[i]], row = r ? r[lv] : null; if (!row) return false;
+    const c = cellOf(n, m, i, lv); if (!c) return false; let L = lvlFor(c, 20 + n); if (L < 0) L = lvlFor(c, st);
+    const x = L >= 0 ? row[L] : null; return typeof x === 'string' && x !== '' && x.split(',').includes(b); };
+  const bossAt0 = (b, n, m, i, lv) => { const s = bossAt00(b, n, m, i, lv); return s >= 0 && abLost(b, n, m, i, lv, s) ? -1 : s; };
+  const bossAt00 = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, ns = bnsOf(k), s0 = ns ? ns[0] : (PD.beat || {})[k]; if (s0 === undefined) return -1;   // PREREQ GATES: bossAt = this + the hunt
     const st0 = stopOf(b, n); if (okAt(s0[i], lv)) return st0;
     for (let j = stageOf(st0); j <= 2; j++) { const s = ns ? ns[1 + j] || undefined : PD.beat[k + '|' + j]; if (s !== undefined && okAt(s[i], lv)) return Math.max(st0, stEnd(j, n)); }
     return -1; };
@@ -399,7 +409,7 @@
   const LENW = [[60, 'short'], [120, 'medium'], [180, 'long'], [Infinity, 'very long']];
   const lenW = t => t > 0 && isFinite(t) ? LENW.find(x => t < x[0])[1] : '';
   const lenI = t => t == null || !isFinite(t) ? 3 : t <= 0 ? 0 : LENW.findIndex(x => t < x[0]);   // length class 0-3 (no time known = very long, 0 min = short)
-  const rkV = r => r.got.length - lenI(r.mins);
+  const rkV = r => r.got.length + 0.5 * (r.chn || 0) + 0.01 * Math.min(40, r.pk || 0) - lenI(r.mins);   // CHAINS: chained steps half a line, pickups tie-break
   const lenTag = t => lenW(t) ? ` · ${lenW(t)} run` : '';
   /* CARDS UI: one part's full build: every planned slot, copies as 'x4', starter gear on a small '+ starter:' line, empty slots counted */
   const buildRow = (h, n, m, L, i) => { const g = gearOf(h, n, m, L == null || L < 0 ? 3 : L), st = ['early', 'mid', 'late'][i], main = g[st] || [], bas = g[st + '_b'] || [];
@@ -566,6 +576,17 @@
     if (k === 'e') return `evolve ${id ? ilink(id) : esc(nm)}${x ? ': ' + esc(x) : ''}${sl ? ' (' + fmt(sl) + ' Boss Souls)' : ''}`;
     return esc(nm);
   }
+  /* ---- BOSS SOULS (patch_page_souls 2026-09-25, user-approved 'spend Boss Souls before every hard boss'; findings/public/audit_math/
+     tester2_souls_spending.md). BS_T85[N] = Boss Souls to take one item +0 -> +N at 85% luck (VIP 0; 100,000 rolls of the map chances
+     80 / 60 / 50%, a Protection Stone per fail on +15..+19 like tier_calc enh_cost); bsC85 = the difference, VIP scaled like enhR */
+  const BS_T85 = [0, 20, 50, 90, 150, 230, 320, 420, 530, 660, 800, 1120, 1470, 1835, 2225, 2635, 3395, 4190, 5020, 5880, 6780];
+  const bsC85 = (a, b) => (BS_T85[b] - BS_T85[a]) * enhC(0, b) / Math.max(1, enhC(0, b, 0));
+  const BS_RAR = new Set(['epic', 'legendary', 'artifact', 'hart']);
+  let BS_IM = null;
+  const bsItem = id => { if (!BS_IM) { BS_IM = {}; (W.items || []).forEach(x => { BS_IM[x.id] = x; }); } return BS_IM[id] || null; };
+  /* sim_account enhance: flat stats per + level (10% each), main stat / all stats 1, other stats 0.15, attack 0.5, HP 1/30, armor 1.5 */
+  const bsW = (id, q) => { const it = bsItem(id); if (!it || !BS_RAR.has(it.rar) || !(+it.level >= 5) || it.legacy) return 0; const s = it.st || {};
+    return 0.1 * ((+s[q] || 0) + (+s.all_stats || 0) + 0.15 * ['str', 'agi', 'int'].filter(k => k !== q).reduce((a, k) => a + (+s[k] || 0), 0) + 0.5 * (+s.ad || 0) + (+s.hp || 0) / 30 + 1.5 * (+s.armor || 0)); };
   function farmPlan(h, n, m, L, steps, stop) {                       // -> {head(li, part), step(li, i), end(li, part)} or null (no data)
     if (!FW) return null;
     const key = MK[m] + '|' + band(n), T = FW.k[key] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
@@ -573,8 +594,8 @@
     steps.slice(0, stop + 1).forEach((x, i) => { const o = ZO[x.zone] || 0; c = Math.max(c, o > 18 ? 2 : o > 6 ? 1 : 0); po[i] = c; if (pS[c] == null) pS[c] = i; pE[c] = i; });
     const head = {}, at = {}, end = {}, kept = {}, lvDone = {}, enh = String((((PD.enh || {})[key] || {})[h]) || '').split('|');
     const fire = [];                                                  // TESTER PAGE FIXES: what needs the Firelands (Frodo's Boss Hunt)
-    const f = (0.8 + 0.2 * n) / (0.8 + 0.2 * ((PD.sn || {})[band(n)] || n)) * gsF(n), useEnh = L == null || L < 0 || L >= 3;
-    let spent = 0, farmed = 0, stoneAt = '';                           // AUDIT minor 14: the run's one +30 stone (one copy of one item)
+    const f = (0.8 + 0.2 * n) / (0.8 + 0.2 * ((PD.sn || {})[band(n)] || n)) * gsF(n), useEnh = true;   // BOSS SOULS: every gear level (only the free +30 stone line reads PD.enh now)
+    let spent = 0, farmed = 0, stoneAt = ''; const bsIS = [0, 0, 0];   // BOSS SOULS: item Boss Soul prices per part // AUDIT minor 14: the run's one +30 stone (one copy of one item)
     for (let p = 0; p <= 2; p++) {
       if (pS[p] == null) continue;
       const cnt = {}, why = [], up = []; (g[FPS[p]] || []).forEach(id => { cnt[id] = (cnt[id] || 0) + 1; });
@@ -584,7 +605,7 @@
         const wi = (T[id] || [])[p], w = wi != null && wi >= 0 ? FW.t[wi] : null;
         if (!w || w[0] === 'k') continue;
         if (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) fire.push(id);   // TESTER PAGE FIXES: source in (or route through) the Firelands
-        if (w[6]) { spent += w[6] * nw; why.push(ilink(id)); }
+        if (w[6]) { spent += w[6] * nw; bsIS[p] += w[6] * nw; why.push(ilink(id)); }
         const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${whereTxt(w, nw)}</span></li>`, zo = ZO[w[3]];
         let j = -1;
         if (w[0] === 'o') { for (let i = pS[p]; i <= pE[p]; i++) if (+steps[i].step >= +w[9]) { j = i; break; } }
@@ -599,7 +620,7 @@
       if (useEnh) (enh[p] || '').split(',').forEach(e => { const mt = /^(\w{4})\+(\d+)(?:x(\d+))?$/.exec(e); if (!mt || !cnt[mt[1]]) return;
         const id = mt[1], stone = +mt[2] >= 30 && (+S.ml || 0) >= 90 && (!stoneAt || stoneAt === id), lv = stone ? 30 : Math.min(20, +mt[2]), l0 = lvDone[id] || 0; if (lv <= l0 || (+mt[2] >= 30 && !stone)) return;   // no stone below Map Level 90 (or already used): that item stays as is
         if (stone) { stoneAt = id; lvDone[id] = 30; up.push(`+30 ${ilink(id)} (free +30 stone${+(mt[3] || 1) > 1 ? ', one copy: one stone per run' : ''})`); return; }   // Map Level 90+: the stone costs no Boss Souls; tokens (+21..+25) not in the save -> +20
-        spent += +(mt[3] || 1) * enhC(l0, lv); lvDone[id] = lv; if (lv >= 3) up.push(`+${lv} ${ilink(id)}`); });
+        lvDone[id] = lv; });   // BOSS SOULS: + levels = the Enhance lines before the bosses (paid by the route's bosses), not farmed
       const have = (((PD.sby || {})[band(n)] || [])[p] || 0) * f, short = spent - have - farmed;
       const sf = ((PD.sf || {})[key] || [])[p], rate = sf ? sf[1] * f : 0;
       if (short >= 1 && !(rate > 0 && short / rate < 2)) {             // under 2 minutes of farming: the next bosses cover it
@@ -610,10 +631,61 @@
         if (sf && rate > 0 && sf[2] === 'z10') fire.push('souls');     // TESTER PAGE FIXES: Boss Souls farm at the Flame Lord
       } else if (up.length) end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${up.join(', ')} <span class="small">(bosses on the way pay for it)</span></li>`;
     }
+    /* ---- BOSS SOULS (patch_page_souls 2026-09-25): 'Enhance' lines at Gazlowe right before the Mid / Late required boss steps, every
+       gear level. Replay events (PD.rhe + PD.rhT string 12 of this cell's held row: '23@O00G:I03F+9,~A5+7' = before that boss, '20:..'
+       = after step 20's farm stop) or, without them, a plan from the Boss Souls income per quest step (route boss kills scaled to PD.sby
+       per part) minus the part's and the next part's item prices, 85%-luck costs, greedy by flat stats per Boss Soul. bsPre[i] = lines
+       spliced in before route step i (FPL.step); the last part's Boss Souls line goes before the last step (never after the route) */
+    const bsPre = {}, bsE = {};                                       // bsE[i] = {ups: {item: level}, c: Boss Souls}: one Enhance line per step
+    const bsAddE = (i, ups, c) => { const o = bsE[i] = bsE[i] || { ups: {}, c: 0 }; ups.forEach(([id, lv]) => { o.ups[id] = lv; }); o.c += c; };
+    const bsLine = (ups, souls) => `<li class="pl-rp"><b>Enhance</b> · ${ups.map(([id, lv]) => `${tfLink(id)} to +${lv}`).join(', ')} <span class="small">(${srcA('n00G', 'Gazlowe')}${souls >= 1 ? ', ~' + fmt(Math.round(souls)) + ' Boss Souls' : ''})</span></li>`;
+    const bsKills = x => [...String(x.do || '').matchAll(/(or kill )?\{\{u:([A-Za-z0-9]{4})\}\}/g)].filter(mm => !mm[1]).map(mm => mm[2]);
+    const bsEv = (() => { if (!PD.rhe || L == null || L < 0 || !PD.rh || !PD.rhR || (S.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
+      const e = (PD.rh[n + '|' + m] || {})[h]; if (typeof e !== 'string') return null;
+      const w = +PD.rhw || 2, j = e.substr((eqStep(h, n, m).k * NL + L) * w, w); if (!j || j.charAt(0) === '-') return null;
+      const R = (PD.rhR || [])[parseInt(j, 36)]; if (typeof R !== 'string') return null;
+      const s = R.length >= 12 * w ? (PD.rhT || [])[parseInt(R.substr(11 * w, w), 36)] || '' : '';
+      return s.split(';').map(gp => { const mt = /^(\d+)(?:@([A-Za-z0-9]{4}))?:(.+)$/.exec(gp); if (!mt) return null;
+        return { st: +mt[1], b: mt[2] || '', ups: mt[3].split(',').map(z => { const x = /^(.+)\+(\d+)$/.exec(z); return x ? [x[1], +x[2]] : null; }).filter(Boolean) }; }).filter(Boolean); })();
+    if (bsEv) {                                                       // a) the replay's own enhance events
+      const lvE = {};
+      bsEv.forEach(ev => { let i = -1;
+        if (ev.b) { i = steps.findIndex((x, k) => k <= stop && +x.step === ev.st && bsKills(x).includes(ev.b)); if (i < 0) i = steps.findIndex((x, k) => k <= stop && +x.step >= ev.st); }
+        else i = steps.findIndex((x, k) => k <= stop && +x.step > ev.st);
+        if (i < 0 || i > stop) return;
+        let c = 0; ev.ups.forEach(([id, lv]) => { c += enhC(lvE[id] || 0, lv); lvE[id] = lv; }); bsAddE(i, ev.ups, c); });
+    } else {                                                          // b) plan from the Boss Souls income per quest step
+      const q = ((HERO[h] || {}).main_stat || 'STR').toLowerCase(), B = W.boss || {}, RQ = new Set((PD.rqb || []).map(x => x[0]));
+      const bp = []; let c2 = -1; steps.forEach((x, i) => { const o = ZO[x.zone] || 0; c2 = Math.max(c2, o > 18 ? 2 : o > 6 ? 1 : 0); bp[i] = c2; });   // part of every step (route rule)
+      const raw = steps.map(x => bsKills(x).reduce((a, b) => { const u = B[b]; return a + (u && +u.souls_base > 0 ? +u.souls_base * (0.8 + 0.2 * n) : 0) + (b === 'H00J' ? 142.5 : b === 'O006' ? 150 : 0); }, 0));
+      const sby = (PD.sby || {})[band(n)] || [], RP = [0, 0, 0]; raw.forEach((v, i) => { RP[bp[i]] += v; });
+      const inc = []; let cum = 0, cp = [0, 0, 0];                       // inc[i] = Boss Souls earned through step i
+      raw.forEach((v, i) => { const p = bp[i]; cp[p] += v;
+        if (sby.length === 3) { const b0 = p > 0 ? +sby[p - 1] * f : 0, add = (+sby[p] - (p > 0 ? +sby[p - 1] : 0)) * f;
+          const last = steps.findIndex((x, k) => k > i && bp[k] === p) < 0; inc[i] = b0 + (RP[p] > 0 ? add * cp[p] / RP[p] : last ? add : 0); }
+        else { cum += v * gsF(n); inc[i] = cum; } });
+      const got = {}, nf = {};                                        // got = route step an item's farm line sits at (not held before it)
+      Object.keys(at).forEach(j => at[j].forEach(t => { const mm = /#item\/([^"]+)"/.exec(t); if (mm) { const id = decodeURIComponent(mm[1]); got[id] = Math.min(got[id] == null ? 1e9 : got[id], +j); } }));
+      const fc = [0, 0, 0]; for (let p = 0, sc = 0; p < 3; p++) { sc += bsIS[p]; fc[p] = Math.max(p ? fc[p - 1] : 0, sby.length === 3 ? sc - +sby[p] * f : 0); }   // Boss Souls farmed for item prices by the end of each part (the farm line)
+      const lv = {}; let used = 0;
+      for (let i = 1; i <= stop; i++) {
+        const p = bp[i]; if (p < 1 || !bsKills(steps[i]).some(b => RQ.has(b))) continue;
+        if (!nf[p]) nf[p] = tpFit(h, n, m, L, p);                     // 'may not fit this gear level's farm time': not planned
+        const items = [...new Set((g[FPS[p]] || []).concat(g[FPS[p] + '_b'] || []))].filter(id => lvDone[id] !== 30 && !(got[id] >= i) && !nf[p].has(id)).map(id => [id, bsW(id, q)]).filter(x => x[1] > 0);
+        let avail = (inc[i - 1] || 0) + fc[p] - bsIS.slice(0, p + 1).reduce((a, x) => a + x, 0) - (p < 2 ? bsIS[p + 1] : 0) - used;
+        const ch = {}; let c = 0;
+        while (avail > 0 && items.length) { let best = null;
+          for (const [id, w] of items) { const l = lv[id] || 0; if (l >= 20) continue; const k = bsC85(l, l + 1); if (k <= avail && (!best || w / k > best[0])) best = [w / k, id, k]; }
+          if (!best) break; lv[best[1]] = (lv[best[1]] || 0) + 1; ch[best[1]] = lv[best[1]]; avail -= best[2]; used += best[2]; c += best[2]; }
+        if (Object.keys(ch).length) bsAddE(i, Object.entries(ch), c);
+      }
+    }
+    { const lp = po[stop]; if (lp != null && end[lp]) { (bsPre[stop] = bsPre[stop] || []).push(end[lp]); delete end[lp]; } }
+    Object.keys(bsE).forEach(i => { (bsPre[i] = bsPre[i] || []).push(bsLine(Object.entries(bsE[i].ups), bsE[i].c)); });   // the last part's Boss Souls line: before the final step
     const any = p => !!head[p] || Object.keys(at).some(j => po[j] === p);
     return {
       head: (li, p, gb) => { if (any(p) || gb) li.push(`<li class="pl-rp pl-gh"><b>${FPN[p]} gear</b>${any(p) ? ' <span class="small">(farm while you pass)</span>' : ''}${gb ? `<div class="pl-gb">${gb}</div>` : ''}${head[p] ? `<ul class="pl-ul">${head[p].join('')}</ul>` : ''}</li>`); },
-      step: (li, i) => { if (at[i] && li.length) li[li.length - 1] = li[li.length - 1].replace(/<\/li>$/, `<ul class="pl-ul">${at[i].join('')}</ul></li>`); },
+      step: (li, i) => { if (bsPre[i] && li.length) li.splice(li.length - 1, 0, ...bsPre[i]); if (at[i] && li.length) li[li.length - 1] = li[li.length - 1].replace(/<\/li>$/, `<ul class="pl-ul">${at[i].join('')}</ul></li>`); },
       end: (li, p) => { if (end[p]) { li.push(end[p]); delete end[p]; } }, fire };
   }
   /* AUDIT minor 4: a boss behind the 4,000-gold boat (PD.boat) listed before the main-quest step that buys the boat says so */
@@ -842,7 +914,7 @@
         runs.push({ h, n, m, lv: lvB, got, ugot, bag: bg, fin: cB.jl >= 0, near: nearFin(n, m, i, eB), sc: score(h, n, m), stop, L, mins: nbMins(all, tMix(cB, L, stop, n, m, i, eB), n, stop, m, i) });   // AUDIT B2 / M3: boss kills + kills per chance roll
       });
     }
-    runs.forEach(fgPost);                                              // FARM GOALS: chance steps farmed on = upgrades, their minutes in the run length
+    runs.forEach(fgPost); runs.forEach(chPost);                                              // FARM GOALS: chance steps farmed on = upgrades, their minutes in the run length
     const EASE = { m: 0, c: 1, d: 2 };
     runs.sort((a, b) => rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
     const cp = capRuns(runs.filter(fOK), r => r.mins), pool = cp.runs;   // CARDS UI: hero / N / mode filters, then the length cap (nothing fits: shortest first)
@@ -974,6 +1046,91 @@
   /* route lines (Points / First Legacy): each sure boss step at its boss */
   const otNeeds = c => (otwOf(c) || []).filter(o => !o.ch).flatMap(o => o.st.slice(0, o.sure).map((y, j) => ({ id: y.last, label: 'On the way', st: o.x.bs.get(y.last),
     note: `${iname(j ? o.st[j - 1].to : o.id)} → ${iname(y.to)}${o.bag.ok ? '' : ', swap it into the Legacy Bag first'}` }))).concat(fgOptNeeds(c));   // FARM GOALS: optional farm at the stop
+  /* ---- CHAINS (patch_page_chains 2026-09-25, user-approved design findings/public/audit_math/tester2_chain_evolve.md). A NEW Legacy
+     item keeps evolving on the same run: chWalk walks its line from the step it drops at (t0) while each next step is a boss this run beats
+     at or after that step (bossAt at the run's account step, never raised for the new item; chKd: a boss the route kills earlier only if
+     it respawns, the same boss twice only if it respawns), before
+     the run can end (lim), no repeat-kill chance, no Points ticket, no +N stone gate (PQE / nbx 'e'). why = the reason it stops: k chance
+     step (farm goal), e +N gate, p Points ticket, n another N, r not reached. First Legacy: every r.got item, sure chained steps count HALF
+     a new line in rkV (user), the run plays on to the last one (stop, gear level, minutes follow). Legacy upgrades: new lines the run can
+     pick up (PD.starts boss drops by its stop, free ones) + their chains, tie-break only (r.pk x 0.01). Only Bag items evolve: each new
+     item gets a Bag line; -save keeps only the Bag and storage (legacy_bag_rules.md) */
+  const chRes = b => +(((W.boss || {})[b]) || {}).respawn_s > 0;
+  /* kd = Map boss -> the step the route kills it anyway (main quest PD.rqb, the run's own boss goals): a later step uses that kill, an
+     earlier one leaves the boss dead unless it respawns (W.boss respawn_s). A boss the route does not kill waits for the item: fought at
+     max(bossAt, the drop step) */
+  const chKd = (r, extra) => { const kd = new Map(), put = (b, s) => { if (b && (!kd.has(b) || kd.get(b) > +s)) kd.set(b, +s); };
+    (PD.rqb || []).forEach(([b, s]) => { if (+s <= 20 + r.n) put(b, s); }); (extra || []).forEach(x => put(x[0], x[1])); return kd; };
+  const chWalk = (id, t0, bs0, h, n, m, lv, lim, kd) => { const i = HIDX[h], st = []; let cur = id, s0 = +t0 || 0, fb = bs0 || [], why = null;
+    for (let g = 0; g < 8; g++) { let nx = null; why = null; const wk = y => { if (!why || why.k === 'n') why = y; };
+      for (const [to, text, alts] of (PD.edges[cur] || [])) { for (const a of alts) { const k = NBX[cur + '>' + to], e = PQE[cur + '>' + to];
+          if (!OT_N(a, n) || (a[2] && a[2] !== m)) { if (!why && a[1]) why = { k: 'n', to, n: +a[1], p: a[4] === '>' }; continue; }
+          if (!hasBit(a[3], i)) continue;
+          if (!a[0].length) { wk(k && k[0] === 'k' ? { k: 'k', to, text } : k && k[0] === 'e' ? { k: 'e', to, lv: 20 } : { k: 'x', to }); continue; }
+          if (e) { wk({ k: 'e', to, lv: +e[0] || 15 }); continue; }
+          if (+a[5] > 1) { wk({ k: 'k', to, text }); continue; }
+          if (pqPts(a[0])) { wk({ k: 'p', to }); continue; }
+          const at = a[0].map(b => { const x = bossAt(b, n, m, i, lv); if (x < 0 || x > lim) return -1; const k = kd ? kd.get(b) : null, gone = fb.includes(b) || (k != null && k < s0);
+            if (k != null && !gone && k >= x) return k;               // the route's own kill, after the drop
+            return gone && !chRes(b) ? -1 : Math.max(x, s0); });
+          if (at.every(x => x >= 0 && x <= lim)) { nx = { from: cur, to, text, bs: a[0], at, s: Math.max(...at) }; break; }
+          wk({ k: 'r', to }); }
+        if (nx) break; }
+      if (!nx) break; st.push(nx); cur = nx.to; s0 = nx.s; fb = nx.bs; }
+    return { id, t0: +t0 || 0, st, why, last: cur }; };
+  const chPostS = r => { const i = HIDX[r.h], n = r.n, m = r.m, c = cellOf(n, m, i, r.lv); r.ch = []; r.chn = 0; if (!c) return;
+    const kd = chKd(r, r.got.filter(x => x[1] in r.at && x[2]).map(x => [x[2], r.at[x[1]]]));
+    const walk = lim => r.got.map(x => chWalk(x[1], x[1] in r.at ? r.at[x[1]] : +x[10] || 0, x[2] && x[1] in r.at ? [x[2]] : [], r.h, n, m, r.lv, lim, kd));
+    let L = walk(Math.max(...c.reach)), s2 = Math.max(r.stop, ...L.flatMap(w => w.st.map(y => y.s)));
+    if (s2 > r.stop && lvlFor(c, s2) < 0) { L = walk(r.stop); s2 = r.stop; }
+    const ids = [...new Set(L.flatMap(w => w.st.flatMap(y => y.bs)))];
+    if (ids.length) { const L2 = s2 > r.stop ? lvlFor(c, s2) : r.L, e = eqStep(r.h, n, m), sb = r.got.filter(x => x[1] in r.at && x[2]).map(x => x[2]);
+      r.mins += (s2 > r.stop ? tMix(c, L2, s2, n, m, i, e) - tMix(c, r.L, r.stop, n, m, i, e) : 0) + pqMins(sb.concat(ids), {}, n, m, i, s2, [], L2) - pqMins(sb, {}, n, m, i, s2, [], L2);
+      r.stop = s2; r.L = L2; }
+    r.ch = L; r.chn = L.reduce((t, w) => t + w.st.length, 0); };
+  const pkOf = r => { if (r._pkl) return r._pkl; const i = HIDX[r.h], n = r.n, m = r.m, c = i == null ? null : cellOf(n, m, i, r.lv), out = [];
+    if (!c || !(r.stop > 0)) return (r._pkl = out); const lim = Math.max(...c.reach), kd = chKd(r, (r.got || []).concat(r.ugot || []).filter(g => !g.nb && g.a).flatMap(g => g.a[0].map((b, j) => [b, g.at[j]])));
+    (PD.starts || []).forEach(x => { if (S.own[x[0]] || (x[3] && x[3] !== n) || (x[4] && x[4] !== m) || (x[6] && !hasBit(x[6], i))) return; let t0 = 0;
+      if (x[5] === 'boss') { if (+x[8] > 1) return; t0 = bossAt(x[2], n, m, i, r.lv); if (t0 < 0 || t0 > r.stop) return; }
+      else if (x[5] === 'free') { if ((x[1] === 'I04J' && (+S.ml || 1) < 3) || r.stop < (+x[10] || 0)) return; t0 = +x[10] || 0; }
+      else return;
+      out.push(Object.assign(chWalk(x[1], t0, x[5] === 'boss' ? [x[2]] : [], r.h, n, m, r.lv, lim, kd), { x })); });
+    return (r._pkl = out); };
+  const chPostL = r => { r._pkl = null; const L = pkOf(r); r.pk = L.length + L.reduce((t, w) => t + w.st.length, 0); };
+  const chPost = r => r.at ? chPostS(r) : chPostL(r);
+  const chBag = (id, bag, h, gk) => { const sl = (POS[id] || {}).slot, same = bag.find(y => (POS[y] || {}).slot === sl);
+    if (same) return `swap it into the Bag for ${iname(same)} before the kill`;
+    if (bag.length < 6) return 'Bag it before the kill';
+    const wk = bag.slice().sort((a, b) => bagVal(h, gk, a) - bagVal(h, gk, b))[0]; return `swap it into the Bag for ${iname(wk)} before the kill`; };
+  const chOf = c => { if (c._ch !== undefined) return c._ch; c._ch = null; const r = c.r, g0 = String(c.key || '').split('|')[0]; if (!r || !MK[c.m] || !c.h) return null;
+    const gk = band(c.n) + '|' + MK[c.m], o = { h: c.h, gk, stop: r.stop };
+    if (g0 === 'start') return (c._ch = Object.assign(o, { lg: 0, L: r.ch || [], bag: pickBag(c.h, gk, S.own, []) }));
+    if (g0 === 'legacy') return (c._ch = Object.assign(o, { lg: 1, L: pkOf(r), bag: r.bag ? r.bag.start : pickBag(c.h, gk, S.own, []) }));
+    return null; };
+  const chStep = y => `${andJ(y.bs.map(bname))}, step ${y.s}`;
+  const chFarm = w => w.why && w.why.k === 'k' ? ` <span class="small">· farm on for ${ilink(w.why.to)}: ${esc(w.why.text)}</span>` : '';
+  const chLi = (w, o) => { const lead = o.lg ? ` <span class="small">· ${esc(w.x[5] === 'boss' ? bname(w.x[2]) + ', step ' + w.t0 : w.x[7])}</span>` : '';
+    if (!w.st.length) return `<li>${ilink(w.id)}${lead}${chFarm(w)}</li>`;
+    const pl = Math.max(0, ...w.st.map(y => y.s)) - o.stop, bits = w.st.map(chStep).concat(o.bag.includes(w.id) ? [] : [chBag(w.id, o.bag, o.h, o.gk)]);
+    return `<li>${ilink(w.id)}${lead} → ${w.st.map(y => ilink(y.to)).join(' → ')} <span class="small">· ${esc(bits.join(' · '))}${pl > 0 ? ` (play on ${pl} step${pl > 1 ? 's' : ''})` : ''}</span>${chFarm(w)}</li>`; };
+  const chHint = L => { const nN = [], eN = [];
+    L.forEach(w => { const y = w.why; if (!y || w.st.length) return;
+      if (y.k === 'n') { const t = `${iname(y.to)} N${y.n}${y.p ? '+' : ''}`; if (!nN.includes(t)) nN.push(t); }
+      else if (y.k === 'e') eN.push(`${iname(w.last)} needs +${y.lv}`); });
+    return nN.length ? `<p class="small pl-otw">Next steps are on other N: ${esc(nN.join(', '))}.${eN.length ? ' ' + esc(eN.join('. ')) + '.' : ''}</p>` : ''; };
+  const chHtml = c => { const o = chOf(c); if (!o) return '';
+    if (!o.lg) { const L = o.L.filter(w => w.st.length); return L.length ? `<div class="small pl-otw"><b>Don't leave yet</b><ul class="pl-ul">${L.map(w => chLi(w, o)).join('')}</ul></div>` : chHint(o.L); }
+    return o.L.length ? `<div class="small pl-otw"><b>Free pickups</b><ul class="pl-ul">${o.L.map(w => chLi(w, o)).join('')}</ul><span class="small">-save keeps only the Bag and storage: move new Legacy there first.</span></div>` : ''; };
+  const chCard = c => { const o = chOf(c); if (!o) return '';
+    if (!o.lg) { const t = o.L.flatMap(w => w.st.map(y => iname(y.to))); return t.length ? `<div class="pl-cf">+ then ${esc(t.join(', '))}</div>` : ''; }
+    const t = o.L.map(w => [w.id].concat(w.st.map(y => y.to)).map(iname).join(' → '));
+    return t.length ? `<div class="pl-cf">+ free: ${esc(t.slice(0, 3).join(', '))}${t.length > 3 ? ` +${t.length - 3} more` : ''}</div>` : ''; };
+  /* route lines: First Legacy 'Then' at each chained boss; Legacy goal 'Pick up' at a pickup's boss and 'Then' for chains up to the stop
+     (play-on steps stay in the block, the route and run length are the upgrades' own) */
+  const chNeeds = c => { const o = chOf(c); if (!o) return [];
+    return o.L.flatMap(w => (o.lg && w.x[5] === 'boss' ? [{ id: w.x[2], label: 'Pick up', st: w.t0, note: iname(w.id) }] : [])
+      .concat(w.st.filter(y => !o.lg || y.s <= o.stop).flatMap((y, j) => y.bs.map((b, q) => ({ id: b, label: 'Then', st: y.at[q],
+        note: `${iname(y.from)} → ${iname(y.to)}${!j && !q && !o.bag.includes(w.id) ? ', ' + chBag(w.id, o.bag, o.h, o.gk) : ''}` }))))); };
   /* AUDIT minor 16: a run that stops at step 0 (e.g. the Adult Black Dragon, N4 only, open from the start): no route or gear list, the bosses
      to go to straight away */
   const stop0At = r => { const bs = rtNeeds(r).filter(x => x.id).map(x => bname(x.id) + (bzone(x.id) ? ' in ' + zname(bzone(x.id)) : ''));
@@ -1162,7 +1319,7 @@
     return `<ul class="pl-ul">${r.got.concat(r.ugot || []).map(g => upLine(g, r)).join('')}</ul>`
       + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
       + (r.stop > 0 || pqRoute0(r) ? `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after your last upgrade boss. The whole run is borderline for your account.' : 'Stop after your last upgrade boss: not expected to finish this run.'}${fw != null ? ` The whole run finishes ${f10(fw)} in 10.` : ''}</p>`
-          + sideTxt(r) + nbSpend(r) + gearP(r.L) + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, bagNeeds(r, rtNeeds(r)), false, r.L)
+          + sideTxt(r) + nbSpend(r) + gearP(r.L) + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, bagNeeds(r, rtNeeds(r)).concat(chNeeds(c)), false, r.L)
         : `<p class="small">No quest steps needed: start a game on N${r.n} ${MN[r.m]} and do ${r.got.length + (r.ugot || []).length > 1 ? 'them' : 'it'} right away${stop0At(r)}.</p>` + nbSpend(r)); };   // AUDIT minor 16
   function legacyList() {
     if (!Object.keys(S.own).length) return { msg: '<p class="small">Load your save or pick your Legacy items above to see which run upgrades the most of them.</p>' };
@@ -1184,7 +1341,7 @@
     return `<ul class="pl-ul">${r.got.map(stLi).join('')}</ul>` + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
       + `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after the last boss you need. The whole run is borderline for your account.' : 'Stop after the last boss you need: not expected to finish this run.'}${fw != null ? ` The whole run finishes ${f10(fw)} in 10.` : ''}</p>`
       + sideTxt(r) + gearP(r.L)
-      + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, r.got.filter(x => x[1] in r.at).map(x => ({ id: x[2], label: 'Get ' + iname(x[1]), st: r.at[x[1]] })).concat(otNeeds(c)), false, r.L); };   // ON THE WAY
+      + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, r.got.filter(x => x[1] in r.at).map(x => ({ id: x[2], label: 'Get ' + iname(x[1]), st: r.at[x[1]] })).concat(chNeeds(c), otNeeds(c)), false, r.L); };   // ON THE WAY
   function startList() {
     const ST = (PD.starts || []).filter(x => !S.own[x[0]]);
     if (!ST.length) return { msg: '<p class="small">You already hold an item of every Legacy line.</p>' };
@@ -1203,6 +1360,7 @@
         return t + (k * (q ? B36.indexOf(q) * 10 : 60) + (k - 1) * (+x[9] || 0)) / 60; }, 0);
       runs.push({ h, n, m, lv, got, at, fin: c.jl >= 0, near: nearFin(n, m, i, e), sc: score(h, n, m), stop, L, mins: tMix(c, L, stop, n, m, i, e) + more + pqStart(got, at, n, m, i, stop, L) });
     });
+    runs.forEach(chPost);                                              // CHAINS: evolutions of the new items on the same run
     const EASE = { m: 0, c: 1, d: 2 };
     runs.sort((a, b) => rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
     const cp = capRuns(runs.filter(fOK), r => r.mins), groups = new Map();   // CARDS UI: filters + length cap
@@ -1265,14 +1423,14 @@
     return `<div class="pl-card${k ? '' : ' pl-c1'}" role="button" tabindex="0" data-run="${esc(c.key)}"${st ? ` data-st="${st}"` : ''}>`
       + `<div class="pl-ch"><span class="pl-rk">${k + 1}</span>${K.icon(c.h)}<span class="pl-hn">${esc(hName(c.h))}</span>${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}</div>`
       + `<div class="pl-cr"><b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span>${lenW(c.mins)} run</span>` : ''}</div>`
-      + `<div class="pl-cg">${c.what}</div>` + otwCard(c)   // ON THE WAY
+      + `<div class="pl-cg">${c.what}</div>` + otwCard(c) + chCard(c)   // ON THE WAY
       + (c.fc != null ? `<div class="pl-cf">finishes ${f10(c.fc)} in 10</div>` : c.fr != null ? `<div class="pl-cf">reaches it ${f10(c.fr)} in 10</div>` : '')
       + (c.tags.length ? `<div class="pl-ct">${c.tags.join('')}</div>` : '') + `</div>`; };
   const focusHtml = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
     return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs with this gear level' : `Run ${k + 1} of ${tot}`}</span></div>`
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
       + `<div class="pl-fw">${c.what}${c.fc != null ? ` · <span class="pl-cf">finishes ${f10(c.fc)} in 10</span>` : c.fr != null ? ` · <span class="pl-cf">reaches it ${f10(c.fr)} in 10</span>` : ''}${c.tags.length ? ' ' + c.tags.join('') : ''}</div>`
-      + bagHtml(c) + otwHtml(c) + body + `<button type="button" class="pl-bk pl-bk2">← Back to all runs</button></div>`; };
+      + bagHtml(c) + chHtml(c) + otwHtml(c) + body + `<button type="button" class="pl-bk pl-bk2">← Back to all runs</button></div>`; };
   const filtHtml = () => { const f = CF(), hs = PD.heroes.filter(unlocked).map(h => hName(h)).sort((a, b) => a.localeCompare(b));
     return `<div class="pl-fb">`
       + `<div class="pl-fg"><span class="pl-fl">Hero</span><input id="pl-fhero" class="pl-hin" list="pl-hl" placeholder="Any hero" autocomplete="off" value="${f.h ? esc(hName(f.h)) : ''}">${f.h ? chip('h', '', '✕', false) : ''}<datalist id="pl-hl">${hs.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>`
