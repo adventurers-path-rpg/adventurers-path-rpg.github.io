@@ -11,7 +11,7 @@
     const disc = (W.mapinfo || {}).discord, last = (K.changes || [])[0];
     return `<div class="hm-top"><div class="card hi one"><p><b>New?</b> Follow the ${link('quests', '', 'Main quest')} and read ${link('systems', 'runs_saving', 'Runs and saving')} before your first -save. New words: ${link('systems', 'terms', 'Terms')}.</p></div>
     <div class="card hi one"><p><b>Past the start?</b> ${link('planner', '', 'Run planner')}: load your save, get your next run. ${link('calc', '', 'Points per run')}: what each difficulty pays.</p></div></div>
-    ${last || disc ? `<p class="hm-meta small">${last ? `Wiki updated <a href="#changelog">${esc(last[0])}</a>` : ''}${disc ? `<a class="discord" href="${esc(disc)}" target="_blank" rel="noopener">Join the map's Discord</a>` : ''}</p>` : ''}
+    ${disc ? `<p class="hm-meta small">${disc ? `<a class="discord" href="${esc(disc)}" target="_blank" rel="noopener">Join the map's Discord</a>` : ''}</p>` : ''}
     <div class="hm-grid">
       ${card('heroes', 'Heroes', `${n((W.heroes || []).length)} heroes: skills, builds, unlocks`)}
       ${card('tier', 'Tier list', 'S to C per mode, for N1-3 / N4-6 / N7-9')}

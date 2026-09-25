@@ -49,7 +49,7 @@
   const hxOrder = (h, gk) => { /* SKILLPRIO */
     const fixed = new Set((W.skill_fixed || {})[h.id] || []), all = h.skills || [];
     const sk = all.filter(x => x.key && Array.isArray(x.req) && x.req.length && !fixed.has(x.key));
-    const nm = x => esc(x.key + ' ' + (x.name || '')), fx = all.filter(x => x.key && fixed.has(x.key)).map(x => nm(x) + ': built in');
+    const nm = x => esc(x.key), fx = all.filter(x => x.key && fixed.has(x.key)).map(x => nm(x) + ': built in');   // user 2026-09-25: letters only (R › E › W › Q)
     const row = (v, sm) => `<b>Skill priority</b><span>${v}${sm ? ` <span class="small">· ${sm}</span>` : ''}</span>`;
     if (!sk.length) return fx.length ? row((W.skill_by_use || []).includes(h.id) ? 'No skill points: each skill levels up as you use it' : 'No skill points: every skill is ready from level 1') : '';
     const P = (W.skill_prio || {})[h.id] || {}; let pr = P[gk] || [], most = '';
@@ -62,7 +62,7 @@
     if (sk.every(x => x.req.length === 1)) {   // one rank each: the hero level each is taken (1 point per level, the line's order on a tie)
       const order = (R ? [R] : []).concat(rest.map(y => y[0])), at = new Map(); let pts = 0;
       for (let L = 1; L <= 500 && at.size < order.length; L++) { pts++; for (const x of order) if (pts > 0 && !at.has(x) && x.req[0] <= L) { at.set(x, L); pts--; } }
-      return row(order.slice().sort((x, y) => at.get(x) - at.get(y)).map(x => `${nm(x)} <span class="small">Lv ${at.get(x)}</span>`).join(' › '), ['1 rank each', most, ...fx].filter(Boolean).join(' · '));
+      return row(order.slice().sort((x, y) => at.get(x) - at.get(y)).map(nm).join(' › '), fx.join(' · '));
     }
     /* ranks: the most common ladder is the rule (d = hero levels between ranks, a start above d is named: 6, 12, 18 = 'every 6' needs none) */
     const lad = x => { const a = x.req, n = a.length; if (n < 2) return null; const d = a[n - 1] - a[n - 2]; return { d, s: a[0] > 1 && a[0] !== d ? a[0] : 0, ok: a.slice(2).every((v, k) => v - a[k + 1] === d) }; };
@@ -77,8 +77,8 @@
     const br = [ex.join(', '), first.length ? 'first rank: ' + first.join(', ') : '', one.length ? '1 rank: ' + one.join(', ') : ''].filter(Boolean).join('; ');
     const rule = md ? `each rank needs ${md} more hero levels${ms ? ` from Lv ${ms}` : ''}${br ? ` (${br})` : ''}` : br;
     const G = []; for (const [x, v] of rest) { const g = G[G.length - 1]; if (g && v != null && g.v === v) g.a.push(x); else G.push({ v, a: [x] }); }
-    const line = [R ? nm(R) + ' whenever it unlocks' : '', ...G.map(g => g.a.map(nm).join(' = '))].filter(Boolean).join(' › ');
-    return row(line, [rule, most, ...fx].filter(Boolean).join(' · '));
+    const line = [R ? nm(R) : '', ...G.map(g => g.a.map(nm).join(' = '))].filter(Boolean).join(' › ');
+    return row(line, fx.join(' · '));
   };
   K.hxOrder = hxOrder;   /* TESTER PAGE FIXES (2026-09-25): the Run planner shows the same skill priority line */
   const hxLeg = leg => { const LL = {}; for (const l of ((W.legacy || {}).lines || [])) LL[l.root.id] = l;
