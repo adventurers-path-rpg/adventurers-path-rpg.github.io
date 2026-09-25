@@ -458,6 +458,27 @@ input.pl-hin:focus{outline:none;border-color:var(--accent)}input.pl-hin.pl-bad{b
 .pl-steps>li{padding:5px 6px 5px 34px;font-size:13.5px}.pl-steps>li.pl-n::before{left:4px}.pl-steps>li.pl-rp{padding-left:8px}.pl-steps .pl-ul{padding-left:14px}.card.pl-focus{padding:10px 10px}}
 /* HEADER FIT (user 2026-09-25, like the CWG wiki): the whole banner shows on Home, nothing cut off */
 body[data-page="home"] .hero .banner{max-height:none;height:auto;aspect-ratio:906/288;object-fit:cover}
+/* planner declutter (patch_page_declutter 2026-09-25) */
+.pl-dcf .pl-fw{margin:2px 0 4px}.pl-aw{margin:0 0 6px;font-size:12.5px;color:var(--muted)}.pl-aw a .ico{display:none}
+.pl-bys{margin:6px 0 8px;padding:6px 10px 7px;border:1px solid var(--rule);border-radius:8px;background:var(--grp)}
+.pl-bt{display:block;font-size:12px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.pl-bys>.pl-ul{margin:3px 0 0;padding-left:16px}.pl-bys li{margin:3px 0;font-size:13.5px}
+.pl-bys .pl-gsw{display:inline-flex;margin:0 2px;gap:4px;vertical-align:middle}.pl-bys .pl-gsw .pl-chip{padding:1px 8px;font-size:12.5px}.pl-bys label.pl-chk{margin-left:4px;font-size:12.5px}
+.pl-q{display:inline-block;vertical-align:baseline}.pl-q[open]{display:block}.pl-q>summary{display:inline-block;list-style:none;cursor:pointer;min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;line-height:16px;text-align:center;border-radius:8px;font:700 11px/16px var(--body);background:var(--accent-soft);color:var(--accent);margin-left:4px;vertical-align:1px}
+.pl-q>summary::-webkit-details-marker{display:none}.pl-q>summary::marker{content:''}
+.pl-q[open]>div{display:block;margin:3px 0 4px;padding:3px 8px;border-left:2px solid var(--accent);font-size:12.5px;color:var(--muted)}
+.pl-bon{margin:6px 0 8px;font-size:13.5px}.pl-bon>.pl-bt,.pl-gl>.pl-bt{display:inline-block}.pl-gl{margin:6px 0 0}.pl-bon>.pl-ul,.pl-more>.pl-ul{margin:3px 0 0;padding-left:16px}.pl-bon li{margin:2px 0}
+.pl-more>summary{cursor:pointer;font-size:12.5px;color:var(--accent);margin:2px 0 0}.pl-bon>.pl-more>summary{margin-left:16px}
+.pl-goal{margin:4px 0 6px}.pl-goal li{margin:3px 0}
+.pl-steps.pl-dc>li{padding-top:4px;padding-bottom:4px}.pl-steps.pl-dc>li.pl-n{padding-left:48px}
+.pl-steps.pl-dc>li.pl-n::before{content:attr(data-n);top:4px;min-width:30px}
+.pl-sep{color:var(--muted)}.pl-sub{display:inline;font-size:13px}.pl-sub::before{content:' · ';color:var(--muted)}
+.pl-steps .pl-ul.pl-gets{display:inline;margin:0;padding:0}.pl-gets::before{content:' · get: ';color:var(--muted);font-size:13px}.pl-gets>li{display:inline;margin:0;list-style:none}.pl-gets>li+li::before{content:', '}
+.pl-dc>.pl-gh>.pl-gb{display:inline;margin-left:6px}.pl-dc>.pl-gh>.pl-gb>.pl-gets::before{content:' · buy: '}.pl-steps>li.pl-enh{padding-left:48px;font-size:13px}
+.pl-gx{display:inline}.pl-gx>summary{display:inline;margin-left:6px}.pl-gx[open]{display:block}.pl-gx>div.small{margin:2px 0 0 10px}
+details.pl-how{margin:4px 0 10px}details.pl-how>summary{cursor:pointer;color:var(--muted)}
+@media (max-width:600px){.pl-bys{padding:5px 8px}.pl-bys li{font-size:13px}.pl-steps.pl-dc>li.pl-n{padding-left:42px}.pl-steps.pl-dc>li.pl-n::before{min-width:28px;left:4px}
+.pl-steps>li.pl-enh{padding-left:42px}.pl-bys .pl-gsw{flex-wrap:wrap}}
 </style>
 <div class="wrap">
 <a class="hero" href="#home"><img class="banner" src="img/banner.jpg" alt=""><span class="hero-t"><span class="hero-n">The Adventurer's Path</span><span class="hero-s">RPG Wiki</span></span></a>
