@@ -588,12 +588,57 @@
   /* sim_account enhance: flat stats per + level (10% each), main stat / all stats 1, other stats 0.15, attack 0.5, HP 1/30, armor 1.5 */
   const bsW = (id, q) => { const it = bsItem(id); if (!it || !BS_RAR.has(it.rar) || !(+it.level >= 5) || it.legacy) return 0; const s = it.st || {};
     return 0.1 * ((+s[q] || 0) + (+s.all_stats || 0) + 0.15 * ['str', 'agi', 'int'].filter(k => k !== q).reduce((a, k) => a + (+s[k] || 0), 0) + 0.5 * (+s.ad || 0) + (+s.hp || 0) / 30 + 1.5 * (+s.armor || 0)); };
+  /* ---- GIANT SCYTHE CARRY (patch_page_scythe 2026-09-25, user-approved; findings/public/audit_math/carry_evolve_items.md items 9-12).
+     Map 1.02: Troll Hunt 50% Giant Scythe per clear, repeats by itself, its own task apart from the Troll Boss option. Evolutions while the HERO carries it, kills by any unit you own: 15 Ogre Mage, 30 Mud Golem, 15 Rebel - Elite Warrior, the Flame Lord. Guard line eats an unevolved Giant Scythe. scNeed(id) = {s: highest scythe stage the item needs (W.recipes parts + W.evo reverse edges), g: needs a Giant Scythe
+     for a Guard}; scPlan = the route lines; scFitMin = tpFit minutes (extra kills only) */
+  const SC_ST = ['I0OO', 'I0ON', 'I0OP', 'I0OQ', 'I0OR'], SC_M = new Map(); let SC_LAST = null;
+  const scNeed = (id, seen) => { if (SC_M.has(id)) return SC_M.get(id); const j = SC_ST.indexOf(id); if (j >= 0) return { s: j, g: false };
+    seen = seen || new Set(); if (seen.has(id)) return { s: -1, g: false }; seen.add(id);
+    const r = { s: -1, g: false }, mg = x => { if (x.s > r.s) r.s = x.s; if (x.g) r.g = true; };
+    (W.recipes || []).forEach(rc => { const out = [(rc.result || {}).id].concat((rc.results || []).map(x => x && x.id)); if (!out.includes(id)) return;
+      (rc.parts || []).filter(Boolean).forEach(p => { if (p.id === 'I0OO') r.g = true; else mg(scNeed(p.id, seen)); }); });
+    Object.entries(((W.evo || {}).e) || {}).forEach(([fr, ed]) => { if (fr !== 'I0OO' && (ed || []).some(e => e && e[0] === id)) mg(scNeed(fr, seen)); });
+    SC_M.set(id, r); return r; };
+  const scSum = ids => { let s = -1, g = false; ids.forEach(id => { const r = scNeed(id); if (r.s > s) s = r.s; if (r.g) g = true; }); return { s, g, on: s >= 1 || g, cp: (s >= 0 ? 1 : 0) + (g ? 1 : 0) }; };
+  const scMon = (u, t) => srcA(u, t);
+  const scPlan = (h, n, m, L, steps, stop) => { const gl = gearOf(h, n, m, L == null || L < 0 ? 3 : L), po = []; let c = -1;
+    steps.slice(0, stop + 1).forEach((x, i) => { const o = ZO[x.zone] || 0; c = Math.max(c, o > 18 ? 2 : o > 6 ? 1 : 0); po[i] = c; });
+    const ids = []; [0, 1, 2].forEach(p => { if (po.includes(p)) (gl[FPS[p]] || []).concat(gl[FPS[p] + '_b'] || []).forEach(x => ids.push(x)); });
+    const R = Object.assign(scSum(ids), { at: {}, fl: false });
+    const no = { on: false, skip: () => false, add: () => '', place: () => {}, fire: () => '' }; if (!R.on) return no;
+    const S2 = R.s, two = R.cp > 1, fi = f => { const i = steps.findIndex((x, k) => k <= stop && f(x)); return i; };
+    const put = (i, k, t) => { if (i < 0) return; (R.at[i] = R.at[i] || []).push(t); if (k != null) R['k' + k] = 1; };
+    const tr = fi(x => +x.step === 1);
+    put(tr, 0, `<li>${ilink('I0OO')}${two ? ' x2' : ''} <span class="small">· take the Old Hunter's Troll Hunt (12 ${scMon('nftr', 'Forest Trolls')} + 12 ${scMon('nftt', 'Troll Marksmen')}, ${esc(zname('z03'))}): 50% per clear, ~${two ? 6 : 3} clears at 85% luck. The quest repeats, so this works even if you finished step 1 with the Troll Boss</span></li>`);
+    if (S2 >= 1) put(fi(x => String(x.do || '').includes('{{u:nomg}}')), 1, `<li>${ilink('I0ON')} <span class="small">· kill ${scMon('nomg', 'Ogre Mages')} for this step's 15 kills with the ${ilink('I0OO')} on your hero (they count for the quest)</span></li>`);
+    if (S2 >= 2) put(fi(x => x.zone === ((W.unit_zone || {}).ngrk || 'z04')), 2, `<li>${ilink('I0OP')} <span class="small">· kill 30 ${scMon('ngrk', 'Mud Golems')} here with the ${ilink('I0ON')} on your hero</span></li>`);
+    const ei = S2 >= 3 ? fi(x => String(x.do || '').includes('{{u:nrog}}')) : -1;
+    if (S2 >= 3) put(ei, 3, `<li>${ilink('I0OQ')} <span class="small">· pick the Elite hunt (12 ${scMon('nrog', 'Elite Warriors')} + 12 ${scMon('nass', 'Elite Spearmen')}) and kill 15 Elite Warriors with the ${ilink('I0OP')} on your hero (3 extra)</span></li>`);
+    if (S2 >= 4) { const hi = HIDX[h], cs = hi != null ? pqChain(n, m, hi, eqStep(h, n, m).k, true) : -1, k = cs < 0 ? -1 : steps.findIndex(y => +y.step >= cs);
+      const ci = k < 0 ? steps.length - 1 : k; R.fl = cs >= 0 && ci <= stop && !!R.k3;
+      if (R.fl) { R.k4 = 1; R.fc = ci >= ei; R.fa = R.fc ? ci : ei;   // Flame Lord after Frodo's chain line, or after the Elite hunt when the chain comes first (the Firelands stay open)
+        if (!R.fc) put(ei, null, `<li>${ilink('I0OR')} <span class="small">· then kill the ${srcA('O003', bname('O003'))} in the Firelands with the ${ilink('I0OQ')} on your hero (the Firelands teleport stone stays open)</span></li>`); } }
+    const last = [4, 3, 2, 1].find(k => k <= S2 && R['k' + k]);
+    R.skip = (id, w) => { const k = SC_ST.indexOf(id); return (k >= 1 && w[0] === 'e' && !!R['k' + k]) || (k === 0 && w[0] === 'q' && !!R.k0); };
+    R.add = (id, w) => { if (w[0] !== 'c' || SC_ST.includes(id)) return ''; const r = scNeed(id), o = [];
+      if (r.s >= 1) o.push(`+ your evolved scythe (${ilink(SC_ST[Math.min(r.s, last || r.s)])})`); if (r.g) o.push(`+ your unevolved ${ilink('I0OO')}`); return o.length ? ' · ' + o.join(', ') : ''; };
+    R.place = (head, at) => { const t = S2 >= 1 ? `carry it on your hero from step 1${last ? ' to the ' + ilink(SC_ST[last]) : ''} (hero slots only, your pet's kills count)` : S2 === 0 ? 'wear one' : '';
+      const gd = R.g ? (S2 >= 0 ? 'keep the second one off your hero: the Guard craft needs it unevolved' : 'keep it off your hero: the Guard craft needs it unevolved') : '';
+      (head[0] = head[0] || []).push(`<li>${ilink('I0OO')}${two ? ' x2' : ''} <span class="small">· ${[t, gd].filter(Boolean).join('; ')}</span></li>`);
+      Object.keys(R.at).forEach(i => { (at[i] = at[i] || []).push(...R.at[i]); }); };
+    R.fire = () => `<li class="pl-rb pl-n"><b>${ilink('I0OR')}</b> · kill the ${srcA('O003', bname('O003'))} with the ${ilink('I0OQ')} on your hero</li>`;
+    return R; };
+  const scFitMin = (h, n, m, L, id, w, nw) => { const d = (+w[7] || 0) * nw, k = SC_ST.indexOf(id); if (k < 0 || !(w[0] === 'e' || (k === 0 && w[0] === 'q'))) return d;
+    const gl = gearOf(h, n, m, L), ids = []; FPS.forEach(st => (gl[st] || []).concat(gl[st + '_b'] || []).forEach(x => ids.push(x)));
+    const R = scSum(ids); if (!R.on) return d; const kpm = +KPM[1] || 30;
+    return k === 0 ? (R.cp > 1 ? 5 : 2) * 24 / kpm : k === 1 ? 1 : k === 2 ? 30 / kpm : k === 3 ? 3 / kpm : 2; };   // extra kills beyond the route only
   function farmPlan(h, n, m, L, steps, stop) {                       // -> {head(li, part), step(li, i), end(li, part)} or null (no data)
     if (!FW) return null;
     const key = MK[m] + '|' + band(n), T = FW.k[key] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
     const po = [], pS = [], pE = []; let c = -1;                       // part of each step (running max, like the route), first / last step
     steps.slice(0, stop + 1).forEach((x, i) => { const o = ZO[x.zone] || 0; c = Math.max(c, o > 18 ? 2 : o > 6 ? 1 : 0); po[i] = c; if (pS[c] == null) pS[c] = i; pE[c] = i; });
     const head = {}, at = {}, end = {}, kept = {}, lvDone = {}, enh = String((((PD.enh || {})[key] || {})[h]) || '').split('|');
+    const SCP = scPlan(h, n, m, L, steps, stop); SC_LAST = SCP; SCP.place(head, at);   // GIANT SCYTHE CARRY: Early carry line + step lines
     const fire = [];                                                  // TESTER PAGE FIXES: what needs the Firelands (Frodo's Boss Hunt)
     const rwP = rwPlan(h, n, m, L, steps, stop), rwUp = rwP.i >= 0 || rwP.abs;   // MAGIC RING: the run upgrades the ring = no + levels on it
     const f = (0.8 + 0.2 * n) / (0.8 + 0.2 * ((PD.sn || {})[band(n)] || n)) * gsF(n), useEnh = true;   // BOSS SOULS: every gear level (only the free +30 stone line reads PD.enh now)
@@ -605,10 +650,10 @@
         const nw = cnt[id] - (kept[id] || 0); kept[id] = Math.max(kept[id] || 0, cnt[id]);
         if (nw <= 0) continue;
         const wi = (T[id] || [])[p], w = wi != null && wi >= 0 ? FW.t[wi] : null;
-        if (!w || w[0] === 'k') continue;
+        if (!w || w[0] === 'k' || SCP.skip(id, w)) continue;   // GIANT SCYTHE CARRY: the carry lines replace the stage items' evolve lines
         if (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) fire.push(id);   // TESTER PAGE FIXES: source in (or route through) the Firelands
         if (w[6]) { spent += w[6] * nw; bsIS[p] += w[6] * nw; why.push(ilink(id)); }
-        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${whereTxt(w, nw)}</span></li>`, zo = ZO[w[3]];
+        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${whereTxt(w, nw)}${SCP.add(id, w)}</span></li>`, zo = ZO[w[3]];
         let j = -1;
         if (w[0] === 'o') { for (let i = pS[p]; i <= pE[p]; i++) if (+steps[i].step >= +w[9]) { j = i; break; } }
         else if (w[0] === 'f' && w[3]) j = steps.findIndex((x, i) => i <= stop && x.zone === w[3]);   // free: take it the first time you are there
@@ -668,6 +713,7 @@
           const last = steps.findIndex((x, k) => k > i && bp[k] === p) < 0; inc[i] = b0 + (RP[p] > 0 ? add * cp[p] / RP[p] : last ? add : 0); }
         else { cum += v * gsF(n); inc[i] = cum; } });
       const got = {}, nf = {}; if (rwP.i >= 0 && rwP.abs) got[RW_A] = rwP.i;   // MAGIC RING: held from the route line on // got = route step an item's farm line sits at (not held before it)
+      if (SCP.fa != null && !(got.I0OR <= SCP.fa)) got.I0OR = SCP.fa;   // GIANT SCYTHE CARRY: held after Frodo's chain line (the Flame Lord)
       Object.keys(at).forEach(j => at[j].forEach(t => { const mm = /#item\/([^"]+)"/.exec(t); if (mm) { const id = decodeURIComponent(mm[1]); got[id] = Math.min(got[id] == null ? 1e9 : got[id], +j); } }));
       const fc = [0, 0, 0]; for (let p = 0, sc = 0; p < 3; p++) { sc += bsIS[p]; fc[p] = Math.max(p ? fc[p - 1] : 0, sby.length === 3 ? sc - +sby[p] * f : 0); }   // Boss Souls farmed for item prices by the end of each part (the farm line)
       const lv = {}; let used = 0;
@@ -755,7 +801,7 @@
       (g[FPS[p]] || []).forEach(id => { cnt[id] = (cnt[id] || 0) + 1; });
       for (const id of Object.keys(cnt)) { const nw = cnt[id] - (kept[id] || 0); kept[id] = Math.max(kept[id] || 0, cnt[id]); if (nw <= 0) continue;
         const wi = (T[id] || [])[p], w = wi != null && wi >= 0 ? FW.t[wi] : null; if (!w || !(TP_FK.has(w[0]) || (w[0] === 'c' && !+w[5] && !+w[6]))) continue;   // crafts count only when they cost no gold / souls (farmed parts)
-        const mn = (+w[7] || 0) * nw; if (used + mn > cap) { if (p === i) out.add(id); } else used += mn; } }
+        const mn = scFitMin(h, n, m, L, id, w, nw); if (used + mn > cap) { if (p === i) out.add(id); } else used += mn; } }
     return out; };
   const tpFitTxt = (h, n, m, L, i) => { const f = tpFit(h, n, m, L, i); return f.size ? ` <span class="small">· may not fit this gear level's farm time: ${[...f].map(ilink).join(', ')}</span>` : ''; };
   const andJ = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : (a[0] || '');
@@ -831,6 +877,7 @@
     const PQX = { seen: new Set(), n, m, h, steps, stop };            // PREREQ GATES: each step before a goal once per route
     TGR = tgRoute(h, n, m, L);                                      // TIGHT: chips on the boss steps
     const FPL = farmPlan(h, n, m, L, steps, stop);                  // FARM PLAN (null without PD.fw: the build line alone)
+    const SCR = FPL ? SC_LAST : null; if (SCR && SCR.fl && !FPL.fire.includes('I0OR')) FPL.fire.push('I0OR');   // GIANT SCYTHE CARRY
     const li = [], TPS = {}; let cur = -1;                            // TPS: what the part lines already said (TESTER PAGE FIXES)
     steps.slice(0, stop + 1).forEach((x, i) => {
       const o = ZO[x.zone] || 0, pi = o > 18 ? 2 : o > 6 ? 1 : 0;
@@ -840,6 +887,7 @@
       li.push(`<li class="pl-n"><span class="small">${esc(zname(x.zone))}</span> · ${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
       if (FPL) FPL.step(li, i);
       pqHuntAt(li, i, PQX, need, FPL);                                // PREREQ GATES: Frodo's quest chain line (before this step's goal lines)
+      if (SCR && SCR.fc && PQX.hunt && PQX.hunt.at === i && PQX.hunt.why.length) li.push(SCR.fire());   // GIANT SCYTHE CARRY: the Flame Lord kill
       need.filter(b => b.at === i).forEach(b => li.push(...pqPre(b, PQX), `<li class="pl-rb pl-n"><b>${esc(b.label)}</b> · ${b.id ? esc(bname(b.id)) : esc(b.txt)}${b.zo !== undefined && bzone(b.id) !== x.zone ? ' <span class="small">(' + esc(zname(bzone(b.id))) + ')</span>' : ''}${b.note ? ' <span class="small">· ' + esc(b.note) + '</span>' : ''}${b.id && (PD.bnote || {})[b.id] ? ' <span class="small">· ' + esc(PD.bnote[b.id]) + '</span>' : ''}${b.id && BOAT.has(b.id) && BOATSTEP != null && +x.step < +BOATSTEP ? ' <span class="small">· ' + BOATTXT + '</span>' : ''}${b.warn ? ' <span class="small warntext">' + esc(b.warn) + '</span>' : ''}${b.id ? TGR.chip(b.id) : ''}</li>`));
     });
     if (FPL && cur >= 0) FPL.end(li, cur);

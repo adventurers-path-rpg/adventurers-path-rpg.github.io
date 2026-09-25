@@ -214,6 +214,7 @@
         'Modes table: the Challenge / Death cut hits true damage too, damage dealt by illusions is never cut.',
       ]],
       ['Calculators', [
+        'Run planner: builds with a scythe or Guard item tell you to carry the Giant Scythe from step 1 (Troll Hunt), so the route’s own Ogre Mage, Mud Golem, Elite and Flame Lord kills evolve it on the way.',
         'Run planner: after Frodo’s chain, sail to Ringwraith Island and kill him 5 times to turn the Magic Ring into the Absolute Ring. Enhance lines never waste Boss Souls on a Magic Ring you will upgrade.',
         'Run planner (tester feedback): a Don’t leave yet note lists the further evolutions your new Legacy items can still make in the same run (each counts as half an item in the ranking), Legacy upgrades lists free pickups, and Enhance lines show where to spend your Boss Souls before the hard bosses on every gear level.',
         'Run planner routes now show every step a goal needs first: gate bosses before portal bosses (Nature Guardian, Spider Queen + Green Dragon Key, Storm Beast Gatekeeper, Evil Jaina), arena ticket farms (the arena must be empty), Spirit King tickets (250,000-350,000 gold in Light Guardian Fortress), Shadow Lord (1,000 Points + 10 Challenge Tokens from Challenge clears), the Windmill Village Chief chain, and "enhance to +N first". Each step is timed and every boss on the way is checked.',
