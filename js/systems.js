@@ -239,6 +239,7 @@
         'Enhancing: Normal or Legacy gear, +26 to +30 marked Death mode only.',
       ]],
       ['Whole wiki', [
+        'The header shows when the wiki was last updated. Run planner marked beta, with a Send a test report form. Load save file stands out, and the tier list’s Show for your account needs a loaded save.',
         'Run planner reads your exact account: Map Level, title and your best Legacy item per slot count as they are, not rounded to a step.',
         'Run planner only suggests heroes your account can pick: Map Level and World Points unlocks read from your save (World Points box for hand entry).',
         'Run planner rebuilt on full-run replays of a normal player (walking, reading, creeps, farming, every boss, a death resets the fight) for every hero, difficulty, mode and account level. It only recommends runs the replay finishes, shows the run time, and the gear is just enough for the run’s last boss (Safer run switch: farm a bit more). Fixed: it could recommend Death N9 to a Map Level 26 account.',
@@ -348,6 +349,7 @@
       ]],
     ]],
   ];
+  { const u = document.getElementById('wupd'); if (u && CHANGES[0]) u.textContent = CHANGES[0][0]; }   // header date = newest changelog entry
   K.changes = CHANGES;                          /* Home shows the newest date */
   /* newest day open, older days folded to one line (date · count · categories); categories are small labels, not headings */
   P.changelog = () => `<h2>Changelog</h2>${CHANGES.map(([d, cats], i) => { const nn = cats.reduce((a, c) => a + c[1].length, 0);

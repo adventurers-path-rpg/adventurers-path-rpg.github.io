@@ -11,7 +11,7 @@
   /* pickable on a new account by the solo player these lists are for: no gate, the solo-lobby hero, a "map level N and below" gate */
   const openStart = h => { const g = h.gate || ''; return !g || g === 'none' || /solo lobby|and below/i.test(g); };
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  /* the calculator line "Score 98 · boss kill 58 min · pack clear 13 s · survives 1 s vs the boss · damage: ... · Legacy: ... · Items: ..." as score + label/value rows */
+  /* the calculator line "Score 98 · boss kill 58 min · pack clear 13 s · survives 1 s vs the boss · damage:... · Legacy:... · Items:..." as score + label/value rows */
   const trSec = t => { const m = /^(under )?([\d.]+) (s|min|h)$/.exec(t || ''); return m ? (m[1] ? 0.5 : 1) * m[2] * { s: 1, min: 60, h: 3600 }[m[3]] : NaN; };   // ux2
   const whyRows = w => { let score = '', bs = NaN; const rows = [], stg = [], top = [];   // ux3: stage letters in one row, end-of-run speed labelled
     for (const p of String(w || '').split(' · ')) { let m;

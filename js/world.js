@@ -148,10 +148,10 @@ window.AP = (function () {
     const circ = (z.circles || []).length ? `<span class="small"><b>Energy Circles:</b> ${z.circles.map(esc).join(', ')}</span>` : '';
     const st = znStory(z), hw = [reach(z.id) ? `<b>How to get there:</b> ${reach(z.id)}` : '', circ, st.length ? `<span class="small"><b>Story:</b> ${st.map(t => zoneLinks(esc(t))).join(' · ')}</span>` : '',
       ...znNotes(z).map(t => `<span class="small zn-nt">${zoneLinks(esc(t))}</span>`)].filter(Boolean);
-    /* keep '<b>How to get there:</b> ... </p>': map.js drops the mini map right after that paragraph */
+    /* keep '<b>How to get there:</b>... </p>': map.js drops the mini map right after that paragraph */
     return `<div class="zn-page"><p class="small">${link('zones', '', 'All zones').replace('/"', '"')}${zi > 0 ? ' · ← ' + link('zones', ZONES[zi - 1].id, ZONES[zi - 1].name) : ''}${zi < ZONES.length - 1 ? ' · ' + link('zones', ZONES[zi + 1].id, ZONES[zi + 1].name) + ' →' : ''}</p>`
       + `<h2>${z.optional ? '' : ZNUM[z.id] + '. '}${esc(z.name)}${z.optional ? ' <span class="tag">side</span>' : ''}</h2>`
-      + (hw.length ? `<div class="zn-top"><p class="zn-how">${hw.join('<br>')}</p></div>` : '')   /* ux3: map.js puts the map after this </p>, so it lands in .zn-top beside the text */
+      + (hw.length ? `<div class="zn-top"><p class="zn-how">${hw.join('<br>')}</p></div>` : '')   /* ux3: map.js puts the map after this </p>, so it lands in.zn-top beside the text */
       + (bos.length ? `<h4>Bosses</h4><div class="tbl compact"><table><tr><th>Boss</th><th class="num">HP (N${n})</th><th class="num">Dmg / hit</th><th class="num">DPS</th><th class="num">Boss Souls</th></tr>`
         + bos.map(b => `<tr class="xr" data-x="boss/${encodeURIComponent(b.id)}"><td>${ulink(b.id)}${znDrops2(b.drops, bos.length)}</td><td class="num">${big(bossHp(b))}</td><td class="num">${big(bossHit(b))}</td><td class="num">${big(bossDps(b))}</td><td class="num">${souls(b) ? fmt(souls(b)) : '-'}</td></tr>`).join('') + `</table></div>` : '')
       + (mons.length ? `<h4>Monsters</h4><div class="tbl compact"><table><tr><th>Monster</th><th class="num">Lv</th><th class="num">HP (N${n})</th></tr>`
@@ -200,7 +200,7 @@ window.AP = (function () {
         if (K.miniMap) K.miniMap(box, id);   /* map.js helper (requested): render + wire a small map of zone id inside box */
         else if (K.mapSvg && ((W.map || {}).zones || []).some(x => x.id === id)) {
           box.innerHTML = K.mapSvg({ focus: id, hl: new Set(znPts(K, p => (p.zone === id || p.tz === id) && p.k !== 'npc')) });
-          K.hooks.forEach(h => { try { h('xcard', box); } catch (e) {} });   /* map.js wires every .mapbox in the root it gets; page-gated hooks ignore 'xcard' */
+          K.hooks.forEach(h => { try { h('xcard', box); } catch (e) {} });   /* map.js wires every.mapbox in the root it gets; page-gated hooks ignore 'xcard' */
         }
       } catch (e) {}
       if (!box.children.length) { box.parentElement.classList.add('zn-nomap'); box.remove(); } });
@@ -268,7 +268,7 @@ window.AP = (function () {
   /* main-quest steps that ask for this unit (a step that starts with it = its quest giver, skipped) */
   const moQuest = id => { const t = '{{u:' + id; return ((W.qguide || {}).steps || []).filter(s => { const d = String(s.do || ''); return (d.includes(t + '}}') || d.includes(t + '|')) && !d.startsWith(t); })
     .map(s => `Step ${fmt(s.step)}${s.on && s.on !== 'N1+' ? ` <span class="small">(${esc(s.on)})</span>` : ''}: ${tok(s.do)}`).join('<br>'); };
-  /* how to get in = the part of a boss's Where after ' · ' (a scroll, a boat, a ticket, N4 only ...) */
+  /* how to get in = the part of a boss's Where after ' · ' (a scroll, a boat, a ticket, N4 only...) */
   const moNeed = id => { const r = String(REACH[id] || ''), k = r.indexOf(' · '); return k < 0 ? '' : zoneLinks(esc(r.slice(k + 3).replace(/^./, c => c.toUpperCase()))); };
   const moDropsN = (ds, max) => { const a = byChance(ds); return a.slice(0, max).map(d => dname(d) + (d.chance != null ? ` <span class="small">${pct(d.chance)}</span>` : '') + (d.note ? ` <span class="small">${esc(d.note)}</span>` : '')).join(' · ') + (a.length > max ? ` <span class="small">+${a.length - max} more</span>` : ''); };
   const moHasMap = z => !!Z[z] && ((W.map || {}).zones || []).some(x => x.id === z);
@@ -353,7 +353,7 @@ window.AP = (function () {
   const IGROUPS = [['Gear', ['Weapon', 'Armor', 'Boots', 'Accessory']], ['Build', ['Rune', 'Universal skills', 'Consumable']], ['Crafting', ['Material', 'Scroll']], ['Other', ['Exchanges', 'Titles', 'Boss tickets', 'Keys', 'Quests', 'Bonuses and draws']]];
   const SN = W.stat_names || {};
   let itemQuery = '';
-  /* ux2 2026-09-25: tooltip leftovers that are not effects ('Hidden Quest Reward', 'Exclusive Item', 'Created through synthesis', 'Boss drop: ...') never show as an effect */
+  /* ux2 2026-09-25: tooltip leftovers that are not effects ('Hidden Quest Reward', 'Exclusive Item', 'Created through synthesis', 'Boss drop:...') never show as an effect */
   const EFF_JUNK = /^(?:Hidden Quest Reward|Exclusive Item|Created through synthesis|Crafted through a synthesis scroll|Boss drop:[^.]*)\.?$/i;
   const effClean = t => String(t || '').split(/(?<=\.)\s+/).filter(x => !EFF_JUNK.test(x.trim())).join(' ').trim();
   const statTxt = i => [i.stats || (i.real ? '' : effClean(i.effect).split(/(?<=\.)\s/)[0]), i.xs].filter(Boolean).join(', ');
@@ -792,7 +792,7 @@ window.AP = (function () {
       + `<div class="tbl compact lg-t"><table><tr><th>Line</th><th>Starts from</th><th class="num">Steps</th></tr>`
       + groups.map(([g, ls]) => (v && v !== 'start' ? '' : `<tr class="grp"><td colspan="3">${esc(g)}</td></tr>`) + ls.map(l => lgRow(l, v !== 'start')).join('')).join('') + `</table></div>`;
   };
-  /* Legacy line page: chips pick the rows (key steps, 1-20, 21-40 ... all); stats that changed since the step before are bold;
+  /* Legacy line page: chips pick the rows (key steps, 1-20, 21-40... all); stats that changed since the step before are bold;
      long 'to evolve' text folds to 2 lines with a 'more' button; on a phone a step = item + stats on one line, then 'to evolve' */
   const LL_CH = 20;
   const llStats = (l, i, hl) => { const cur = (l.steps[i].stats || '').split(', ').filter(Boolean); if (!hl || !i) return esc(cur.join(', '));
@@ -992,7 +992,7 @@ window.AP = (function () {
   };
   /* Quests tab (user 2026-09-25): a place link shows WHERE it is: name + a small map with the spot ringed + Open page */
   /* monster / boss card = facts line + small map with the spot(s) ringed (user 2026-09-25: "it should open the highlighted small map").
-     Quick look (withHead): kind, zone, HP ..., then how to get in (bosses: scroll / boat / ticket), the map, drops.
+     Quick look (withHead): kind, zone, HP..., then how to get in (bosses: scroll / boat / ticket), the map, drops.
      A list row's in-place card skips what its row shows (HP, Lv, drops) and adds what it lacks: kind, how to get in, drops of boss rows,
      the items of a '1 of N' drop for monster rows. */
   const unitMapCard = (page, id, withHead) => {

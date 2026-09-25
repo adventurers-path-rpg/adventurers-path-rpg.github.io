@@ -4,7 +4,7 @@
   const HS = W.heroes || []; const byId = Object.fromEntries(HS.map(h => [h.id, h]));
   const kit = h => (h.kit_items || []).filter(i => i && i.id).map(i => item[i.id] ? ilink(i.id) : esc(i.name)).join(', ');
   const preview = t => { const s = String(t || '').split(/(?<=[.!])\s/)[0]; return s.length > 110 ? s.slice(0, 107) + '...' : s; };
-  /* hero levels to learn a skill: an even ladder (1, 3, 5 ... 19) prints as "1, 3 … 19" */
+  /* hero levels to learn a skill: an even ladder (1, 3, 5... 19) prints as "1, 3 … 19" */
   const lv = a => { if (!Array.isArray(a)) return esc(a || ''); const d = a[1] - a[0];
     return a.length > 3 && d > 0 && a.every((x, i) => !i || x - a[i - 1] === d) ? `${a[0]}, ${a[1]} … ${a[a.length - 1]}` : a.join(', '); };
   /* two filters that combine: Stat (from main_stat, World = World Heroes taverns) and Unlock (open at start / locked) */

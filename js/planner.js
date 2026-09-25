@@ -41,7 +41,7 @@
       if (p && (!own[p.line] || POS[own[p.line]].idx < p.idx)) own[p.line] = id;
     }
     const mlv = get('ThisPlayerLevelCheck');
-    /* VIP: the Points Merchant's VIP buys are saved as WANJIAVIP1/2/3/9 = '1' (no type prefix); level as trigger W1 Vip (L194000-194025) */
+    /* VIP: the Points Merchant's VIP buys are saved as WANJIAVIP1/2/3/9 = '1' (no type prefix); level as trigger W1 Vip */
     const vb = k => get('WANJIAVIP' + k) === '1', v1 = vb(1), v2 = vb(2), v3 = vb(3), v9 = vb(9);
     const vip = v1 && v2 && v3 && v9 ? 10 : v1 && v2 && v3 ? 4 : v3 ? 3 : v2 ? 2 : v1 ? 1 : 0;
     return { own, vip, tok: get('Itzlp') == null ? null : parseInt(get('Itzlp'), 10) || 0, pts: parseInt(get('IJF') || '0', 10) || 0, ml: mlv ? 1 + Math.floor(parseFloat(mlv) || 0) : 1, rank: parseInt(get('IJW') || '0', 10) || 0, wp: parseInt(get('ISHIJIE') || '0', 10) || 0, n: Object.keys(own).length,
@@ -83,9 +83,8 @@
     if (rank >= 9) a.stat_amp_pct += 15;
     return a; };
   /* VIP (patch_planner_vip 2026-09-25; findings/public/audit_math/vip_system.md): the Points Merchant's VIP item buys the next step (15k ->
-     VIP 1, 30k -> VIP 2, 45k -> VIP 4, 800k -> VIP 10), saved as flags and used from the next game. VIP L: +L Str/Agi/Int per hero level-up
-     (L193924), kill / quest gold and Boss Souls x(0.8 + 0.2 N + 0.5 L) instead of x(0.8 + 0.2 N) (L70948 / L70961), Points x(1 + 0.3 L)
-     rounded down on the stage boss (L23626), Jarvan V (L12840), Shadow Monster (L12875), Archangel / Frost Lord (L23059); stone chances
+     VIP 1, 30k -> VIP 2, 45k -> VIP 4, 800k -> VIP 10), saved as flags and used from the next game. VIP L: +L Str/Agi/Int per hero level-up, kill / quest gold and Boss Souls x(0.8 + 0.2 N + 0.5 L) instead of x(0.8 + 0.2 N), Points x(1 + 0.3 L)
+     rounded down on the stage boss, Jarvan V, Shadow Monster, Archangel / Frost Lord; stone chances
      +5 L points. The replays (PD.rp) are VIP 0 players: VIP moves only your account step (stats) and the Points / Boss Souls numbers.
      Hero level for the stats = tier_calc hero_lv late (SIM_LV x SIM_MX for Challenge / Death) x title EXP (sqrt(1 + 0.25 rank)) */
   const vipLv = () => { const v = +S.vip || 0; return [0, 1, 2, 3, 4, 10].includes(v) ? v : 0; };
@@ -120,18 +119,16 @@
   /* per probe: (amount - the amount the gains were measured on, PD.probe_ref) / probe amount */
   const units = (v, ref) => PRB.map(d => d.length ? d.reduce((t, [k, a]) => t + (a ? ((v[k] || 0) - ((ref || {})[k] || 0)) / a : 0), 0) / d.length : 0);
   /* PD.sw row = [gain per probe, survival part per probe, survival cap]: offense parts add up, survival parts only up to the cap
-     (a hero that already outlasts the boss gains nothing more from HP, armor, lifesteal ...) */
+     (a hero that already outlasts the boss gains nothing more from HP, armor, lifesteal...) */
   const powOf = (v, w, ref) => { const hasU = w.length > 2 * NP; let o = 0, u = 0;
     units(v, ref).forEach((x, j) => { const g = Math.max(0, +w[j] || 0), su = hasU ? Math.min(g, Math.max(0, +w[NP + j] || 0)) : 0; o += (g - su) * x; u += su * x; });
     return o + (hasU ? Math.min(u, Math.max(0, +w[2 * NP] || 0)) : u); };
   const addTo = (v, x) => { for (const t in x) v[t] = (v[t] || 0) + x[t]; return v; };
   /* LEGACY BAG (patch_legacy_bag 2026-09-25; findings/public/audit_math/legacy_bag_rules.md, extract_102/war3map.j L = line): the Bag (F2,
-     H00Q) holds 6 Legacy items, one per slot type (item level 1-8: a second item of a taken level is dropped, L97064-97073). Only Bag items
-     give stats, to the hero (pickup / drop triggers on H00Q add / remove them on the hero, e.g. L112895-112930 / L115397-115432); the two
-     Storages (F3 / F4) give nothing. Items move any time for free through slot 1 (pet Equipment Transfer A07H / A07I / A08C to the Bag /
-     Storage 1 / 2, the Bag's A0ET / A0ER / A0ES, the Storages' A0EU / A0EV / A0EW / A0EX: L12561-12640, no cooldown, no cost). Boss,
-     Survival, Elf Sister, Death Enhancer and kill-chance upgrades check the Bag; 'Put it in one bag with' combines (any unit's pickup,
-     L79224-79566) and +20 stones happen on the hero or pet (the Bag and Storages drop non-Legacy items, L12531-12544 / L97076-97080).
+     H00Q) holds 6 Legacy items, one per slot type. Only Bag items
+     give stats, to the hero; the two
+     Storages (F3 / F4) give nothing. Items move any time for free through slot 1. Boss,
+     Survival, Elf Sister, Death Enhancer and kill-chance upgrades check the Bag; 'Put it in one bag with' combines and +20 stones happen on the hero or pet.
      pickBag = the forced items first, then the best item of each free slot type by the hero's stat weights (the ownVec value), 6 at most */
   const BVC = new Map();
   const bagVal = (h, gk, id) => { const k = h + '|' + gk + '|' + id; if (BVC.has(k)) return BVC.get(k);
@@ -214,7 +211,7 @@
   /* CARDS UI (patch_cards_ui 2026-09-25): lab data, used only when present. PD.fc['N|m'][hero index, or hero id][account step] = share of
      replays that finish the whole run (0-1, or one share per gear level); PD.pace (same shape: true / 1 / 'y' / share >= 0.5 = safe for new
      players); PD.rpf / PD.bbf = replays / builds of a player who farms rare drops (same shape as PD.rp / PD.bb, keys they lack fall back).
-     Gear levels = PD.lvl (5 today: very light .. heavy) */
+     Gear levels = PD.lvl (5 today: very light.. heavy) */
   const NL = (PD.lvl || []).length || 5, FCON = !!PD.fc;
   if (S.gl == null) S.gl = S.safer ? 1 : 0;                           // the old 'Safer run' box = gear level 'A bit more'
   const labOf = (T, n, m, i, k) => { const r = (T || {})[n + '|' + m]; if (!r || k == null || k < 0) return null;
@@ -235,7 +232,7 @@
   const cellOf0 = (n, m, i, k) => { const key = n + '|' + m, src = S.rf && PD.rpf && PD.rpf[key] ? PD.rpf : PD.rp, s = ((((src || {})[key] || {}).h || [])[i] || [])[k]; if (!s) return null;
     const tot = [...Array(NL).keys()].map(j => { const t = s.slice(1 + NL + 2 * j, 3 + NL + 2 * j); return t === 'zz' ? null : (B36.indexOf(t[0]) * 36 + B36.indexOf(t[1])) * 5; });
     const reach = [...s.slice(1, 1 + NL)].map(c => B36.indexOf(c));
-    return { jl: s[0] === 'x' ? -1 : finL(reach, n, m, i, k), j0: s[0] === 'x' ? -1 : B36.indexOf(s[0]), reach, tot, n, m, i, k }; };   // FCS: m / i / k for stopL   // LAB WIRE: j0 = first finishing replay
+    return { jl: s[0] === 'x' ? -1 : finL(reach, n, m, i, k), j0: s[0] === 'x' ? -1 : B36.indexOf(s[0]), reach, tot, n, m, i, k }; };   // FCS: m / i / k for stopL // LAB WIRE: j0 = first finishing replay
   /* KNIFE-EDGE RULE (user 2026-09-25): a gear level counts only when the next heavier level's replay also gets there (farming a bit more
      must not fail: 5% of finishing replays did), so every recommended run has a Safer run behind it; the heaviest level has none to check */
   const robL = (reach, stop) => reach.findIndex((r, x) => r >= stop && (x >= reach.length - 1 || reach[x + 1] >= stop));
@@ -277,7 +274,7 @@
     return -1; };
   /* where the route lists a boss fought after step st: the step it opens at, or the stage end it was pushed to */
   const slotOf = (b, n, st) => { if (st !== stopOf(b, n)) return st; const fs = fsOf(b, n); return fs == null ? 20 + n : fs; };
-  /* ---- upgrades without a boss (patch_bossless 2026-09-25; data planner_data.py): PD.nbx[from>to] = [kind, ...], PD.nbi = bag item
+  /* ---- upgrades without a boss (patch_bossless 2026-09-25; data planner_data.py): PD.nbx[from>to] = [kind,...], PD.nbi = bag item
      routes, PD.sv = Survival Challenge waves. nbPlan -> null (not doable) or { at: quest step the run must pass, slot: route step, mins,
      pts, wp, sw: Survival wave, kills, how: short tag } */
   const NBX = PD.nbx || {}, NBI = PD.nbi || {}, SVW = PD.svw || [], KPM = PD.kpm || [18, 30];
@@ -324,8 +321,8 @@
     if (k === 's') { if (m === 'c') return null;
       return ok(svAt(n, m, i, lv, x[1]), { sw: x[1], how: `Survival wave ${x[1]} on N${n}${x[2] ? ', solo lobby' : ''}` }); }
     if (k === 'd') { if (m !== 'd' || (S.ml || 1) < x[3] || x[2] > bud.pts) return null; const b = PD.deb || 'O00K', at = bossAt(b, n, 'd', i, lv);
-      return ok(at, { slot: at, mins: 3, pts: x[2], how: `Death Enhancer ${x[1]}: ${fmt(x[2])} Points (you have ${fmt(+S.pts || 0)}), the item must sit in Legacy Bag slot 1` }); }   // AUDIT minor 1 (L192781-192786), minor 4 (listed where the run stops for it)
-    if (k === 'k') return x[3] ? ok(0, { bkills: x[2], how: `any boss kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} boss kills (85% luck), the run's own bosses count` })   // AUDIT B2: hero-type units only (L140714-140715)
+      return ok(at, { slot: at, mins: 3, pts: x[2], how: `Death Enhancer ${x[1]}: ${fmt(x[2])} Points (you have ${fmt(+S.pts || 0)}), the item must sit in Legacy Bag slot 1` }); }   // AUDIT minor 1, minor 4 (listed where the run stops for it)
+    if (k === 'k') return x[3] ? ok(0, { bkills: x[2], how: `any boss kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} boss kills (85% luck), the run's own bosses count` })   // AUDIT B2: hero-type units only
       : ok(0, { kills: x[2], how: `any kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} kills (85% luck)` });
     if (k === 'e') { const mn = (E2[1] || {})[band(n)] || 0; return ok(+E2[2] || 17, { mins: mn * enhR() / gsF(n), how: `+20 with Legacy stones: ~${fmt(Math.round(E2[0] * enhR()))} Boss Souls` }); }   // VIP
     if (k !== 'b' && k !== 'q') return null;
@@ -413,26 +410,21 @@
   /* ---- PREREQ GATES (patch_page_prereq 2026-09-25, user-approved Q1-Q3 'recommended'; audit findings/public/audit_math/prereq_audit.md,
      report prereq_fixes.md; data planner_data.py via scripts/pending/patch_prereq_gates.py; extract_102/war3map.j L = line).
      PD.pq[boss] = what the map needs before that boss, deepest first:
-       k [g, note, walk]  kill g first: Nature Guardian portal (L37325-37343), Spider Queen (L12450-12462), Storm Beast Gatekeeper
-                          (L12464-12470), Evil Jaina (L38379-38390), Dragon Turtle / Green Dragon keys (L15065-15091, L38017)
-       t [src, ticket, %, kills, s between kills]  arena ticket drop (each hero within 1500 rolls; the arena must be empty, e.g.
-                          L16793-16800; Treant Lord: every 200th Treant, L15992-16008)
-       g [ticket, gold, Boss Souls]  Spirit King ticket at the Challenge Display, Light Guardian Fortress (units_itemdata goldcost / lumbercost)
-       p [ticket, Points, tokens]  Shadow Lord: 1,000 Points + 10 Challenge Tokens, spent on purchase before the arena check (L193215-193238, L193762-193764); tokens = N - 3 per
-                          Challenge main-quest clear on N4+ (L23655-23660), save key Itzlp
-       h  Frodo's Boss Hunt: the scroll I03C is the only way into the Firelands (L24566-24578, L66747-66781): one chain line (pqChain)
-       i [key, boss, note]  a key no route step before the goal names    w [text, min]  walk-up / combine (Windmill Village Chief
-                          L187322 / L76165 / L187417-187478)    f [creep, item, R, kills, zone]  creep drop farm (Naga Siren 1 in 80,
-                          L187399-187403)    y [unit]  Young Black Dragon on N4: its first death spawns the Adult Black Dragon (L35350-35358)
-       b  behind the boat: PD.bstep opens it after the route's boat step, no line.  PD.pqn[bag item key] = the same steps for a bag-item
+       k [g, note, walk] kill g first: Nature Guardian portal, Spider Queen, Storm Beast Gatekeeper, Evil Jaina, Dragon Turtle / Green Dragon keys
+       t [src, ticket, %, kills, s between kills] arena ticket drop
+       g [ticket, gold, Boss Souls] Spirit King ticket at the Challenge Display, Light Guardian Fortress (units_itemdata goldcost / lumbercost)
+       p [ticket, Points, tokens] Shadow Lord: 1,000 Points + 10 Challenge Tokens, spent on purchase before the arena check; tokens = N - 3 per
+                          Challenge main-quest clear on N4+, save key Itzlp
+       h Frodo's Boss Hunt: the scroll I03C is the only way into the Firelands: one chain line (pqChain)
+       i [key, boss, note] a key no route step before the goal names w [text, min] walk-up / combine f [creep, item, R, kills, zone] creep drop farm y [unit] Young Black Dragon on N4: its first death spawns the Adult Black Dragon
+       b behind the boat: PD.bstep opens it after the route's boat step, no line. PD.pqn[bag item key] = the same steps for a bag-item
                           route ('r' boss = that boss's steps, 'd' boss drop farm): I0C3 = Naga Royal Guard ticket, Captain's Insignia,
-                          the Prophet walk-up (N7+, L187859-187860), Na Queen's staff (L187939-187948)
+                          the Prophet walk-up, Na Queen's staff
      PD.bstep already opens a boss after the step that kills its gates (planner_data fs_of). The route shows each step the main quest does
      not do, right before the goal line, once per route. Run length (never shown): each such step (kill time PD.kt, 60 s without a row,
      + PQW walk; ticket / drop farms at 85% luck; Spirit King gold at the model's income PD.pqr = acq GPM per band x stage / the mode's
      slow-down, scaled to N like the farm plan and by VIP; the hunt PD.pqh = acq fire_st + the scroll trip) + every goal boss the main
-     quest does not kill (kill time + walk; a repeat-kill pick already counts its kills). PD.pqe[from>to] = 'item at +N or higher'
-     (e.g. L153090-153092): the Legacy-stone step first (saves keep no enhance level). Without PD.pq the page is as before */
+     quest does not kill (kill time + walk; a repeat-kill pick already counts its kills). PD.pqe[from>to] = 'item at +N or higher': the Legacy-stone step first (saves keep no enhance level). Without PD.pq the page is as before */
   const PQ = PD.pq || {}, PQE = PD.pqe || {}, PQH = PD.pqh || {}, PQR = PD.pqr || {}, PQF = new Set(PD.pqf || []), PQN = PD.pqn || {}, PQW = 2, PQA = 1.5;   // walk / arena teleport minutes
   const PQRS = {}; (PD.rqb || []).forEach(x => { if (!(x[0] in PQRS)) PQRS[x[0]] = +x[1]; });
   const pqOn = (g, n, st) => g in PQRS && PQRS[g] <= 20 + n && (st == null || PQRS[g] <= st);   // the main quest kills it by then
@@ -477,10 +469,7 @@
     got.forEach(x => { if (!(x[1] in at) || !x[2]) return; if (!ids.includes(x[2])) ids.push(x[2]); km[x[2]] = Math.max(km[x[2]] || 0, +x[8] || 1); });
     return pqMins(ids, km, n, m, i, stop, [], L); };
   /* FRODO'S QUEST CHAIN (user 2026-09-25): ONE route line 'Frodo's quest chain' with the steps in a collapsed 'Show steps' toggle. The hunt
-     opens with main step 7 (the letter I02Y to Frodo, L23342-23358); the 7 kills count only in order and only after step 7 (O000 needs
-     DAAA[7], each next one the previous flag, L24420-24545); back to Frodo = the scroll I03C (L24566-24578; kept and used any time, one
-     use per game, Fu_Ben L66749-66781); the Flame Lord counts after that (L24597) and respawns (L39712); back to Frodo = Magic Ring I03L
-     (L24618-24643). The line sits at the earliest step from 7 on where the hero beats all 7 hunt bosses (bossAt0 per boss) and the Flame
+     opens with main step 7; the 7 kills count only in order and only after step 7; back to Frodo = the scroll I03C; the Flame Lord counts after that and respawns; back to Frodo = Magic Ring I03L. The line sits at the earliest step from 7 on where the hero beats all 7 hunt bosses (bossAt0 per boss) and the Flame
      Lord when the run needs the Firelands; every Firelands goal (bossAt) and bag item through the Firelands comes after it. Its minutes:
      PD.pqh (the 7 kills + walks + the scroll trip) in pqMins */
   const PQHB = ['O000', 'H007', 'H008', 'H009', 'H00A', 'O001', 'H00B'], PQHC = new Map();
@@ -556,7 +545,7 @@
   const SHOPID = {}; (W.shops || []).forEach(s => { SHOPID[s.id] = 1; });
   const enhC = (a, b, v) => { const e = 0.05 * (v == null ? vipLv() : v); let s = 0;   // tier_calc enh_cost, +a -> +b (+15..+19: 50%, Protection Stone per fail); VIP: +5 pp per level
     for (let x = a; x < b; x++) s += x < 10 ? 10 * (x + 1) / Math.min(1, 0.8 + e) : x < 15 ? 15 * x / Math.min(1, 0.6 + e) : 20 * x / Math.min(1, 0.5 + e); return s; };
-  const enhR = N => { const t = (PD.pqev || {})[String(N || 20)], j = [0, 1, 2, 4, 10].indexOf(vipLv()); return t && j >= 0 && +t[0] > 0 ? +t[j] / +t[0] : enhC(0, N || 20) / enhC(0, N || 20, 0); };   // PREREQ GATES: exact Legacy-stone VIP means (PD.pqev)   // VIP: Legacy-stone +20 souls (PD.e20, VIP 0) scaled like the stone chances (approximation)
+  const enhR = N => { const t = (PD.pqev || {})[String(N || 20)], j = [0, 1, 2, 4, 10].indexOf(vipLv()); return t && j >= 0 && +t[0] > 0 ? +t[j] / +t[0] : enhC(0, N || 20) / enhC(0, N || 20, 0); };   // PREREQ GATES: exact Legacy-stone VIP means (PD.pqev) // VIP: Legacy-stone +20 souls (PD.e20, VIP 0) scaled like the stone chances (approximation)
   const srcA = (id, nm) => { const t = esc(nm || id || ''); if (!id) return t;
     return (W.boss || {})[id] ? `<a href="#boss/${id}">${t}</a>` : (W.mon || {})[id] ? `<a href="#unit/${id}">${t}</a>` : SHOPID[id] ? `<a href="#shop/${id}">${t}</a>` : t; };
   const pctF = c => (c >= 10 || c === Math.round(c) ? Math.round(c) : +c.toFixed(1)) + '%';
@@ -634,7 +623,7 @@
      no re-simulation). Per run part under its gear line: pet bag, rune, universal skills (tpPart); once per route: the hero page's skill
      priority line (tpSkill, heroes.js K.hxOrder); Frodo's hidden Boss Hunt at step 7 when the route needs the Firelands (tpHunt); the gear
      the replay really held (tpKeep: PD.rh skipped items, PD.unr unreachable placed drops) or, without replay data, a 'may not fit' note
-     (tpFit). Map 1.02: Player Bonus L13586-13616, Beginner Bonus L13527-13570, Boss Hunt L24419-24643, books from hero level 35 / 100. */
+     (tpFit). Map 1.02: Player Bonus, Beginner Bonus, Boss Hunt, books from hero level 35 / 100. */
   const TP_RANKID = ['I0XJ', 'I0XK', 'I0XL', 'I0XM', 'I0XN', 'I0XO', 'I0XP', 'I0XQ', 'I0XR', 'I0XS', 'I0XT', 'I0XU', 'I0XV', 'I0XW', 'I0XX', 'I20U'];
   const TP_GIFTS = ['I022', 'I08L', 'I09I', 'I0DZ'].concat(TP_RANKID);
   /* your free pet items: the Player Bonus gift by Map Level, the Ranking Reward (Map Level 30+, RANKR rows), Bug Hunter at Map Level 110+ */
@@ -702,7 +691,7 @@
     const x = K.hxOrder(H, band(n) + '|' + MK[m]); return x ? `<p class="small">${x.replace('</b><span>', '</b> · <span>')}</p>` : ''; };
   /* Frodo's hidden Boss Hunt at route step 7: the full block when the route needs the Firelands, else one optional line */
   const TP_HUNT = ['O000', 'H007', 'H008', 'H009', 'H00A', 'O001', 'H00B'];
-  /* crafts that need a Boss Hunt item (Magic Ring I03L, Firelands Transfer Scroll I03C) somewhere in their parts (Absolute Ring ...):
+  /* crafts that need a Boss Hunt item (Magic Ring I03L, Firelands Transfer Scroll I03C) somewhere in their parts (Absolute Ring...):
      W.recipes closure, used only when the farm plan crafts the item (fw kind c) */
   let TP_FI = null;
   const tpFireI = () => { if (TP_FI) return TP_FI; TP_FI = new Set(['I03L', 'I03C']); let more = true;
@@ -766,7 +755,7 @@
   /* Points per hour of the Jarvan V farm for this hero and account (between two ladder steps: blended like the run times); null = cannot */
   const jvRate = (h, n, m, e) => { const t = jvT(h, n, m, e.k); if (t == null) return null; const t2 = e.f ? jvT(h, n, m, e.k + 1) : null;
     return 3600 / ((t2 == null ? t : t + e.f * (t2 - t)) + JV_GAP) * jvPer(); };
-  const jvPer = () => vipPts(JVP);   // VIP: 5 x (1 + 0.3 L) rounded down (Trig_JF___Gang L12840)
+  const jvPer = () => vipPts(JVP);   // VIP: 5 x (1 + 0.3 L) rounded down
   /* Points of a 3-hour session: the run (stage boss + AFK), then the Jarvan V farm for the rest; a longer run = its own rate x 3 h */
   const sessPts = (pay, mins, jv) => mins >= SESS ? (pay + mins / 60 * AFKH) * SESS / mins : pay + SESS / 60 * AFKH + (jv ? jv * (SESS - mins) / 60 : 0);
   /* Legacy goals: Points you can pick up on the side when the run finishes the main quest (never changes their ranking) */
@@ -804,7 +793,7 @@
           for (const a of u.alts) {                 // v52: the beat row of THIS N (any-N upgrades too), at the stage the run fights the boss in
             if (!a[0].length || !fitsN(a, n) || (a[2] && a[2] !== m) || !hasBit(a[3], i)) continue;
             const at = a[0].map(b => bossAt(b, n, m, i, lv));
-            const pp = pqPts(a[0]); if (pp > (+S.pts || 0)) continue;   // PREREQ GATES: the Shadow Lord ticket takes 1,000 Points (L193221): offered only with them
+            const pp = pqPts(a[0]); if (pp > (+S.pts || 0)) continue;   // PREREQ GATES: the Shadow Lord ticket takes 1,000 Points: offered only with them
             if (at.every(x => x >= 0 && x <= rmax)) { can.add(key); if (!slots[key] && !clash(u, a, Math.max(...at)) && pp <= bud.pts) { slots[key] = pp ? { u, a, at, pq: pp } : { u, a, at }; bud.pts -= pp; } break; }   // conflicts: doable even when a clash keeps it out
           }
           if (u.nb && !slots[key]) for (const a of u.alts) {   // bossless: Survival / bag items / Death Enhancer / kills / Elf Sister
@@ -881,7 +870,7 @@
      the step it opens, the town-unit kills (last > 0) at the end of the route in that order, then the upgrade (routeHtml puts 'last' last) */
   const rtNeeds = r => r.got.concat(r.ugot || []).flatMap(g => { const lb = 'Upgrade ' + iname(g.u.from);
     if (g.fgs) return []; if (g.nb && g.nb.fg) return [{ txt: g.nb.how || g.u.text, label: lb, st: g.nb.slot }].concat(fgNeeds(g.nb.fg));   // FARM GOALS: farm lines at the stop
-    if (!g.nb) return g.a[0].map((b, j) => ({ id: b, label: lb, st: g.at[j], note: killTxt(g), pqe: j ? null : pqeOf(g) }));   // AUDIT M3: kills per chance roll   // PREREQ GATES: +N stones first
+    if (!g.nb) return g.a[0].map((b, j) => ({ id: b, label: lb, st: g.at[j], note: killTxt(g), pqe: j ? null : pqeOf(g) }));   // AUDIT M3: kills per chance roll // PREREQ GATES: +N stones first
     const w = unvTxt(g, r), s = g.nb.set;
     if (!s) return [{ txt: g.nb.how || g.u.text, label: lb, st: g.nb.slot, warn: w, fire: g.nb.fire, pqn: g.nb.pqn }];   // PREREQ GATES: fire = the hunt block
     const rows = [...s.rows].sort((a, b) => a.last - b.last || a.at - b.at), nm = iname(String(s.key).split('*')[0]);
@@ -907,8 +896,7 @@
       + `${rest.length || sw ? '<br>' : ''}${rest.length ? `Leave in storage: ${rest.map(nl).join(', ')}.` : ''}${sw ? ' Swaps are free any time through slot 1 (the pet\'s Equipment Transfer).' : ''}</p>`; };
   /* ---- ON THE WAY (patch_on_the_way 2026-09-25; findings/public/audit_math/side_evolutions.md, legacy_bag_rules.md): Legacy items IN the
      Legacy Bag keep evolving along a run. otWalk = an owned item's line from its current step while the run meets each step anyway: a route
-     boss (x.bs: PD.rqb main-quest bosses up to the stop + the run's boss picks) or any kill / any boss kill (PD.nbx 'k', Cloth Helmet
-     L140672-141294: each step its own roll, chained on the same kill). It stops at the first step that needs a farm (a repeat-kill chance,
+     boss (x.bs: PD.rqb main-quest bosses up to the stop + the run's boss picks) or any kill / any boss kill. It stops at the first step that needs a farm (a repeat-kill chance,
      Wyvern 1/50), materials or Points. otProb = a Markov chain over the run's kill timeline: creep kills per quest step (PD.kr = a finishing
      replay's kills at the end of Early / Mid / the run per band|mode, planner_pack patch_pack_kills; older data: KPM[0] x the run's
      minutes, spread evenly), bosses at their step, then the kills / boss kills a chance pick farms (85% luck count) */
@@ -1029,8 +1017,7 @@
   const tfLink = id => String(id).charAt(0) === '~' ? `<span class="pl-rnd">${esc(tfName(id))}</span>` : ilink(id);
   const krOf = x => { const r = ((PD.krh || {})[x.n + '|' + x.m] || {})[x.h]; return Array.isArray(r) && r.length >= 6 ? r : null; };   // the hero's own kills per part
   /* FARM GOALS (user-approved 'Yes, as farm goals'; findings/public/audit_math/side_evolutions.md). An owned Legacy item whose next steps
-     roll per kill while it sits in the Legacy Bag (Cloth Helmet L140672-141294: 1/1000 any kill N2+, 1/100 any kill N3+, 1/15 boss kill N4+,
-     1/50 Wyvern kill N5+) can be farmed on. fgRoute = the run's own kills (otCtx: creeps per quest step, the route's bosses, the replay's
+     roll per kill while it sits in the Legacy Bag can be farmed on. fgRoute = the run's own kills (otCtx: creeps per quest step, the route's bosses, the replay's
      other boss kills), fgPlan = the farm after it in chain order (grind creeps, boss kills, the unit), each part until 85 players in
      100 of those who got the steps before it are through (the page's '85% luck' per count: step 3 = ~28 boss kills, step 4 = ~94
      Wyverns; the route's own kills count first). A whole 4-step goal at 85% for all of it together would need ~2x the kills.
@@ -1232,8 +1219,8 @@
   /* ---- Points goal (v52): every run you finish = finish it (stage boss + AFK Points), then farm Jarvan V for the rest of a 3-hour
      session. Ranked by the Points of that session (a run over 3 h: its own rate x 3 h, no farm). Optional extras, not ranked: Shadow
      Monster 10 once (killed after the main quest), the first Archangel / Frost Lord kill (N^2 x 0.15 x mode + 10, W.calc.points arch) */
-  /* AUDIT minor 6: the main-quest reward adds +10 (+15 on N9) below Map Level 5 (L23630-23634, L24352-24354) and +2 x N when your Map Level
-     is 5 or lower (L23638-23645) */
+  /* AUDIT minor 6: the main-quest reward adds +10 (+15 on N9) below Map Level 5 and +2 x N when your Map Level
+     is 5 or lower */
   const lowPts = n => ((S.ml || 1) < 5 ? (n === 9 ? 15 : 10) : 0) + ((S.ml || 1) <= 5 ? 2 * n : 0);
   const ptCard = r => { const b = r.best, i = HIDX[b.h], tags = [];
     if (b.jv) tags.push(tagH('Jarvan V farm', 'acc'));
