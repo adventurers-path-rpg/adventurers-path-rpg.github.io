@@ -194,6 +194,7 @@
         'Tap a zone, NPC, boss or monster in Quests for a small map with the spot marked.',
       ]],
       ['Legacy', [
+        '+20 Legacy steps (Obsidian Ring and others) now say where the stones are: Legacy Equipment Enhancer in Holy Light Fortress, for Boss Souls (about 25,000 to +20, about 7,900 with Protection Stones).',
         'Fixed: Ashen Reaper owners were sent to turn it back into plain Ashen Reaper (Purified Holy Water is a downgrade). Cloth Helmet 3 to 4 needs boss kills, not any kill (1 in 15). Chance steps count the kills you need (Half-Dragon Lord 10%: 19 kills). Wyvern, Windmill Village Chief and Jungle Guardian Spirit upgrades are plannable now.',
         'Dawn Sentinel shows (tagged untested: the N9 Frost Lord one-shots Alleria in our math) when the rest of the chain works. Armor Fragment x7 plans all 7 spots in one run, the Kodo Beast and the Gunslinger last (they turn a fortress hostile).',
         'Divine Arrow and Divine Armor Seal lines plan end to end on N7-9 (Seal 2 to 3, 4 to 5, 5 to 6, Seal 10 to Divine Arrow, Beast Armor to King Armor). Dawn Sentinel stays out: Alleria must beat the N9 Frost Lord first.',
