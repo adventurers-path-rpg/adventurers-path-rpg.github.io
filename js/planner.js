@@ -214,13 +214,22 @@
      Gear levels = PD.lvl (5 today: very light.. heavy) */
   const NL = (PD.lvl || []).length || 5, FCON = !!PD.fc;
   if (S.gl == null) S.gl = S.safer ? 1 : 0;                           // the old 'Safer run' box = gear level 'A bit more'
+  /* ---- GEAR LEVEL IN THE CARD (patch_page_gearlevel 2026-09-25, user-approved): the list ranks each run at the lightest gear level
+     that finishes it (tag 'needs:...'); S.gl / S.rf = your comfort pick (remembered in ap_plan), used only inside the open run card.
+     G = the level the page computes with right now (list: GL_MIN without rare drops; the open card: max(comfort, needed level)).
+     SHOW_JUST_ENOUGH = false (user 2026-09-25): 'Just enough' hidden, the lowest level is 'A bit more' (code path kept).
+     RF_LIST: runs that only finish with rare drops stay listed, tagged 'needs rare drops' */
+  const SHOW_JUST_ENOUGH = false, GL_MIN = SHOW_JUST_ENOUGH ? 0 : 1, RF_LIST = true;
+  const G = { gl: GL_MIN, rf: false };
+  const withG = (o, fn) => { const a = G.gl, b = G.rf; G.gl = +o.gl || 0; G.rf = !!o.rf; try { return fn(); } finally { G.gl = a; G.rf = b; } };
+  let LSKIP = null;   // (h, n, m) => true: the list being built skips that run (a lighter list already has it)
   const labOf = (T, n, m, i, k) => { const r = (T || {})[n + '|' + m]; if (!r || k == null || k < 0) return null;
     const hv = Array.isArray(r) ? r[i] : r[PD.heroes[i]] != null ? r[PD.heroes[i]] : r[i]; return hv == null || hv[k] == null ? null : hv[k]; };
   /* LAB WIRE (patch_lab_js 2026-09-25): planner_pack (patch_pack_lab) packs PD.fc / PD.pace per gear level: fc = share of the dice
      replays that finish the whole run, pace = the last quest step a brand-new player's replay gets done; null = that level was not tested
      (nothing shown, never borrowed from another level). Both describe the NORMAL replays: not used while 'I'll farm rare drops' plays
      PD.rpf rows */
-  const labRow = (T, n, m, i, k) => S.rf && PD.rpf && PD.rpf[n + '|' + m] ? null : labOf(T, n, m, i, k);
+  const labRow = (T, n, m, i, k) => G.rf && PD.rpf && PD.rpf[n + '|' + m] ? null : labOf(T, n, m, i, k);
   const fcAt = (n, m, i, k, L) => { let v = labRow(PD.fc, n, m, i, k); if (Array.isArray(v)) v = L == null || L < 0 ? null : v[L];
     return typeof v === 'number' && isFinite(v) ? v : null; };
   /* safe for new players: the brand-new player's replay gets to the run's stop (default: the whole run) at the SAME gear level L */
@@ -228,8 +237,8 @@
     if (Array.isArray(v)) { const r = L == null || L < 0 ? null : v[L]; return typeof r === 'number' && r >= st; }
     return v === true || v === 'y'; };
   const CELLC = {};   // cellOf cache (speed): the packed replay strings never change while the page is open
-  const cellOf = (n, m, i, k) => { const ck = (S.rf && PD.rpf ? 'f' : 'n') + n + '|' + m + '|' + i + '|' + k; if (ck in CELLC) return CELLC[ck]; return (CELLC[ck] = cellOf0(n, m, i, k)); };
-  const cellOf0 = (n, m, i, k) => { const key = n + '|' + m, src = S.rf && PD.rpf && PD.rpf[key] ? PD.rpf : PD.rp, s = ((((src || {})[key] || {}).h || [])[i] || [])[k]; if (!s) return null;
+  const cellOf = (n, m, i, k) => { const ck = (G.rf && PD.rpf ? 'f' : 'n') + n + '|' + m + '|' + i + '|' + k; if (ck in CELLC) return CELLC[ck]; return (CELLC[ck] = cellOf0(n, m, i, k)); };
+  const cellOf0 = (n, m, i, k) => { const key = n + '|' + m, src = G.rf && PD.rpf && PD.rpf[key] ? PD.rpf : PD.rp, s = ((((src || {})[key] || {}).h || [])[i] || [])[k]; if (!s) return null;
     const tot = [...Array(NL).keys()].map(j => { const t = s.slice(1 + NL + 2 * j, 3 + NL + 2 * j); return t === 'zz' ? null : (B36.indexOf(t[0]) * 36 + B36.indexOf(t[1])) * 5; });
     const reach = [...s.slice(1, 1 + NL)].map(c => B36.indexOf(c));
     return { jl: s[0] === 'x' ? -1 : finL(reach, n, m, i, k), j0: s[0] === 'x' ? -1 : B36.indexOf(s[0]), reach, tot, n, m, i, k }; };   // FCS: m / i / k for stopL // LAB WIRE: j0 = first finishing replay
@@ -251,7 +260,7 @@
     return c.reach.findIndex((r, x) => r >= stop && (fcsAt(c.n, c.m, c.i, c.k, x, stop) || 0) >= 0.5); };
   /* gear level S.gl: 0 Just enough = the rule above, 1 A bit more = the next heavier level whose replay also gets there (the old Safer run),
      2 Overgeared = the heaviest level whose replay gets there */
-  const lvlFor = (c, stop) => { if (!c) return -1; const j = FCON && c.n && stop >= 20 + c.n ? c.jl : stopL(c, stop), g = +S.gl || 0; if (j < 0 || !g) return j;
+  const lvlFor = (c, stop) => { if (!c) return -1; const j = FCON && c.n && stop >= 20 + c.n ? c.jl : stopL(c, stop), g = +G.gl || 0; if (j < 0 || !g) return j;
     /* LAB WIRE: only REPLAYED levels count. PD.rpfl = the grid replayed every level (sim_grid FULL_LEVELS); older grids replayed up to the
        first finish + 1 and packed heavier levels as copies. Overgeared = the heaviest replayed level that gets there */
     const rpd = x => !!PD.rpfl || c.j0 == null || c.j0 < 0 || x <= c.j0 + 1;
@@ -273,7 +282,7 @@
      not replayed). A boss the beat rows let you fight is not doable when the replay at the gear level of this run (lvlFor to the end of the
      run; no finishing level: to the fight's step) loses it with everything it holds at the end. No data / 'I'll farm rare drops' = the
      beat rows alone */
-  const abLost = (b, n, m, i, lv, st) => { if (!PD.abon || st < 0 || (S.rf && PD.rpf)) return false;
+  const abLost = (b, n, m, i, lv, st) => { if (!PD.abon || st < 0 || (G.rf && PD.rpf)) return false;
     const r = ((PD.abf || {})[n + '|' + m] || {})[PD.heroes[i]], row = r ? r[lv] : null; if (!row) return false;
     const c = cellOf(n, m, i, lv); if (!c) return false; let L = lvlFor(c, 20 + n); if (L < 0) L = lvlFor(c, st);
     const x = L >= 0 ? row[L] : null; return typeof x === 'string' && x !== '' && x.split(',').includes(b); };
@@ -394,14 +403,14 @@
      level whose list it farmed. PD.rplf = the same for the rare-drop farmer rows; fix 'n..' = that farmer row is the normal run (PD.bb
      lists, not PD.bbf). Account step = eqStep (the step every goal replays) */
   const gearOf = (h, n, m, L) => { const bk = MK[m] + '|' + band(n), rk = n + '|' + m, bs = basicSet(h, n, m);
-    const far = !!(S.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]), pl = ((((S.rf && PD.rpf && PD.rpf[rk] ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[eqStep(h, n, m).k];
+    const far = !!(G.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]), pl = ((((G.rf && PD.rpf && PD.rpf[rk] ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[eqStep(h, n, m).k];
     const p = pl && Array.isArray(pl[L]) ? pl[L] : null, bsrc = far && !(p && String(p[0] || '').charAt(0) === 'n') ? PD.bbf : PD.bb;
     const g = (((W.best_items || {})[h] || {})[band(n) + '|' + MK[m]]) || {};
     const o = {}; ['early', 'mid', 'late'].forEach((st, i) => { const li = p && p[1 + i] != null && +p[1 + i] >= 0 ? +p[1 + i] : L, lv = ((((bsrc || {})[bk] || {})[h]) || [])[li];
       const all = tpKeep(h, n, m, L, i, lv ? (lv[i] || []) : (g[st] || []).map(x => x[0]), bk);   // TESTER PAGE FIXES: the gear the replay really held
       o[st] = all.filter(id => !bs.has(id)); o[st + '_b'] = all.filter(id => bs.has(id)); }); return o; };   // _b = starter gear (shown small)
   const LVLN = ['very light', 'light', 'medium', 'normal', 'heavy'], GLN = ['Just enough', 'A bit more', 'Overgeared'];
-  const gearTxt = L => L < 0 ? '' : `${GLN[+S.gl || 0] || GLN[0]} (${LVLN[L] || 'level ' + (L + 1)} farming)`;
+  const gearTxt = L => L < 0 ? '' : `${GLN[+G.gl || 0] || GLN[0]} (${LVLN[L] || 'level ' + (L + 1)} farming)`;
   /* NO MINUTES ON THE PAGE (user 2026-09-25): run times differ ~2x between players with the same hero and gear, so the page shows only what
      is the same for everyone (kills, drop %, Boss Souls, Points per kill / per run, quest steps). The model's minutes still rank and sort
      everything (Points per hour, just enough vs Safer, the tier list's 'fast' tag, Legacy run order). Run length words from the model's
@@ -449,7 +458,7 @@
      Then the chain adds only the part after the run's stop: hunt x (1 - share of the run's time by the stop). pqRepH = that build check on
      the page's own gear lists (gearOf = the lists the replay farmed); PQL.L = the gear level of the tMix just evaluated (nbMins' base) */
   const PQL = { L: null }, PQRH = new Map();
-  const pqRepH = (h, n, m, L) => { if (!FW || L == null || L < 0) return false; const k = h + '|' + n + m + '|' + L + '|' + eqStep(h, n, m).k + (S.rf ? 'f' : ''); if (PQRH.has(k)) return PQRH.get(k);
+  const pqRepH = (h, n, m, L) => { if (!FW || L == null || L < 0) return false; const k = h + '|' + n + m + '|' + L + '|' + eqStep(h, n, m).k + (G.rf ? 'f' : ''); if (PQRH.has(k)) return PQRH.get(k);
     const T = FW.k[MK[m] + '|' + band(n)] || {}, g = gearOf(h, n, m, L); let r = false;
     for (let p = 0; p <= 2 && !r; p++) for (const id of (g[FPS[p]] || []).concat(g[FPS[p] + '_b'] || [])) { if (id === 'I03L') { r = true; break; }
       const wi = (T[id] || [])[p], w = wi != null && wi >= 0 ? FW.t[wi] : null; if (w && (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id)))) { r = true; break; } }
@@ -483,7 +492,7 @@
      Lord when the run needs the Firelands; every Firelands goal (bossAt) and bag item through the Firelands comes after it. Its minutes:
      PD.pqh (the 7 kills + walks + the scroll trip) in pqMins */
   const PQHB = ['O000', 'H007', 'H008', 'H009', 'H00A', 'O001', 'H00B'], PQHC = new Map();
-  const pqChain = (n, m, i, lv, fl) => { const k = n + m + '|' + i + '|' + lv + '|' + (fl ? 1 : 0) + '|' + ((+S.ml || 1) < (+PD.nsml || 90) ? 1 : 0); if (PQHC.has(k)) return PQHC.get(k);
+  const pqChain = (n, m, i, lv, fl) => { const k = n + m + '|' + i + '|' + lv + '|' + (fl ? 1 : 0) + '|' + ((+S.ml || 1) < (+PD.nsml || 90) ? 1 : 0) + '|' + G.gl + (G.rf ? 'f' : ''); if (PQHC.has(k)) return PQHC.get(k);
     let st = 7; for (const b of PQHB.concat(fl ? ['O003'] : [])) { if ((PD.beat || {})[b + '|' + n + '|' + m] === undefined) continue; const s = bossAt0(b, n, m, i, lv); if (s < 0) { st = -1; break; } st = Math.max(st, s); }
     const r = st >= 0 && st <= 20 + n ? st : -1; PQHC.set(k, r); return r; };
   const pqHasH = b => !!PD.pq && (PQ[b] || []).some(p => p[0] === 'h');
@@ -688,7 +697,7 @@
     const bsAddE = (i, ups, c) => { const o = bsE[i] = bsE[i] || { ups: {}, c: 0 }; ups.forEach(([id, lv]) => { o.ups[id] = lv; }); o.c += c; };
     const bsLine = (ups, souls) => `<li class="pl-rp"><b>Enhance</b> · ${ups.map(([id, lv]) => `${tfLink(id)} to +${lv}`).join(', ')} <span class="small">(${srcA('n00G', 'Gazlowe')}${souls >= 1 ? ', ~' + fmt(Math.round(souls)) + ' Boss Souls' : ''})</span></li>`;
     const bsKills = x => [...String(x.do || '').matchAll(/(or kill )?\{\{u:([A-Za-z0-9]{4})\}\}/g)].filter(mm => !mm[1]).map(mm => mm[2]);
-    const bsEv = (() => { if (!PD.rhe || L == null || L < 0 || !PD.rh || !PD.rhR || (S.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
+    const bsEv = (() => { if (!PD.rhe || L == null || L < 0 || !PD.rh || !PD.rhR || (G.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
       const e = (PD.rh[n + '|' + m] || {})[h]; if (typeof e !== 'string') return null;
       const w = +PD.rhw || 2, j = e.substr((eqStep(h, n, m).k * NL + L) * w, w); if (!j || j.charAt(0) === '-') return null;
       const R = (PD.rhR || [])[parseInt(j, 36)]; if (typeof R !== 'string') return null;
@@ -749,7 +758,7 @@
   const RW_B = 'H00M', RW_R = 'I03L', RW_A = 'I050', RW_S = 'I051', RWC = new Map();
   const rwTxt = () => `Sail to Ringwraith Island (boat), kill the ${srcA(RW_B, 'Ringwraith')} 5 times, keep the 5 <a href="#item/${RW_S}">${K.icon(RW_S)}Wraith Souls</a> with the ${ilink(RW_R)}: it becomes the ${ilink(RW_A)} when you pick up any item.`;
   const rwPlan = (h, n, m, L, steps, stop) => { const hi = HIDX[h]; if (!FW || hi == null || !steps || !steps.length) return { i: -1, abs: false };
-    const k = eqStep(h, n, m).k, ck = [h, n, m, L, stop, steps.length, k, +S.gl || 0, S.rf ? 1 : 0, +S.ml || 1].join('|'); if (RWC.has(ck)) return RWC.get(ck);
+    const k = eqStep(h, n, m).k, ck = [h, n, m, L, stop, steps.length, k, +G.gl || 0, G.rf ? 1 : 0, +S.ml || 1].join('|'); if (RWC.has(ck)) return RWC.get(ck);
     const T = FW.k[MK[m] + '|' + band(n)] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
     const abs = [0, 1, 2].some(p => (g[FPS[p]] || []).concat(g[FPS[p] + '_b'] || []).includes(RW_A)), r = { i: -1, abs };
     const c = pqChain(n, m, hi, k, true), s1 = c >= 0 ? bossAt0(RW_B, n, m, hi, k) : -1, aw = T[RW_A] || [], p0 = [0, 1, 2].find(p => aw[p] != null && aw[p] >= 0);
@@ -779,7 +788,7 @@
   const tpBeg = n => n <= 1 ? 'Level-1 artifact' : n <= 5 ? `Level-${n} item` : n <= 7 ? 'Level-6 item' : 'Level-7 item';   // Beginner Bonus by N
   /* PD.rh[N|m][hero][account step][gear level] = what that replay held: x = per part [[skipped item, copies held]], p = pet bag per part,
      r = [rune, level], b = books (planner_pack TESTER). Not for the rare-drop farmer rows */
-  const rhOf = (h, n, m, L) => { if (L == null || L < 0 || !PD.rh || (S.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
+  const rhOf = (h, n, m, L) => { if (L == null || L < 0 || !PD.rh || (G.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
     const e = (PD.rh[n + '|' + m] || {})[h], k = eqStep(h, n, m).k;
     if (typeof e === 'string') { const w = +PD.rhw || 2, j = e.substr((k * NL + L) * w, w); return j && j.charAt(0) !== '-' ? rhRow(parseInt(j, 36)) : null; }   // TIGHT / HELD: compact rows
     const r = (e || {})[k]; return (r && r[L]) || null; };
@@ -925,7 +934,7 @@
     for (const key of keys) {
       const [ns, m] = key.split('|'), n = +ns;
       PD.heroes.forEach((h, i) => {
-        if (!unlocked(h)) return;
+        if (!unlocked(h) || (LSKIP && LSKIP(h, n, m))) return;   // GEAR LEVEL IN THE CARD
         const e = eqStep(h, n, m), lv = e.k, slots = {}, c = cellOf(n, m, i, lv), rmax = c ? Math.max(...c.reach) : -1;
         const bud = { pts: +S.pts || 0, wp: +S.wp || 0 };              // bossless: Points / World Points the picks may spend (Legacy only)
         /* ON THE WAY (patch_on_the_way 2026-09-25, user decision): several upgrades of the same slot type in one run (Bag swaps are free,
@@ -1004,7 +1013,7 @@
     for (const g of groups.values()) { const set = g.got.concat(g.ugot || []).map(x => x.u.to);
       if (best.some(b => set.every(t => b.got.concat(b.ugot || []).some(x => x.u.to === t)))) continue; best.push(g); if (best.length >= CARDN) break; }
     for (const g of groups.values())                 /* UNTESTED: one that no option above holds still gets its best run, listed after them */
-      if (!best.includes(g) && (g.ugot || []).some(x => !best.some(b => b.got.concat(b.ugot || []).some(y => y.u.to === x.u.to)))) best.push(g);
+      if (!best.includes(g) && (g.ugot || []).some(x => !best.some(b => b.got.concat(b.ugot || []).some(y => y.u.to === x.u.to)))) best.push(Object.assign(g, { ux: 1 }));
     const noboss = ups.filter(u => !u.alts.some(a => a[0].length) && !can.has(u.from + '>' + u.to) && !canU.has(u.from + '>' + u.to));   // bossless: only the ones no run can do (untested = doable)
     const stuck = ups.filter(u => !can.has(u.from + '>' + u.to) && !noboss.includes(u));   // conflicts: only the ones no run can do
     return { ups, runs: best, stuck, noboss, note: cp.note, any: runs.length, all: runs };
@@ -1220,7 +1229,7 @@
   const TG_TXT = 'tight: survive only 30-60% longer than the kill takes - Safer / A bit more helps';
   const TG_TAG = `<span class="tag warn" title="${esc(TG_TXT)}">tight</span>`;
   const RTC = new Map(), RQB = new Set((PD.rqb || []).map(x => x[0]));
-  const rtOf = (h, n, m, k, L) => { const T = (PD.rt || {})[n + '|' + m]; if (!T || !PD.rtb || k == null || k < 0 || L == null || L < 0 || (S.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
+  const rtOf = (h, n, m, k, L) => { const T = (PD.rt || {})[n + '|' + m]; if (!T || !PD.rtb || k == null || k < 0 || L == null || L < 0 || (G.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
     const key = n + m + '|' + h + '|' + k + '|' + L; if (RTC.has(key)) return RTC.get(key);
     const f = (((T[h] || '').split(',')[k] || '').split('.')[L]) || '', o = new Set([...f].map(c => PD.rtb[B36.indexOf(c)]).filter(Boolean));
     RTC.set(key, o); return o; };
@@ -1368,7 +1377,7 @@
      First Legacy: rkV then minutes; Points: Points of a 3-hour session) and the page shows the top CARDN as ranked cards side by side, a
      filter bar (hero, N, mode, max run length: the model's minutes decide, never shown) and, on a tap, that run alone as a numbered step
      list. State: page memory (FO = focused run) + the ap_plan save (filters S.cf, gear level S.gl, rare drops S.rf); no URL parameters */
-  const CARDN = 8, LENMAX = { 0: Infinity, 5: 300, 3: 180 };
+  let CARDN = 8; const LENMAX = { 0: Infinity, 5: 300, 3: 180 };
   let FO = null, FOY = 0;
   const CF = () => { const f = S.cf && typeof S.cf === 'object' ? S.cf : (S.cf = {}); if (!Array.isArray(f.ns)) f.ns = [];
     if (!f.h || !HERO[f.h]) f.h = ''; if (!MN[f.m]) f.m = ''; f.len = +f.len === 5 || +f.len === 3 ? +f.len : 0; return f; };
@@ -1402,7 +1411,7 @@
     if (!Object.keys(S.own).length) return { msg: '<p class="small">Load your save or pick your Legacy items above to see which run upgrades the most of them.</p>' };
     const { ups, runs, stuck, noboss, note, any, all } = legacyRuns();
     if (!ups.length) return { msg: '<p class="small">No upgrade found for the items you picked (they may be the last step of their line).</p>' };
-    return { cards: runs.map(lgCard), note, focus: lgFocus, find: (h, n, m) => { const r = (all || []).find(x => x.h === h && x.n === n && x.m === m); return r ? lgCard(Object.assign({ others: [] }, r)) : null; }, none: any ? '' : 'None of your next upgrades can be done by any hero with your current Legacy yet. Push other lines first.',
+    return { cards: runs.map(lgCard), note, focus: lgFocus, has: (h, n, m) => (all || []).some(x => x.h === h && x.n === n && x.m === m), find: (h, n, m) => { const r = (all || []).find(x => x.h === h && x.n === n && x.m === m); return r ? lgCard(Object.assign({ others: [] }, r)) : null; }, none: any ? '' : 'None of your next upgrades can be done by any hero with your current Legacy yet. Push other lines first.',
       extra: (noboss.length ? `<details class="pl-d"><summary>Upgrades without a boss not doable yet (${noboss.length})</summary><ul class="pl-ul">${noboss.slice(0, 40).map(u => `<li>${ilink(u.from)} → ${ilink(u.to)} <span class="small">· ${esc(nbWhy(u))}</span></li>`).join('')}</ul></details>` : '')
         + (stuck.length ? `<details class="pl-d"><summary>Not doable yet with your Legacy (${stuck.length})</summary><ul class="pl-ul">${stuck.slice(0, 40).map(u => `<li>${ilink(u.from)} → ${ilink(u.to)} <span class="small">· ${esc(u.text)}</span></li>`).join('')}</ul></details>` : '') };
   }
@@ -1425,7 +1434,7 @@
     const fitsS = (x, n, m) => (!x[3] || x[3] === n) && (!x[4] || x[4] === m);
     const runs = [];
     for (let n = 1; n <= 9; n++) for (const m of ['m', 'c', 'd']) PD.heroes.forEach((h, i) => {
-      if (!unlocked(h)) return;
+      if (!unlocked(h) || (LSKIP && LSKIP(h, n, m))) return;   // GEAR LEVEL IN THE CARD
       const e = eqStep(h, n, m), lv = e.k, c = cellOf(n, m, i, lv), rmax = c ? Math.max(...c.reach) : -1;
       const at = {};                                  // v52: boss starts at the step the run fights the boss (bossAt), then the free ones it passes
       ST.forEach(x => { if (x[5] !== 'boss' || !fitsS(x, n, m) || (x[6] && !hasBit(x[6], i))) return; const s = bossAt(x[2], n, m, i, lv); if (s >= 0 && s <= rmax) at[x[1]] = s; });
@@ -1447,7 +1456,7 @@
     for (const g of groups.values()) { if (best.some(b => g.got.every(x => b.got.includes(x)))) continue; best.push(g); if (best.length >= CARDN) break; }
     const pts = ST.filter(x => /^points:/.test(x[5])).map(x => ({ x, cost: +x[5].split(':')[1] })).sort((a, b) => a.cost - b.cost);
     const slow = ST.filter(x => x[5] === 'farm' || x[5] === 'survival');
-    return { cards: best.map(stCard), note: cp.note, focus: stFocus, find: (h, n, m) => { const r = runs.find(x => x.h === h && x.n === n && x.m === m); return r ? stCard(Object.assign({ others: [] }, r)) : null; }, none: runs.length ? '' : 'No boss start fits your account yet: take the free ones below and play Main N1-N2.',
+    return { cards: best.map(stCard), note: cp.note, focus: stFocus, has: (h, n, m) => runs.some(x => x.h === h && x.n === n && x.m === m), find: (h, n, m) => { const r = runs.find(x => x.h === h && x.n === n && x.m === m); return r ? stCard(Object.assign({ others: [] }, r)) : null; }, none: runs.length ? '' : 'No boss start fits your account yet: take the free ones below and play Main N1-N2.',
       extra: (pts.length ? `<div class="card"><b>Buy with Points</b> <span class="small">(you have ${fmt(S.pts || 0)})</span><ul class="pl-ul">${pts.map(({ x, cost }) => `<li>${ilink(x[1])} <span class="small">· ${esc(x[7])}${(S.pts || 0) >= cost ? ' · you can afford it' : ''}</span></li>`).join('')}</ul></div>` : '')
         + (slow.length ? `<details class="pl-d"><summary>Long farms (${slow.length})</summary><ul class="pl-ul">${slow.map(stLi).join('')}</ul></details>` : '') };
   }
@@ -1476,7 +1485,7 @@
       const pr = R.find(r => r.n === n); if (!pr || !(PD.rp || {})[n + '|' + m]) continue;
       if ((f.ns.length && !f.ns.includes(n)) || (f.m && f.m !== m)) continue;   // CARDS UI filters
       const pay = vipPay(n, m, Number(pr[MCALC[m]]) || 0), arch = vipArch(n, m, Number((pr.arch || [])[MI[m]]) || 0), fin = [], low = lowPts(n);   // VIP
-      PD.heroes.forEach((h, i) => { if (!unlocked(h) || (f.h && h !== f.h)) return; const e = eqStep(h, n, m), c = cellOf(n, m, i, e.k); if (!c || c.jl < 0) return;
+      PD.heroes.forEach((h, i) => { if (!unlocked(h) || (f.h && h !== f.h) || (LSKIP && LSKIP(h, n, m))) return; const e = eqStep(h, n, m), c = cellOf(n, m, i, e.k); if (!c || c.jl < 0) return;
         const L = lvlFor(c, 20 + n), mins = finT(c, L, n, m, i, e); if (!mins) return;
         const jv = jvRate(h, n, m, e), ex = [['Shadow Monster', 'O007', vipPts(10), 'after the main quest'], ['Archangel', 'H02D', arch, 'first kill'], ['Frost Lord', 'O01Q', arch, 'first kill']]
           .filter(x => x[2] && bossAt(x[1], n, m, i, e.k) >= 0);
@@ -1492,7 +1501,7 @@
     else rows.sort((a, b) => b.fin[0].sess - a.fin[0].sess);
     rows.forEach(r => { r.best = r.fin[0]; r.who = r.fin.slice(0, 4).map(x => x.h); });
     const anyRun = all.length || f.h || f.ns.length || f.m;
-    return { cards: rows.slice(0, CARDN).map(ptCard), note, focus: ptFocus, find: (h, n, m) => { const r = all.find(x => x.n === n && x.m === m), x = r && r.fin.find(y => y.h === h); return x ? ptCard(Object.assign({}, r, { fin: [x], best: x, who: [h] })) : null; }, none: anyRun ? '' : 'No run a normal player finishes with your account yet. Try Main N1.' };
+    return { cards: rows.slice(0, CARDN).map(ptCard), note, focus: ptFocus, has: (h, n, m) => all.some(r => r.n === n && r.m === m && r.fin.some(y => y.h === h)), find: (h, n, m) => { const r = all.find(x => x.n === n && x.m === m), x = r && r.fin.find(y => y.h === h); return x ? ptCard(Object.assign({}, r, { fin: [x], best: x, who: [h] })) : null; }, none: anyRun ? '' : 'No run a normal player finishes with your account yet. Try Main N1.' };
   }
   /* ---- cards, focus view, filter bar */
   const chip = (k, v, t, on) => `<button type="button" class="pl-chip${on ? ' on' : ''}" data-cf="${k}" data-v="${esc(v)}" aria-pressed="${on ? 'true' : 'false'}">${esc(t)}</button>`;
@@ -1504,7 +1513,7 @@
       + (c.fc != null ? `<div class="pl-cf">finishes ${f10(c.fc)} in 10</div>` : c.fr != null ? `<div class="pl-cf">reaches it ${f10(c.fr)} in 10</div>` : '')
       + (c.tags.length ? `<div class="pl-ct">${c.tags.join('')}</div>` : '') + `</div>`; };
   const focusHtml = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
-    return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs with this gear level' : `Run ${k + 1} of ${tot}`}</span></div>`
+    return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs' : `Run ${k + 1} of ${tot}`}</span></div>` + (FO ? gearSw() : '')   // GEAR LEVEL IN THE CARD
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
       + `<div class="pl-fw">${c.what}${c.fc != null ? ` · <span class="pl-cf">finishes ${f10(c.fc)} in 10</span>` : c.fr != null ? ` · <span class="pl-cf">reaches it ${f10(c.fr)} in 10</span>` : ''}${c.tags.length ? ' ' + c.tags.join('') : ''}</div>`
       + bagHtml(c) + chHtml(c) + otwHtml(c) + body + `<button type="button" class="pl-bk pl-bk2">← Back to all runs</button></div>`; };
@@ -1517,22 +1526,79 @@
       + (f.h || f.ns.length || f.m || f.len ? chip('clr', '', 'Clear filters', false) : '') + `</div>`; };
   const ctlHtml = () => `<div class="pl-ctl"><span class="pl-fl">Gear</span>${GLN.map((t, j) => chip('gl', j, t, (+S.gl || 0) === j)).join('')}`
     + (PD.bbf || PD.rpf ? `<label class="pl-chk"><input type="checkbox" id="pl-rf" ${S.rf ? 'checked' : ''}> I'll farm rare drops</label>` : '') + `</div>`;
+  /* ---- GEAR LEVEL IN THE CARD (patch_page_gearlevel): the list = the lightest-level list (GL_MIN) + the runs that only work at a
+     heavier level (or only with rare drops), each card computed at its own level, ranked by the goal's own order; the open run is
+     computed at FO.gl / FO.rf (switch in the card) */
+  const LISTF = { points: () => pointsList(), start: () => startList(), legacy: () => legacyList() };
+  const GLV = []; for (let j = GL_MIN; j < GLN.length; j++) GLV.push(j);
+  /* one list per goal x gear level x rare drops, cached for your account + filters (the Legacy list takes ~1 s per level); callers get
+     fresh card copies (tags / what / gl are written on them) */
+  /* skip(h, n, m) = runs a lighter list already has: a heavier list for the page's list only builds the other runs (speed) */
+  const LSTC = new Map();
+  const listAt0 = (goal, gl, rf, deep, skip) => withG({ gl, rf }, () => { const cn = CARDN, sk = LSKIP; if (deep) CARDN = 60; LSKIP = skip || null;
+    try { return LISTF[goal](); } finally { CARDN = cn; LSKIP = sk; } });
+  const listAt = (goal, gl, rf, deep, skip) => { const k = JSON.stringify([goal, +gl || 0, !!rf, !!deep, !!skip, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, CF()]);
+    let R = LSTC.get(k); if (!R) { R = listAt0(goal, gl, rf, deep, skip); LSTC.set(k, R); if (LSTC.size > 24) LSTC.delete(LSTC.keys().next().value); }
+    return R.msg ? R : Object.assign({}, R, { cards: (R.cards || []).map(c => Object.assign({}, c, { tags: (c.tags || []).slice() })),
+      find: R.find ? (h, n, m) => { const c = R.find(h, n, m); return c ? Object.assign({}, c, { tags: (c.tags || []).slice() }) : c; } : R.find }); };
+  const hnmOf = key => String(key || '').split('|').slice(0, 4).join('|');
+  const EASE2 = { m: 0, c: 1, d: 2 };
+  const cardCmp = (goal, byLen) => byLen ? (a, b) => a.mins - b.mins : goal === 'points' ? (a, b) => b.r.best.sess - a.r.best.sess
+    : (a, b) => rkV(b.r) - rkV(a.r) || a.r.mins - b.r.mins || a.n - b.n || EASE2[a.m] - EASE2[b.m] || (b.r.sc || 0) - (a.r.sc || 0);
+  const needRk = c => c.rf ? 9 : c.gl;
+  const needTag = c => c.rf ? tagH('needs rare drops', 'warn') : tagH('needs: ' + GLN[c.gl], c.gl >= 2 ? 'warn' : '');
+  function mergedList(goal) {
+    const base = listAt(goal, GL_MIN, false, false); if (base.msg) return base;
+    const hasR = (R, h, n, m) => !!(R && !R.msg && R.has && R.has(h, n, m)), Rs = { [GL_MIN]: base };
+    const skipB = lw => (h, n, m) => lw.some(g => hasR(Rs[g], h, n, m));
+    const SK = {}; GLV.slice(1).forEach(g => { Rs[g] = listAt(goal, g, false, true, SK[g] = skipB(GLV.filter(x => x < g))); });
+    const out = (base.cards || []).map(c => Object.assign(c, { gl: GL_MIN, rf: false })), seen = new Set(out.map(c => hnmOf(c.key)));
+    const add = (R, gl, rf, lower) => { if (!R || R.msg) return; (R.cards || []).forEach(c => { const id = hnmOf(c.key); if (seen.has(id) || (c.r && c.r.ux)) return;
+      if (lower.some(g => hasR(Rs[g], c.h, c.n, c.m))) return; seen.add(id); out.push(Object.assign(c, { gl, rf, ex: 1 })); }); };
+    GLV.slice(1).forEach(g => add(Rs[g], g, false, GLV.filter(x => x < g)));
+    if (RF_LIST && (PD.bbf || PD.rpf)) add(Rs.rf = listAt(goal, GL_MIN, true, true, SK.rf = skipB(GLV)), GL_MIN, true, GLV);
+    const ux = out.filter(c => c.r && c.r.ux), main = out.filter(c => !(c.r && c.r.ux)).sort(cardCmp(goal, !!base.note)), fin = [];
+    for (const c of main) { if (fin.length >= CARDN) break;   // a heavier-level run whose items a lighter (or equal) card above already gets: left out
+      if (c.ex && c.ids && fin.some(d => needRk(d) <= needRk(c) && d.ids && c.ids.every(x => d.ids.includes(x)))) continue; fin.push(c); }
+    const cards = fin.concat(ux); cards.forEach(c => c.tags.unshift(needTag(c)));
+    return Object.assign({}, base, { cards, Rs, SK });
+  }
+  const GHINT = 'Gear level = how much you farm. Rare drops = also chase low-chance drops you can farm again and again (85% luck counts).';
+  const gearSw = () => { const rfOn = !!(PD.bbf || PD.rpf);
+    return `<div class="pl-ctl pl-gsw"><span class="pl-fl">Gear</span>` + GLV.map(j => { const off = j < FO.need, on = j === FO.gl;
+      return `<button type="button" class="pl-chip${on ? ' on' : ''}" data-fg="${j}" aria-pressed="${on ? 'true' : 'false'}"${off ? ` aria-disabled="true" title="won't finish" style="opacity:.4;cursor:not-allowed"` : ''}>${esc(GLN[j])}</button>`; }).join('')
+      + (rfOn ? `<label class="pl-chk"${FO.nrf ? ` title="won't finish"` : ''}><input type="checkbox" id="pl-frf" ${FO.rf ? 'checked' : ''}${FO.nrf ? ' disabled' : ''}> I'll farm rare drops</label>` : '')
+      + `<div class="small pl-ghint" style="flex-basis:100%;margin:1px 0 0">${esc(rfOn ? GHINT : GHINT.split('. ')[0] + '.')}</div></div>`; };
+  function focusOut(goal, R) {
+    const hnm = hnmOf(FO.k), [, h, n, m] = hnm.split('|');
+    let k = R.cards.findIndex(c => c.key === FO.k); if (k < 0) k = R.cards.findIndex(c => hnmOf(c.key) === hnm);
+    const mc = k >= 0 ? R.cards[k] : null;
+    if (FO.need == null) {
+      if (mc) { FO.need = mc.gl; FO.nrf = !!mc.rf; }
+      else { const R0 = (R.Rs || {}), hs = x => { const Rg = R0[x]; return !!(Rg && !Rg.msg && Rg.has && Rg.has(h, +n, m)); };
+        const g = GLV.find(hs); if (g != null) { FO.need = g; FO.nrf = false; } else if (hs('rf')) { FO.need = GL_MIN; FO.nrf = true; } else return ''; } }
+    if (FO.gl == null) { FO.gl = Math.max(GL_MIN, +S.gl || 0, FO.need); FO.rf = !!S.rf || !!FO.nrf; }   // your comfort pick, never below what the run needs
+    FO.gl = Math.min(GLN.length - 1, Math.max(+FO.gl || 0, FO.need, GL_MIN)); if (FO.nrf) FO.rf = true;
+    const pick = RL => (RL.cards || []).find(x => x.key === FO.k) || (RL.cards || []).find(x => hnmOf(x.key) === hnm) || (RL.find ? RL.find(h, +n, m) : null);
+    return withG({ gl: FO.gl, rf: FO.rf }, () => { let RL = null, c = null;
+      if (FO.gl === FO.need && !!FO.rf === !!FO.nrf && FO.need !== GL_MIN) { const R0 = (R.Rs || {})[FO.nrf ? 'rf' : FO.gl]; if (R0 && !R0.msg && R0.has && R0.has(h, +n, m)) { RL = listAt(goal, FO.gl, FO.rf, true, (R.SK || {})[FO.nrf ? 'rf' : FO.gl]); c = pick(RL); } }   // the list's own heavier list
+      if (!c) { RL = listAt(goal, FO.gl, FO.rf, FO.gl !== GL_MIN || !!FO.rf); if (RL.msg) return ''; c = pick(RL); }
+      if (!c) return mc ? focusHtml(mc, k, R.cards.length, `<p class="small pl-note">This run does not finish with this gear level.</p>`) : '';
+      if (c.ids) c.what = `<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids)}`;
+      c.tags.unshift(needTag({ gl: FO.need, rf: FO.nrf }));
+      return focusHtml(c, k, R.cards.length, RL.focus(c)); }); }
   function plannerOut(goal) {
-    const R = goal === 'points' ? pointsList() : goal === 'start' ? startList() : legacyList();
+    const R = mergedList(goal);
     if (R.msg) { FO = null; return R.msg; }
     /* what you get: the count + the first 2 names, the names the other cards do not share first (so similar cards stay tellable apart) */
     const fq = {}; R.cards.forEach(c => (c.ids || []).forEach(id => { fq[id] = (fq[id] || 0) + 1; }));
     R.cards.forEach(c => { if (c.ids) c.what = `<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids.slice().sort((a, b) => fq[a] - fq[b]))}`; });
-    let k = FO && FO.g === goal ? R.cards.findIndex(c => c.key === FO.k) : -1;
-    if (k < 0 && FO && FO.g === goal) { const hnm = FO.k.split('|').slice(0, 4).join('|'); k = R.cards.findIndex(c => c.key.split('|').slice(0, 4).join('|') === hnm); if (k >= 0) FO.k = R.cards[k].key; }   // same hero, N and mode after a gear change
-    if (k >= 0) return focusHtml(R.cards[k], k, R.cards.length, R.focus(R.cards[k]));
-    if (FO && FO.g === goal && R.find) { const [, h, n, m] = FO.k.split('|'), c = R.find(h, +n, m);   // the same hero / N / mode, off the top list with this gear level
-      if (c) { FO.k = c.key; if (c.ids) c.what = `<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids)}`; return focusHtml(c, -1, R.cards.length, R.focus(c)); } }
+    if (FO && FO.g === goal) { const fh = focusOut(goal, R); if (fh) return fh; }
     const lost = !!(FO && FO.g === goal); FO = null;
-    if (lost) R.note = (R.note ? R.note + ' ' : '') + 'The run you had open does not work with this gear level.';
+    if (lost) R.note = (R.note ? R.note + ' ' : '') + 'The run you had open is not on the list any more.';
     const f = CF(), filt = f.h || f.ns.length || f.m || f.len;
     return filtHtml() + (R.note ? `<p class="small pl-note">${esc(R.note)}</p>` : '')
-      + (R.cards.length ? `<div class="pl-cards">${R.cards.map(cardHtml).join('')}</div>`
+      + (R.cards.length ? `<div class="pl-cards">${R.cards.map((c, k) => withG({ gl: c.gl, rf: c.rf }, () => cardHtml(c, k))).join('')}</div>`
         : `<p class="small">${R.none ? esc(R.none) : filt ? 'No run matches these filters.' : 'No run found.'}</p>`)
       + (R.extra || '');
   }
@@ -1553,7 +1619,7 @@
   let TIPK = '', TIPV = '';
   function buyTip() {
     const V = vipLv(), P = +S.pts || 0, ml = +S.ml || 1, rk = +S.rank || 0;
-    const key = [V, P, ml, rk, +S.wp || 0, +S.gl || 0, S.rf ? 1 : 0, JSON.stringify(S.own)].join('|'); if (key === TIPK) return TIPV;
+    const key = [V, P, ml, rk, +S.wp || 0, +G.gl || 0, G.rf ? 1 : 0, JSON.stringify(S.own)].join('|'); if (key === TIPK) return TIPV;
     let txt = '';
     try {
       const vs = VIPSTEP.find(x => x[0] === V), tl = ((W.calc || {}).titles || []).find(t => +t.tier === rk + 1), opts = [];
@@ -1609,9 +1675,8 @@
       + buyTip()
       + `<details class="pl-d" ${nOwn ? '' : 'open'}><summary>Legacy items by line</summary>${legacyPicker()}</details></div>`
       + subtabs('planner', 'goal', [['start', 'First Legacy items'], ['legacy', 'Legacy upgrades'], ['points', 'Points farm']], goal)
-      + ctlHtml()
       + `<div class="pl-out">${plannerOut(goal)}</div>`
-      + `<p class="small">Your account plays like a normal ${esc(accTxt())} (your bonuses, title and Legacy weighed by what each hero needs).${vipTxt()} Every run is a full replay of a normal player (walking, reading, creeps, farming, every boss; a death resets the fight) with your Map Level bonuses, title and Legacy (at +0: enhancing resets every run). Gear = ${GLD[+S.gl || 0] || GLD[0]}. Kill counts = 85% luck. Only heroes your Map Level and World Points unlock.</p>`;
+      + `<p class="small">Your account plays like a normal ${esc(accTxt())} (your bonuses, title and Legacy weighed by what each hero needs).${vipTxt()} Every run is a full replay of a normal player (walking, reading, creeps, farming, every boss; a death resets the fight) with your Map Level bonuses, title and Legacy (at +0: enhancing resets every run). Gear: ${SHOW_JUST_ENOUGH ? 'each run is ranked with the lightest gear that finishes it' : 'each run is ranked with a bit more gear than the bare minimum'} (more when its tag says so); pick yours inside the run card. Kill counts = 85% luck. Only heroes your Map Level and World Points unlock.</p>`;
   };
   const plBack = () => { FO = null; K.route(); window.scrollTo(0, FOY); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && FO && document.body.dataset.page === 'planner' && document.querySelector('.pl-focus')) plBack(); });
@@ -1647,6 +1712,11 @@
     out.querySelectorAll('.pl-card[data-run]').forEach(el => { el.addEventListener('click', e => { if (!e.target.closest('a')) open(el); });
       el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(el); } }); });
     out.querySelectorAll('.pl-bk').forEach(b => b.addEventListener('click', plBack));
+    /* GEAR LEVEL IN THE CARD: the open run's switch (greyed levels do nothing); the pick is remembered as your comfort level */
+    out.querySelectorAll('.pl-gsw [data-fg]').forEach(b => b.addEventListener('click', () => { if (!FO || b.getAttribute('aria-disabled') === 'true') return;
+      const v = +b.dataset.fg; FO.gl = v; S.gl = v; save(); K.route(); }));
+    const frf = out.querySelector('#pl-frf'); if (frf) frf.addEventListener('change', () => { if (!FO) return; if (FO.nrf) { frf.checked = true; return; }
+      FO.rf = frf.checked; S.rf = frf.checked; save(); K.route(); });
   });
   /* tier list hooks: finishes at your account (replay), and 'fast' = light gear finishes at the tier list's own account (Main: ML 15 / 35 / 70;
      Challenge / Death: the veteran accounts) */
