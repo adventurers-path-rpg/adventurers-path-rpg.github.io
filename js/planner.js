@@ -1576,6 +1576,20 @@
       DCL.tn(li, /^\. Nothing on this run needs it\.$/, ' (this run does not need it)');
       DCL.tn(li, /^ \((7 bosses in a fixed order, then the Flame Lord in the Firelands)\)\. Nothing on this run needs it\.$/, ' (this run does not need it; $1)');
       li.querySelectorAll('span.small').forEach(s => { const t = DCL.txt(s); if (/^survive only/.test(t)) s.outerHTML = DCL.q(esc(t.replace(/ - Safer \/ A bit more helps$/, ', more gear helps'))); }); });
+    /* ---- FOLD (patch_page_fold 2026-09-25, user: "show only the steps where the player does something for THIS plan"): 1+ lines in a
+       row that are plain main-quest steps (plain + clean above: zone + quest text, no pickup / Enhance / tight chip; never a gate, goal, gear,
+       Boss Souls, Frodo or Stop line) fold into ONE line 'Steps 12-19 · follow the main quest' + show. The step lines move inside it
+       unchanged, so the route checker still reads every quest step in order. */
+    const fold = li => plain(li) && clean(li) && !li.querySelector('.warntext');
+    const fruns = []; let frun = [];
+    lis().forEach(li => { if (fold(li)) frun.push(li); else { if (frun.length) fruns.push(frun); frun = []; } });
+    if (frun.length) fruns.push(frun);
+    fruns.forEach(r => { const a = String(r[0].dataset.n).split('-')[0], z = String(r[r.length - 1].dataset.n).split('-').pop(), f = document.createElement('li');
+      const rg = a === z ? a : a + '-' + z; f.className = 'pl-fold'; f.dataset.n = rg; f.dataset.k = r.reduce((t, x) => t + (+x.dataset.k || 1), 0);
+      f.innerHTML = `<details class="pl-fd"><summary><span class="pl-fdh">Step${a === z ? '' : 's'} ${rg} · follow the main quest</span><span class="pl-fds"></span></summary><div class="pl-fdb"></div></details>`;
+      const b = f.querySelector('.pl-fdb'); ol.insertBefore(f, r[0]);
+      r.forEach(x => { const d = document.createElement('div'); d.className = 'pl-fdl'; d.dataset.n = x.dataset.n;
+        while (x.firstChild) d.appendChild(x.firstChild); b.appendChild(d); b.appendChild(document.createTextNode(' ')); x.remove(); }); });
     if (souls) ol.dataset.souls = souls;
     if (bon.length) { const d = document.createElement('div'); d.className = 'pl-dcb'; d.hidden = true; d.innerHTML = bon.map(b => `<div>${b}</div>`).join(''); ol.parentNode.insertBefore(d, ol); }
     return box.innerHTML; };
