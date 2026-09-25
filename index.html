@@ -456,9 +456,11 @@ input.pl-hin:focus{outline:none;border-color:var(--accent)}input.pl-hin.pl-bad{b
 @media (max-width:600px){.pl-fb{padding:6px 8px;gap:5px 12px}.pl-chip{padding:2px 8px;font-size:12.5px}.pl-fg{gap:3px}input.pl-hin{width:160px}
 .pl-cards{grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr));gap:6px}.pl-card{padding:6px 7px;font-size:13px}.pl-card .pl-cg{font-size:12.5px}.pl-card .pl-ch .ico{display:none}.pl-card .pl-hn{white-space:normal;overflow-wrap:break-word;line-height:1.15}.pl-card .pl-ch{align-items:flex-start}.pl-card .pl-sb{display:none}
 .pl-steps>li{padding:5px 6px 5px 34px;font-size:13.5px}.pl-steps>li.pl-n::before{left:4px}.pl-steps>li.pl-rp{padding-left:8px}.pl-steps .pl-ul{padding-left:14px}.card.pl-focus{padding:10px 10px}}
+/* FULL-BLEED HEADER (user 2026-09-25): the loading-screen art fills the page width, edge to edge */
+.hero{margin:-24px calc(-1 * clamp(16px,4vw,48px)) 14px;border-bottom:1px solid var(--rule)}.hero .banner{width:100%;height:clamp(170px,26vw,320px);max-height:none;border-radius:0;box-shadow:none;margin:0;object-fit:cover;object-position:center 35%}.hero-t{border-radius:0;background:linear-gradient(180deg,rgba(8,12,17,0) 45%,var(--bg) 100%),radial-gradient(ellipse at center,rgba(8,12,17,.5) 0%,rgba(8,12,17,.1) 60%,rgba(8,12,17,0) 80%)}body:not([data-page="home"]) .hero .banner{height:clamp(64px,9vw,110px);max-height:none}@media (max-width:600px){body:not([data-page="home"]) .hero .banner{height:60px}}
 </style>
-<div class="wrap">
 <a class="hero" href="#home"><img class="banner" src="img/banner.jpg" alt=""><span class="hero-t"><span class="hero-n">The Adventurer's Path</span><span class="hero-s">RPG Wiki</span></span></a>
+<div class="wrap">
 <h1 class="vh">Adventurer's Path Wiki</h1>
 <p class="sub"><img src="img/logo.png" alt="">Adventurer's Path Wiki · Map version 1.02 · Wiki updated <a id="wupd" href="#changelog">25 Sep 2026</a></p>
 <div class="search"><input id="q" type="search" placeholder="search: dark core, giant scythe, troll hunt, storm warrior, enhance ..." autofocus><span class="small" id="qcount"></span></div>
