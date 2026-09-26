@@ -140,6 +140,9 @@
         'The Curse Blade + Refined Sword refund takes both swords back. -qc now really clears ground loot (Player Red only).',
       ]],
       ['Calculators', [
+        'Run planner: Mid and Late gear lines say what each new item replaces, with a Swaps row per part (sell, drop or pet bag).',
+        'Run planner: Frodo’s quest chain now sits where your route reaches the last hunt boss (Centaur Khan), and Firelands steps come after it.',
+        'Run planner: optional farm-rate selector for Boss Souls and gold per minute (runs and plans are unchanged).',
         'Run planner: every item, boss, quest and zone in the step hints is now a link, and your picked bonus item shows up in the route itself (gear row, skipped pickups, swaps).',
         'Run planner: no Bag swaps for Legacy upgrades any more, chance items can sit in a Storage, and N+ steps count on every higher difficulty.',
         'Run planner: the Bonuses Mantle sits in your pet bag from Map Level 31.',

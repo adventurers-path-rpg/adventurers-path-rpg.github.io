@@ -96,7 +96,15 @@
      rounded down on the stage boss, Jarvan V, Shadow Monster, Archangel / Frost Lord; stone chances
      +5 L points. The replays (PD.rp) are VIP 0 players: VIP moves only your account step (stats) and the Points / Boss Souls numbers.
      Hero level for the stats = tier_calc hero_lv late (SIM_LV x SIM_MX for Challenge / Death) x title EXP (sqrt(1 + 0.25 rank)) */
-  const vipLv = () => { const v = +S.vip || 0; return [0, 1, 2, 3, 4, 10].includes(v) ? v : 0; };
+  const vipLv = () => 0;   // VIP FARM CALC (patch_page_vip_farmcalc 2026-09-27, user decision): VIP never changes a plan (account step, Points, run choice, tier, tags), not even from a save
+  /* VIP FARM CALC: VIP only as a calculator input for the farm rates shown in the part rows (Souls farm / Gold farm) and the Boss Souls
+     farm line's kill count. vipFL = this tab's pick (sessionStorage ap_vipf), else a loaded save's VIP, else none; gsFv = gsF's formula */
+  const VIPF_OPT = [0, 1, 2, 4, 10];
+  const vipFL = () => { let v = null; try { v = sessionStorage.getItem('ap_vipf'); } catch (e) {} if (v == null || v === '') v = S.src === 'save' ? +S.vip || 0 : 0; v = +v || 0; return [0, 1, 2, 3, 4, 10].includes(v) ? v : 0; };
+  const gsFv = n => 1 + 0.5 * vipFL() / (0.8 + 0.2 * n);
+  const vipFSel = () => { const v = vipFL(), o = VIPF_OPT.includes(v) ? VIPF_OPT : VIPF_OPT.concat([v]).sort((a, b) => a - b);
+    return ` <label class="pl-vfl small" style="white-space:nowrap;margin-left:6px" title="Only changes the gold and Boss Souls rates shown here. Plans do not use VIP.">VIP for farm rates <select class="pl-vipf">${o.map(x => `<option value="${x}"${x === v ? ' selected' : ''}>${x ? x : 'none'}</option>`).join('')}</select></label>`; };
+  K.hooks.push((page, out) => { if (page !== 'planner' || !out) return; out.querySelectorAll('select.pl-vipf').forEach(s => s.addEventListener('change', () => { try { sessionStorage.setItem('ap_vipf', s.value); } catch (e) {} K.route(); })); });
   const VIPSTEP = [[0, 1, 15000], [1, 2, 30000], [2, 4, 45000], [4, 10, 800000]];
   const VIPLV = { 'N1-3': 100, 'N4-6': 114, 'N7-9': 123 };
   const vipX = gk => { const V = vipLv(); if (!V) return {}; const [b, md] = String(gk).split('|');
@@ -549,17 +557,38 @@
      Lord when the run needs the Firelands; every Firelands goal (bossAt) and bag item through the Firelands comes after it. Its minutes:
      PD.pqh (the 7 kills + walks + the scroll trip) in pqMins */
   const PQHB = ['O000', 'H007', 'H008', 'H009', 'H00A', 'O001', 'H00B'], PQHC = new Map();
+  /* FRODO ZONE (patch_page_frodo_zone 2026-09-27, user: "Frodo's quest chain sits at step 14, before we even do the Rebel quest; it
+     should be placed after we reach Centaur Khan and kill him"). pqZs = the first main step where the route has reached the zone of every
+     hunt boss (step zones + {{z:}} tokens, zone order ZO like fsZmax): pqChain never places the chain before it */
+  const PQZ = { s: null };
+  const pqZs = () => { if (PQZ.s != null) return PQZ.s; const need = Math.max(0, ...PQHB.map(b => ZO[bzone(b)] || 0)); let mx = 0, r = -1;
+    for (const x of (((W.qguide || {}).steps) || [])) { mx = Math.max(mx, ZO[x.zone] || 0, ...[...String(x.do || '').matchAll(/\{\{z:(\w+)\}\}/g)].map(q => ZO[q[1]] || 0)); if (mx >= need) { r = +x.step; break; } }
+    return (PQZ.s = r < 0 ? 7 : r); };
   const pqChain = (n, m, i, lv, fl) => { const k = n + m + '|' + i + '|' + lv + '|' + (fl ? 1 : 0) + '|' + rvSig(i) + '|' + G.gl + (G.rf ? 'f' : ''); if (PQHC.has(k)) return PQHC.get(k);
-    let st = 7; for (const b of PQHB.concat(fl ? ['O003'] : [])) { if ((PD.beat || {})[b + '|' + n + '|' + m] === undefined) continue; const s = bossAt0(b, n, m, i, lv); if (s < 0) { st = -1; break; } st = Math.max(st, s); }
+    let st = Math.max(7, pqZs()); for (const b of PQHB.concat(fl ? ['O003'] : [])) {   /* FRODO ZONE: not before the route reached every hunt zone */ if ((PD.beat || {})[b + '|' + n + '|' + m] === undefined) continue; const s = bossAt0(b, n, m, i, lv); if (s < 0) { st = -1; break; } st = Math.max(st, s); }
     const r = st >= 0 && st <= 20 + n ? st : -1; PQHC.set(k, r); return r; };
   const pqHasH = b => !!PD.pq && (PQ[b] || []).some(p => p[0] === 'h');
+  /* FRODO ZONE: the chain's route index for a hero's route (-1 = no chain) */
+  const pqFz = (h, n, m, steps) => { const hi = HIDX[h], c = hi != null ? pqChain(n, m, hi, eqStep(h, n, m).k, true) : -1; return c < 0 ? -1 : steps.findIndex(y => +y.step >= c); };
+  /* FRODO ZONE: the hunt kills along the route, per boss in order: s = the main step that names it (its 'or kill' option) or passes its
+     zone, from step 8 on, not before the kill before it and not before the hero beats it (bossAt0), up to the chain step c; -1 = go back
+     to its zone after step p */
+  const pqKillsAt = (steps, c, n, m, i, lv) => { let prev = 8;
+    return PQHB.map(b => { const z = bzone(b), b0 = i != null && (PD.beat || {})[b + '|' + n + '|' + m] !== undefined ? bossAt0(b, n, m, i, lv) : 0, lo = Math.max(prev, b0 > 0 ? b0 : 0);
+      const ok = y => +y.step >= lo && (c < 0 || +y.step <= c);
+      let x = steps.find(y => ok(y) && String(y.do || '').includes('{{u:' + b + '}}')); const nm = !!x;
+      if (!x) x = steps.find(y => ok(y) && (y.zone === z || String(y.do || '').includes('{{z:' + z + '}}')));
+      const r = { b, z, s: x ? +x.step : -1, p: Math.max(7, lo - 1), nm, opt: nm && String(x.do || '').includes('or kill {{u:' + b + '}}') }; prev = x ? +x.step : lo; return r; }); };
+  const pqQS = q => `<span class="pl-qs" data-q="${q}">${+q + 1}</span>`;   // a main step's route row number (dclRoute fills in the real one)
+  const pqKaT = k => k.s < 0 ? `back to ${zlH(k.z)} after step ${pqQS(k.p)}` : k.nm ? `step ${pqQS(k.s)}${k.opt ? ', the boss option' : ''}` : `${zlH(k.z)}, on the way at step ${pqQS(k.s)}`;
   const bossAt = (b, n, m, i, lv) => { const s = bossAt0(b, n, m, i, lv); if (s < 0 || !pqHasH(b)) return s; const c = pqChain(n, m, i, lv, true); return c < 0 ? -1 : Math.max(s, c); };
-  const pqChainHtml = (why, notes, rw) => `<details class="zn-rules"><summary>Show steps</summary><ul class="pl-ul">`
-    + `<li>Step 7 (${ilink('I02Y')} to Frodo) opens his hidden Boss Hunt: kills before it do not count.</li>`
-    + `<li>Kill in this order: ${PQHB.map(b => srcA(b, bname(b))).join(' › ')}. Each counts only after the one before, each comes back 90 s after a kill.${notes.length ? ' ' + notes.join(' ') : ''}</li>`
+  const pqChainHtml = (why, notes, rw) => { const ka = Array.isArray(notes) && notes.length === PQHB.length && notes[0] && typeof notes[0] === 'object' ? notes.map(pqKaT) : [];   // FRODO ZONE: each kill's route step
+    return `<details class="zn-rules"><summary>Show steps</summary><ul class="pl-ul">`
+    + `<li>Step ${pqQS(7)} (${ilink('I02Y')}) opens his hidden Boss Hunt: kills before it do not count.</li>`
+    + `<li>Kill in this order, each counts only after the one before (each comes back 90 s after a kill): ${PQHB.map((b, j) => srcA(b, bname(b)) + (ka[j] && ka[j] !== ka[j + 1] ? ` <span class="small">(${ka[j]})</span>` : '')).join(' › ')}.</li>`
     + `<li>Back to ${esc(bname('n009') === 'n009' ? 'Frodo' : bname('n009'))} for the <a href="#item/I03C">${K.icon('I03C')}Firelands Transfer Scroll</a>: keep it and use it when you go (one use per game, the Firelands teleport stone stays open for your party).</li>`
     + `<li>In the ${zlH('z10')} kill the ${srcA('O003', bname('O003'))} (he comes back after a kill).</li>`
-    + `<li>Back to Frodo: ${ilink('I03L')} for every player.</li>${rw ? '<li>' + rwTxt() + '</li>' : ''}</ul></details>`;   // MAGIC RING
+    + `<li>Back to Frodo: ${ilink('I03L')} for every player.</li>${rw ? '<li>' + rwTxt() + '</li>' : ''}</ul></details>`; };   // MAGIC RING
   /* the chain line at its step, before that step's goal lines; not needed = the optional line at step 7 (collapsed the same way) */
   const pqHuntAt = (li, i, X, need, FPL) => { const x = X.steps[i]; if (!x) return;
     if (!X.hunt) { const why = [], add = t => { if (t && !why.includes(t)) why.push(t); };
@@ -567,15 +596,14 @@
       ((FPL && FPL.fire) || []).forEach(id => add(id === 'souls' ? 'the Boss Souls farm at the Flame Lord' : ilink(id)));
       const hi = HIDX[X.h], c = hi != null ? pqChain(X.n, X.m, hi, eqStep(X.h, X.n, X.m).k, true) : -1;   // FRODO PLACE (patch_page_frodo_place 2026-09-26): optional chain too
       const k = c < 0 ? -1 : X.steps.findIndex(y => +y.step >= c);
-      const on = b => X.steps.findIndex(y => +y.step < c && String(y.do || '').includes('{{u:' + b + '}}')), notes = [];
-      PQHB.forEach(b => { const j = on(b); if (j < 0) return; const sn = +X.steps[j].step; if (sn < 7) notes.push(`Your step ${sn} ${srcA(b, bname(b))} kill does not count.`); });
+      const notes = hi != null && c >= 0 ? pqKillsAt(X.steps, c, X.n, X.m, hi, eqStep(X.h, X.n, X.m).k) : [];   // FRODO ZONE: each hunt kill at its route step
       X.hunt = { why, at: c < 0 ? -1 : k < 0 ? X.steps.length - 1 : k, notes, hd: hi != null }; }
     const H = X.hunt;
     if (!H.why.length) { const rw = !!(FPL && FPL.rw && H.at >= 0 && FPL.rw.i >= H.at);   // FRODO PLACE: at the step the hero finishes it (no hero data: step 7), no line if he cannot
       if (H.hd ? i === H.at : +x.step === 7) li.push(`<li class="pl-rp"><span class="small">Optional: Frodo's quest chain gives every player a ${ilink('I03L')}. Nothing on this run needs it.${rw ? '<span> · Magic Ring: worth it after the boat (Absolute Ring)</span>' : ''}</span>${pqChainHtml('', H.notes, rw)}</li>`);
       if (rw && i === FPL.rw.i) li.push(`<li class="pl-rb pl-n"><b>Absolute Ring</b> · ${rwTxt()}</li>`); return; }   // FRODO PLACE: the run gives the Magic Ring = the ring line
     if (H.at < 0) { if (+x.step === 7) tpHunt(li, X.steps, X.stop, need, FPL); return; }   // no hero data: the old block
-    if (i === H.at) li.push(`<li class="pl-rb pl-n"><b>Frodo's quest chain</b> · opens the ${zlH('z10')}, needed for ${andJ(H.why)}${pqChainHtml(andJ(H.why), H.notes, !!(FPL && FPL.rw && FPL.rw.i >= H.at))}</li>`);
+    if (i === H.at) li.push(`<li class="pl-rb pl-n"><b>Frodo's quest chain</b> · opens the ${zlH('z10')}, needed for ${andJ(H.why)}${pqChainHtml(andJ(H.why), H.notes, !!(FPL && FPL.rw && FPL.rw.i >= H.at))}${FPL && FPL.fcl && FPL.fcl.length ? `<ul class="pl-ul">${FPL.fcl.join('')}</ul>` : ''}</li>`);   // FRODO ZONE: + the Firelands lines
     if (FPL && FPL.rw && FPL.rw.i >= H.at && i === FPL.rw.i) li.push(`<li class="pl-rb pl-n"><b>Absolute Ring</b> · ${rwTxt()}</li>`); };   // MAGIC RING: right after the chain (N4+) / in Late (N1-3)
   /* route lines before a goal line (b = a routeHtml need, X = the route: seen, n, steps) */
   const pqLi = (lb, t, note, warn) => `<li class="pl-rb pl-n"><b>${lb}</b> · ${t}${note ? ' <span class="small">· ' + note + '</span>' : ''}${warn ? ' <span class="small warntext">' + warn + '</span>' : ''}</li>`;
@@ -753,7 +781,7 @@
     Object.keys(FS_GQ).forEach(id => { const q = Q[id], [k, u] = FS_GQ[id]; if (!q || !q.repeat || (q.zone && !zs.has(q.zone))) return; const g = fsQG(q); if (!(g > 0)) return;
       if ((W.boss || {})[u]) { const x = zs.has(bzone(u)) ? fsBoss(u, n, m, i, lv, p, endStep) : null; if (x) o.push({ q, u, x, g, gpm: g * 60 / x.cyc, safe: x.safe, z: x.z }); return; }
       const mo = (W.mon || {})[u], z = (W.unit_zone || {})[u]; if (!mo || !z || !zs.has(z)) return;
-      o.push({ q, u, k, g, gpm: (g + k * 3 * (+mo.level || 1) * (0.8 + 0.2 * n) * gsF(n)) * kr / k, safe: true, z }); });
+      o.push({ q, u, k, g, gpm: (g + k * 3 * (+mo.level || 1) * (0.8 + 0.2 * n) * gsF(n)) * kr / k, kg: 3 * (+mo.level || 1) * (0.8 + 0.2 * n) * gsF(n) * kr, safe: true, z }); });   // VIP FARM CALC: kg = kill gold a minute
     const s = o.filter(x => x.safe).sort((a, b) => b.gpm - a.gpm), r = o.filter(x => !x.safe).sort((a, b) => b.gpm - a.gpm);
     return { best: s[0] || null, alt: s[1] || null, risky: r[0] && (!s[0] || r[0].gpm > s[0].gpm) ? r[0] : null }; };
   const fsWhy = x => x.tight ? 'tight fight' : x.full ? "needs this part's finished gear" : x.kt == null ? 'kill time unknown' : `~${x.kt} s kills`;
@@ -811,13 +839,14 @@
     return q ? qA(q, nm) : HLN.str(nm); };
   const fsTag = s => !s || !s.best ? ' <span class="small">(no boss you beat fast and safe yet)</span>' : s.risky ? ` <span class="small warntext">risky: ${fsWhy(s.best)}</span>` : '';
   const fsTips = p => { const c = FS_LAST; if (!c || c.pE[p] == null) return ''; const { h, n, m, steps, pE } = c, o = [], s = c.fsp[p];
+    const vs = () => c.vs ? '' : (c.vs = 1, vipFSel()), gv = x => x.gpm + (+x.kg || 0) * (gsFv(n) - 1);   // VIP FARM CALC: one selector per card; shown gold/min
     if (s && s.best) { const x = s.best, a = s.alt;
-      o.push(`<div class="small"><b>Souls farm</b>${s.risky ? `<span class="warntext">risky (${fsWhy(x)})</span> ` : ''}${srcA(x.b, bname(x.b))}${x.z ? ' · ' + zlH(x.z) : ''} · ~${fsR(x.spm)} souls/min <span class="small">(${fsKtT(x)}, ${x.rs} s respawn)</span>${a ? ` · or ${srcA(a.b, bname(a.b))} ~${fsR(a.spm)}/min` : ''}</div>`); }
+      o.push(`<div class="small"><b>Souls farm</b>${s.risky ? `<span class="warntext">risky (${fsWhy(x)})</span> ` : ''}${srcA(x.b, bname(x.b))}${x.z ? ' · ' + zlH(x.z) : ''} · ~${fsR(x.spm * gsFv(n))} souls/min <span class="small">(${fsKtT(x)}, ${x.rs} s respawn)</span>${a ? ` · or ${srcA(a.b, bname(a.b))} ~${fsR(a.spm * gsFv(n))}/min` : ''}${vs()}</div>`); }   // VIP FARM CALC
     const g = fsGold(h, n, m, p, +(steps[pE[p]] || {}).step || 0, new Set(steps.slice(0, pE[p] + 1).map(x => x.zone)));
-    const gt = x => x.x ? `${fsQL(x.q)} (${srcA(x.u, bname(x.u))}${x.z ? ', ' + zlH(x.z) : ''}) · ~${fsR(x.gpm)} gold/min <span class="small">(${fmt(Math.round(x.g))}-gold bag a kill, ${fsKtT(x.x)}, ${x.x.rs} s respawn)</span>`
-      : `${fsQL(x.q)}${x.z ? ' (' + zlH(x.z) + ')' : ''} · ~${fsR(x.gpm)} gold/min <span class="small">(${x.k} kills a clear, ${fmt(Math.round(x.g))} gold + kill gold)</span>`;
-    if (g && g.best) o.push(`<div class="small"><b>Gold farm</b>repeat ${gt(g.best)}${g.alt ? ` · or ${fsQL(g.alt.q)} ~${fsR(g.alt.gpm)}/min` : ''}${g.risky ? ` · <span class="warntext">risky</span> ${fsQL(g.risky.q)} ~${fsR(g.risky.gpm)}/min (${fsWhy(g.risky.x)})` : ''}</div>`);
-    else if (g && g.risky) o.push(`<div class="small"><b>Gold farm</b><span class="warntext">risky (${fsWhy(g.risky.x)})</span> repeat ${gt(g.risky)}</div>`);
+    const gt = x => x.x ? `${fsQL(x.q)} (${srcA(x.u, bname(x.u))}${x.z ? ', ' + zlH(x.z) : ''}) · ~${fsR(gv(x))} gold/min <span class="small">(${fmt(Math.round(x.g))}-gold bag a kill, ${fsKtT(x.x)}, ${x.x.rs} s respawn)</span>`
+      : `${fsQL(x.q)}${x.z ? ' (' + zlH(x.z) + ')' : ''} · ~${fsR(gv(x))} gold/min <span class="small">(${x.k} kills a clear, ${fmt(Math.round(x.g))} gold + kill gold)</span>`;
+    if (g && g.best) o.push(`<div class="small"><b>Gold farm</b>repeat ${gt(g.best)}${g.alt ? ` · or ${fsQL(g.alt.q)} ~${fsR(gv(g.alt))}/min` : ''}${g.risky ? ` · <span class="warntext">risky</span> ${fsQL(g.risky.q)} ~${fsR(gv(g.risky))}/min (${fsWhy(g.risky.x)})` : ''}${vs()}</div>`);   // VIP FARM CALC
+    else if (g && g.risky) o.push(`<div class="small"><b>Gold farm</b><span class="warntext">risky (${fsWhy(g.risky.x)})</span> repeat ${gt(g.risky)}${vs()}</div>`);
     return o.join(''); };
   /* ---- FARM AHEAD (patch_page_farmahead 2026-09-26, user-approved; E:/RE/WC3/AdventurersPath/findings/public/audit_math/farm_ahead.md).
      A craft's part or a Legacy bag stack that drops in a zone the route passes BEFORE the craft / goal line is farmed on that first pass:
@@ -895,6 +924,7 @@
     const head = {}, at = {}, end = {}, kept = {}, lvDone = {}, enh = String((((PD.enh || {})[key] || {})[h]) || '').split('|');
     const SCP = scPlan(h, n, m, L, steps, stop); SC_LAST = SCP; SCP.place(head, at); const FAP = faPlan(h, n, m, L, steps, stop, g, pS, pE, at);   /* FARM AHEAD */   // GIANT SCYTHE CARRY: Early carry line + step lines
     const fire = [];                                                  // TESTER PAGE FIXES: what needs the Firelands (Frodo's Boss Hunt)
+    const FZI = pqFz(h, n, m, steps), FCL = [];                       // FRODO ZONE: the chain's route index, the Firelands lines that ride on the chain line
     const rwP = rwPlan(h, n, m, L, steps, stop), rwUp = rwP.i >= 0 || rwP.abs;   // MAGIC RING: the run upgrades the ring = no + levels on it
     const f = (0.8 + 0.2 * n) / (0.8 + 0.2 * ((PD.sn || {})[band(n)] || n)) * gsF(n), useEnh = true;   // BOSS SOULS: every gear level (only the free +30 stone line reads PD.enh now)
     FS_LAST = { h, n, m, steps, pE, fsp: [] }; let spent = 0, farmed = 0, stoneAt = ''; const bsIS = [0, 0, 0];   // BOSS SOULS: item Boss Soul prices per part // AUDIT minor 14: the run's one +30 stone (one copy of one item)
@@ -921,6 +951,7 @@
           if (j < 0 && zo != null && zo > (ZO[steps[pS[p]].zone] || 0)) { for (let i = pS[p]; i <= pE[p]; i++) if ((ZO[steps[i].zone] || 0) >= zo) { j = i; break; } if (j < 0) j = pE[p]; }
         }
         if (id === RW_A && w[0] === 'c') { if (rwP.i >= 0) continue; (j < 0 ? (head[p] = head[p] || []) : (at[j] = at[j] || [])).push(`<li>${ilink(id)} <span class="small">· ${rwTxt()}</span></li>`); continue; }   // MAGIC RING: the route's 'Absolute Ring' line
+        if (FZI >= 0 && (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) && (j < 0 ? pS[p] : j) <= FZI) { FCL.push(line); continue; }   // FRODO ZONE: never before the chain
         (j < 0 ? (head[p] = head[p] || []) : (at[j] = at[j] || [])).push(line);
       }
       if (useEnh) (enh[p] || '').split(',').forEach(e => { const mt = /^(\w{4})\+(\d+)(?:x(\d+))?$/.exec(e); if (!mt || !cnt[mt[1]] || (rwUp && mt[1] === RW_R)) return;
@@ -928,11 +959,11 @@
         if (stone) { stoneAt = id; lvDone[id] = 30; up.push(`+30 ${ilink(id)} (free +30 stone${+(mt[3] || 1) > 1 ? ', one copy: one stone per run' : ''})`); return; }   // Map Level 90+: the stone costs no Boss Souls; tokens (+21..+25) not in the save -> +20
         lvDone[id] = lv; });   // BOSS SOULS: + levels = the Enhance lines before the bosses (paid by the route's bosses), not farmed
       const have = (((PD.sby || {})[band(n)] || [])[p] || 0) * f, short = spent - have - farmed;
-      const fsx = fsSouls(h, n, m, p, +(steps[pE[p]] || {}).step || 0, short, fire.length > 0 || fNeed || !!SCP.fl, fsZmax(steps, pE[p]));   /* SOULS FIRE: Legacy / Scythe goals open the Firelands */ FS_LAST.fsp[p] = fsx;   // FARM SPOTS: this hero's fast + safe spot, never the median hero's PD.sf
+      const fsx = fsSouls(h, n, m, p, +(steps[pE[p]] || {}).step || 0, short, (fire.length > 0 || fNeed || !!SCP.fl) && !(FZI > pE[p]), fsZmax(steps, pE[p]));   /* FRODO ZONE: Firelands spots only once the chain is done */   /* SOULS FIRE: Legacy / Scythe goals open the Firelands */ FS_LAST.fsp[p] = fsx;   // FARM SPOTS: this hero's fast + safe spot, never the median hero's PD.sf
       const sf0 = ((PD.sf || {})[key] || [])[p], sf = fsx && fsx.best ? [fsx.best.b, fsx.best.spm / f, fsx.best.z, fsx.best.spk / f] : null, rate = sf ? sf[1] * f : sf0 ? sf0[1] * f : 0;
       if (short >= 1 && !(rate > 0 && short / rate < 2)) {             // under 2 minutes of farming: the next bosses cover it
         const what = up.concat(why).join(', ');
-        const spk = sf && +sf[3] > 0 ? sf[3] * f : 0, kn = spk ? Math.ceil(short / spk) : 0;   // PD.sf[3] = Boss Souls per kill at the band's N (older data: no kill count)
+        const spk = sf && +sf[3] > 0 ? sf[3] * f : 0, kn = spk ? Math.ceil(short / (spk * gsFv(n))) : 0;   /* VIP FARM CALC: kills at the farm-rate VIP */   // PD.sf[3] = Boss Souls per kill at the band's N (older data: no kill count)
         end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${sf && rate > 0 ? `farm ${srcA(sf[0], bname(sf[0]))}${sf[2] ? ' (' + zlH(sf[2]) + ')' : ''}: ${kn ? killF(kn) + ' for ' : '~'}${fmt(Math.round(short))} Boss Souls` : `farm ~${fmt(Math.round(short))} more Boss Souls`}${what ? ', pays for ' + what : ''}${fsTag(fsx)}</li>`;
         farmed += short;
         if (sf && rate > 0 && sf[2] === 'z10') fire.push('souls');     // TESTER PAGE FIXES: Boss Souls farm at the Flame Lord
@@ -995,7 +1026,7 @@
     return {
       head: (li, p, gb) => { if (any(p) || gb) li.push(`<li class="pl-rp pl-gh"><b>${FPN[p]} gear</b>${any(p) ? ' <span class="small">(farm while you pass)</span>' : ''}${gb ? `<div class="pl-gb">${gb}</div>` : ''}${head[p] ? `<ul class="pl-ul">${head[p].join('')}</ul>` : ''}</li>`); },
       step: (li, i) => { if (bsPre[i] && li.length) li.splice(li.length - 1, 0, ...bsPre[i]); if (at[i] && li.length) li[li.length - 1] = li[li.length - 1].replace(/<\/li>$/, `<ul class="pl-ul">${at[i].join('')}</ul></li>`); },
-      end: (li, p) => { if (end[p]) { li.push(end[p]); delete end[p]; } }, fire, rw: rwP };
+      end: (li, p) => { if (end[p]) { li.push(end[p]); delete end[p]; } }, fire, rw: rwP, fcl: FCL };   // FRODO ZONE: fcl
   }
   /* AUDIT minor 4: a boss behind the 4,000-gold boat (PD.boat) listed before the main-quest step that buys the boat says so */
   const BOAT = new Set(PD.boat || []), BOATSTEP = ((((W.qguide || {}).steps) || []).find(x => /Boat \(4,000 gold\)/.test(String(x.do || ''))) || {}).step;
@@ -1148,7 +1179,8 @@
     const need = bosses.filter(b => b && (b.id || b.txt)).map(b => Object.assign({}, b, { zo: b.id ? ZO[bzone(b.id)] : undefined }));   // txt = a pick without a boss (bossless)
     let stop = stopStep ? steps.length - 1 : 0;
     need.forEach(b => { const fs = fsOf(b.id, n), sl = b.st != null ? +b.st : fs == null ? 20 + n : Math.max(0, fs - 1), i = steps.findIndex(x => +x.step >= sl);   // AUDIT minor 4: right after the step bossAt / the run's time and items stop at
-      b.at = i < 0 ? steps.length - 1 : i; stop = Math.max(stop, b.at); });   // v52 (M4): the same step the run's time and items use
+      b.at = i < 0 ? steps.length - 1 : i; if ((b.id && (pqHasH(b.id) || bzone(b.id) === 'z10')) || b.fire) { const fz = pqFz(h, n, m, steps); if (fz >= 0) b.at = Math.max(b.at, fz); }   // FRODO ZONE: never before the chain
+      stop = Math.max(stop, b.at); });   // v52 (M4): the same step the run's time and items use
     need.forEach(b => { if (b.last) b.at = stop; }); need.sort((a, b) => (a.last || 0) - (b.last || 0));   // ARMOR FRAGMENT SET: town-unit kills, then the upgrade, last
     FA_NEED = need; const PQX = { seen: new Set(), n, m, h, steps, stop };            // PREREQ GATES: each step before a goal once per route
     TGR = tgRoute(h, n, m, L);                                      // TIGHT: chips on the boss steps
@@ -1160,7 +1192,7 @@
       if (pi > cur) { if (FPL && cur >= 0) FPL.end(li, cur); cur = pi; const gb = buildRow(h, n, m, L, pi) + tpPart(h, n, m, L, pi, TPS) + (FPL ? fsTips(pi) : '');   // FARM SPOTS: Souls farm / Gold farm rows // each part opens with its full build
         if (FPL) FPL.head(li, pi, gb); else if (gb) li.push(`<li class="pl-rp pl-gh"><b>${['Early', 'Mid', 'Late'][pi]} gear</b> <span class="small">(farm while you pass)</span><div class="pl-gb">${gb}</div></li>`); }
       const dT = (+S.ml || 1) > 30 ? String(x.do).replace(' and {{i:I0Y0}} (one random item, Map Level 30 or lower)', '') : x.do;   // Beginner Bonus only up to Map Level 30
-      li.push(`<li class="pl-n"><span class="small">${zlH(x.zone)}</span> ·${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
+      li.push(`<li class="pl-n" data-qs="${x.step}"><span class="small">${zlH(x.zone)}</span> ·${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
       if (FPL) FPL.step(li, i);
       pqHuntAt(li, i, PQX, need, FPL);                                // PREREQ GATES: Frodo's quest chain line (before this step's goal lines)
       if (SCR && SCR.fc && PQX.hunt && PQX.hunt.at === i && PQX.hunt.why.length) li.push(SCR.fire());   // GIANT SCYTHE CARRY: the Flame Lord kill
@@ -1985,6 +2017,7 @@
     lis().forEach(li => { if (!li.classList.contains('pl-gh')) clRow(li); });
     /* step numbers: every step row (quest steps and goal / gate lines) */
     let k = 0; lis().forEach(li => { if (!li.classList.contains('pl-n')) return; li.dataset.n = String(++k); const no = li.querySelector(':scope > .pl-no'); if (no) no.dataset.n = li.dataset.n; });
+    box.querySelectorAll('.pl-qs[data-q]').forEach(e => { const r = ol.querySelector(`:scope > li[data-qs="${e.dataset.q}"]`); if (r && r.dataset.n) e.textContent = r.dataset.n; });   // FRODO ZONE: route row numbers
     /* GATE badges name the goal they open (the next goal / Then / Pick up row) */
     const rows = lis();
     rows.forEach((li, j) => { const g = li.querySelector('.pl-bd-gate .pl-gtf'); if (!g) return;
@@ -2256,6 +2289,111 @@
     g.insertAdjacentHTML('beforeend', `<div class="pl-byr pl-bpr"><span class="pl-byl">Bonus item</span><div class="pl-byv">${row}</div></div>`);
     try { BPI.route(f, c, np); } catch (e) { if (typeof console !== 'undefined') console.warn('bonus inline', e); }   // BONUS INLINE: the picks in the route
     return box.innerHTML; };
+  /* ---- GEAR SWAPS (patch_page_gear_swaps 2026-09-27, user: "when the planner suggests a different build set in Mid/Late, it needs to
+     tell me what to replace with what as we farm the items"). Per run part (Mid, Late) the worn list (bpList, your bonus picks as BONUS
+     INLINE wears them, '~' start slots = your pick) against the part before. Each new copy, in the order the route gets it (its last GET /
+     BUY / FARM badge in that part, 'Get first' = the part's start, a badge in an earlier part = the part's first step) replaces: your bonus
+     in / out as BONUS INLINE says; the dropped items its own recipe eats (faRc); a dropped item of the same item slot type (K.item slot),
+     the weakest by bpVal; a free slot (6); the weakest dropped item left. Dropped items nothing replaced: back in a later part / a recipe
+     part of a later build item (pet bag) / in the part's pet bag list (GSW.pet = tpPart's picks) / sell or drop. Shown: (a) a 'swap' line
+     under the new item's badge; (b) a 'Swaps' row after the part's Gear row; (c) 'part for <result> (step N)' under the badge of an item no
+     part wears but a build item's recipe needs; (d) BONUS INLINE's out row: 'swap your bonus X out for Y'. Unchanged list = nothing.
+     Only note lines and one grid row are added after CLARITY: badges, tick ids and NEXT stay as they are */
+  const GSW = {};
+  GSW.css = () => { if (!DCL_ON || document.getElementById('gsw-css')) return;
+    document.head.insertAdjacentHTML('beforeend', '<style id="gsw-css">.pl-gsn{color:var(--ink)}.pl-gsn>b:first-child{color:var(--ok);font-weight:700;margin-right:3px}'
+      + '.pl-gsp{display:inline-block;margin-right:12px}.pl-gss{color:var(--muted);font-size:12.5px;white-space:nowrap}</style>'); };
+  /* the part's pet bag list (tpPart's picks: the replay's pet bag, else PD.bbp / best_items minus the free gifts) */
+  GSW.pet = (h, n, m, L, p) => { const bk = MK[m] + '|' + band(n), gk = band(n) + '|' + MK[m], r = rhOf(h, n, m, L);
+    if (r && Array.isArray(r.p) && Array.isArray(r.p[p])) return r.p[p].slice(1);
+    const li = L == null || L < 0 ? null : tpLi(h, n, m, L, p), row = li != null ? ((((PD.bbp || {})[bk] || {})[h] || [])[li] || null) : null;
+    const pk = row ? (row[p] || []).slice() : (((((W.best_items || {})[h] || {})[gk] || {})[FPS[p] + '_pet']) || []).map(y => y[0]);
+    ((PD.pgf || {})[bk] || TP_GIFTS).forEach(g => { const i = pk.indexOf(g); if (i >= 0) pk.splice(i, 1); }); return pk; };
+  GSW.uses = (res, id, d) => (faRc(res) || []).some(([p]) => p === id || (d > 0 && GSW.uses(p, id, d - 1)));   // id is a recipe part of res (d more levels)
+  GSW.route = (f, c) => { const ol = f.querySelector('ol.pl-steps.pl-cl'); if (!ol || !c || !c.h) return;
+    const secs = []; let cur = null;
+    [...ol.children].forEach(li => { if (li.tagName !== 'LI') return;
+      if (li.classList.contains('pl-sec')) { const t = DCL.txt(li.querySelector('.pl-snm')).toLowerCase(); cur = { li, j: FPN.findIndex(p => t.startsWith(p.toLowerCase())), rows: [] }; secs.push(cur); }
+      else if (cur) cur.rows.push(li); });
+    const PS = {}; secs.forEach(s => { if (s.j >= 0 && !PS[s.j]) PS[s.j] = s; });
+    const np = secs.length ? Math.max(...secs.map(s => s.j)) + 1 : 0; if (np < 2) return;
+    const x = bpCtx(c), U = {}, picks = bpPicks(c.n).map(p => ({ p, st: BPI.state(x, p, bpVerdict(x, p.id, np, U), np) }));   // same order as bpRow = the same verdicts
+    const wn = []; for (let j = 0; j < np; j++) { const l = bpList(x, j).map(y => y.charAt(0) === '~' && bpRnd(y) ? bpRnd(y) : y).filter(y => !POS[y]);
+      picks.forEach(({ p, st }) => { const q = st[j]; if (!q || !q.on || l.includes(p.id)) return; if (q.rep) { const i = l.indexOf(q.rep); if (i >= 0) l.splice(i, 1); } l.push(p.id); });
+      wn.push(l); }
+    const rowJ = new Map(); secs.forEach(s => s.rows.forEach(r => rowJ.set(r, s.j)));
+    const s0 = j => { const s = PS[j], r = s && s.rows.find(y => y.dataset.n); return r ? +r.dataset.n : null; };
+    const enc = id => `a[href="#item/${encodeURIComponent(id)}"]`, bad = '.pl-gr[data-row="carry"], .pl-gr[data-row="bonus"], .pl-gr[data-row="swaps"]';
+    const where = b => { const r = b.closest('li.pl-row'), sec = b.closest('li.pl-sec'), j = r ? rowJ.get(r) : sec ? (secs.find(s => s.li === sec) || {}).j : undefined;
+      return { b, j: j == null ? -1 : j, n: r && r.dataset.n ? +r.dataset.n : null, first: !r && !!sec }; };
+    const bds = id => [...ol.querySelectorAll(`.pl-bd ${enc(id)}`)].map(a => a.closest('.pl-bd')).filter((b, i, a) => b && a.indexOf(b) === i && /^(get|buy|farm)$/.test(b.dataset.k || '')
+      && b.querySelector('a[href^="#item/"]') === b.querySelector(enc(id)) && !b.closest(bad)).map(where);
+    const acq = (id, j) => { const a = bds(id), inJ = a.filter(o => o.j === j); if (inJ.length) return inJ[inJ.length - 1];
+      const e = a.filter(o => o.j >= 0 && o.j < j); return e.length ? Object.assign({}, e[e.length - 1], { early: true }) : null; };
+    const ord = (o, j) => !o ? 1e6 : o.early || o.first ? (s0(j) || 0) - 0.5 : o.n != null ? o.n : 1e5;
+    const when = (o, j) => !o ? '' : o.early ? `from step ${s0(j)}` : o.first ? 'get first' : o.n != null ? `step ${o.n}` : '';
+    const val = id => { const v = id.charAt(0) === '~' ? null : bpVal(x.h, x.gk, id); return v == null ? 0 : v; }, slotOf = id => String(((K.item || {})[id] || {}).slot || '');
+    const gifts = new Set(picks.map(q => q.p.id)), lk = id => gifts.has(id) ? `your bonus ${tfLink(id)}` : tfLink(id);
+    const olds = (os, k) => { const c2 = {}; os.forEach(o => o.old.forEach(([r, n]) => { c2[r] = (c2[r] || 0) + n * (k || 1); })); return Object.keys(c2).map(r => lk(r) + (c2[r] > 1 ? ' x' + c2[r] : '')); };
+    const note = (b, h) => { const row = b.closest('li.pl-row'), gv = b.closest('.pl-gv');
+      if (row) { const rw = row.querySelector('.pl-rw'); if (!rw) return; let rn = rw.querySelector(':scope > .pl-rn'); if (!rn) { rw.insertAdjacentHTML('beforeend', '<div class="pl-rn"></div>'); rn = rw.querySelector(':scope > .pl-rn'); }
+        const at = [...rn.children].find(d => !d.classList.contains('pl-bpn') && !d.classList.contains('pl-gsn')); if (at) at.insertAdjacentHTML('beforebegin', `<div class="pl-gsn">${h}</div>`); else rn.insertAdjacentHTML('beforeend', `<div class="pl-gsn">${h}</div>`); }
+      else if (gv) gv.insertAdjacentHTML('beforeend', `<div class="pl-bm pl-gsn">${h}</div>`); };
+    GSW.css();
+    for (let j = 1; j < np; j++) { const A = wn[j - 1], B = wn[j], P = {}, C = {}; A.forEach(y => { P[y] = (P[y] || 0) + 1; }); B.forEach(y => { C[y] = (C[y] || 0) + 1; });
+      const add = [], rem = {}; Object.keys(C).forEach(y => { for (let k = P[y] || 0; k < C[y]; k++) add.push(y); }); Object.keys(P).forEach(y => { if (P[y] > (C[y] || 0)) rem[y] = P[y] - (C[y] || 0); });
+      const s = PS[j]; if (!s || (!add.length && !Object.keys(rem).length)) continue;
+      const AQ = {}, BK = {}; add.forEach(y => { if (y in AQ) return; AQ[y] = acq(y, j); BK[y] = !(AQ[y] && !AQ[y].early) && wn.slice(0, j - 1).some(l => l.filter(z => z === y).length > (P[y] || 0)); });   // back = worn in an earlier part, no new copy
+      const ps = add.map((y, i) => ({ y, i, a: BK[y] ? null : AQ[y], back: BK[y], old: [], how: '' })).sort((p, q) => ord(p.a, j) - ord(q.a, j) || p.i - q.i);
+      const rem0 = Object.assign({}, rem), eaten = {};
+      const take = (y, k) => { const t = Math.min(k, rem[y] || 0); if (t > 0) { rem[y] -= t; if (!rem[y]) delete rem[y]; } return t; };
+      let free = Math.max(0, 6 - A.length);
+      picks.forEach(({ p, st }) => { const q = st[j], pv = st[j - 1];                     // 0. your bonus in / out as BONUS INLINE says
+        if (q && q.on && !q.inB && !(pv && pv.on) && q.rep) { const o = ps.find(z => !z.how && z.y === p.id); if (o && take(q.rep, 1)) { o.old = [[q.rep, 1]]; o.how = 'slot'; } }
+        if (pv && pv.on && !pv.inB && !(q && q.on) && pv.rep) { const o = ps.find(z => !z.how && z.y === pv.rep); if (o && take(p.id, 1)) { o.old = [[p.id, 1]]; o.how = 'slot'; } } });
+      ps.forEach(o => { if (o.how) return; const eat = [];                                    // 1. its own recipe's parts
+        (faRc(o.y) || []).forEach(([pid, k]) => { const t = take(pid, k); if (t) { eat.push([pid, t]); eaten[pid] = (eaten[pid] || 0) + t; } });
+        if (eat.length) { o.old = eat; o.how = 'parts'; free += eat.reduce((t, e) => t + e[1], 0) - 1; } });
+      ps.forEach(o => { if (o.how) return; const st = slotOf(o.y), c2 = st ? Object.keys(rem).filter(r => slotOf(r) === st) : [];   // 2. same slot type, 3. free slot, 4. weakest
+        if (c2.length) { const r = c2.sort((a, b) => val(a) - val(b))[0]; take(r, 1); o.old = [[r, 1]]; o.how = 'slot'; return; }
+        if (free > 0) { free--; o.how = 'free'; return; }
+        const r = Object.keys(rem).sort((a, b) => val(a) - val(b))[0]; if (r) { take(r, 1); o.old = [[r, 1]]; o.how = 'slot'; } else o.how = 'free'; });
+      /* what leaves the hero (replaced or not; recipe parts eaten by a craft excluded): kept for later, pet bag, else sell or drop */
+      const pet = GSW.pet(x.h, x.n, x.m, x.L, j), lv = { sell: [], pet: [] }, keep = [];
+      Object.keys(rem0).forEach(r => { const k = rem0[r] - (eaten[r] || 0); if (k <= 0) return; const lab = lk(r) + (k > 1 ? ' x' + k : '');
+        for (let q = j + 1; q < np; q++) if (wn[q].filter(y => y === r).length > (C[r] || 0)) { keep.push(`keep ${lab} in the pet bag: back in your ${bpPartW(q)} gear`); return; }
+        for (let q = j + 1; q < np; q++) { const R = wn[q].find(y => y !== r && GSW.uses(y, r, 1)); if (R) { keep.push(`keep ${lab} in the pet bag for ${ilink(R)} <span class="pl-gss">(${bpPartW(q)} gear)</span>`); return; } }
+        (pet.includes(r) ? lv.pet : lv.sell).push(lab); });
+      /* (b) the Swaps row: old -> new in route order (one entry per new item and step), then what leaves */
+      const G = []; ps.forEach(o => { const key = [o.y, o.how === 'parts' ? 'p' : o.how === 'free' ? 'f' : 's', when(o.a, j), o.back ? 1 : 0].join('|'), g = G.find(z => z.key === key); if (g) g.os.push(o); else G.push({ key, os: [o] }); });
+      const pr = G.map(({ os }) => { const o = os[0], k = os.length, nw = lk(o.y) + (k > 1 ? ' x' + k : ''), w = o.back ? 'from the pet bag' : when(o.a, j);
+        return `<span class="pl-gsp">${o.how === 'free' ? `+ ${nw} <span class="pl-gss">free slot</span>` : `${olds(os).join(o.how === 'parts' ? ' + ' : ', ')} → ${nw}${o.how === 'parts' ? ' <span class="pl-gss">craft</span>' : ''}`}${w ? ` <span class="pl-gss">${w}</span>` : ''}</span>`; });
+      const lvH = (lv.sell.length ? [`sell or drop: ${lv.sell.join(', ')}`] : []).concat(lv.pet.length ? [`move to the pet bag: ${lv.pet.join(', ')}`] : [], keep);
+      if (pr.length || lvH.length) { const h = `<div class="pl-gr" data-row="swaps"><span class="pl-gk">Swaps</span><div class="pl-gv">${pr.join('')}${lvH.map(t => `<div class="pl-bm">${t}</div>`).join('')}</div></div>`;
+        const gr = s.li.querySelector('.pl-gr[data-row="gear"]');
+        if (gr) gr.insertAdjacentHTML('afterend', h); else { let g = s.li.querySelector(':scope > .pl-sg'); if (!g) { s.li.insertAdjacentHTML('beforeend', '<div class="pl-sg"></div>'); g = s.li.querySelector(':scope > .pl-sg'); } g.insertAdjacentHTML('afterbegin', h); } }
+      /* (a) a 'swap' line under the badge that gets the new item */
+      const byB = new Map(); ps.forEach(o => { if (o.back || !o.a || !o.a.b || o.a.b.classList.contains('pl-bd-bpx')) return; const e = byB.get(o.a.b) || { y: o.y, os: [], early: !!o.a.early }; e.os.push(o); byB.set(o.a.b, e); });
+      byB.forEach((e, b) => { const pa = e.os.filter(o => o.how === 'parts'), rp = e.os.filter(o => o.how === 'slot'), fr = e.os.filter(o => o.how === 'free').length, t = [];
+        if (pa.length) t.push(`replaces its parts ${olds(pa).join(' + ')}`); if (rp.length) t.push(`replaces ${andJ(olds(rp))}`);
+        if (fr) t.push(t.length ? `${fr > 1 ? fr + ' more go' : 'one more goes'} in a free slot` : 'goes in a free slot');
+        note(b, `<b>swap</b> ${e.early ? `from step ${s0(j)} (${bpPartW(j)} gear): ` : ''}${lk(e.y)}${e.os.length > 1 ? ' x' + e.os.length : ''} → ${t.join(', ')}`); });
+      /* (d) BONUS INLINE's 'swap <gift> out' row names what takes its slot */
+      picks.forEach(({ p, st }) => { const q = st[j], pv = st[j - 1]; if (!(pv && pv.on && !pv.inB && !(q && q.on))) return;
+        const o = ps.find(z => z.old.some(([r]) => r === p.id)); if (!o) return; const w = when(o.a, j);
+        s.li.querySelectorAll('.pl-gr[data-row="bonus"] > .pl-gv').forEach(v => { if (!/^swap (?!in )/.test(DCL.txt(v)) || !v.querySelector(enc(p.id))) return;
+          const i = v.innerHTML.indexOf(' · keep it in the pet bag for'); v.innerHTML = `swap your bonus ${ilink(p.id)} out for ${ilink(o.y)}${w ? ` <span class="pl-gss">${w}</span>` : ''}` + (i >= 0 ? v.innerHTML.slice(i) : ''); }); }); }
+    /* (c) badges of a recipe part no part from there on wears: 'part for <result> (step N)' */
+    [...ol.querySelectorAll('.pl-bd')].filter(b => /^(get|buy|farm)$/.test(b.dataset.k || '') && !b.classList.contains('pl-bd-bpx') && !b.closest(bad)).forEach(b => {
+      const a = b.querySelector('a[href^="#item/"]'); if (!a) return; const id = decodeURIComponent(a.getAttribute('href').slice(6)), o = where(b), j = o.j;
+      if (POS[id] || j < 0 || j >= np || wn.slice(j).some(l => l.includes(id))) return;
+      let R = null, q0 = -1; for (let q = j; q < np && !R; q++) { R = wn[q].find(y => y !== id && GSW.uses(y, id, 1)) || null; q0 = q; } if (!R) return;
+      const rn = b.closest('li.pl-row') && b.closest('li.pl-row').querySelector('.pl-rn'); if (rn && [...rn.querySelectorAll(':scope > div')].some(d => !d.classList.contains('pl-gsn') && d.querySelector(enc(R)))) return;   // a visible hint already names it
+      const ra = acq(R, q0), w = ra && ra.n != null && !ra.early ? ` (step ${ra.n})` : ra && ra.first ? ` (${bpPartW(q0)} gear, get first)` : q0 !== j ? ` (${bpPartW(q0)} gear)` : '';
+      note(b, `<b>part</b> for ${ilink(R)}${w}`); }); };
+  const gswIns = (c, html) => { if (!DCL_ON || !html || !c || !c.h) return html; const box = DCL.box(html), f = box.querySelector('.pl-focus'); if (!f) return html;
+    try { GSW.route(f, c); } catch (e) { if (typeof console !== 'undefined') console.warn('gear swaps', e); return html; }
+    return box.innerHTML; };
   const bpTagDiv = c => { const t = bpTag(c); return t ? `<div class="pl-ct">${t}</div>` : ''; };
   K.hooks.push((page, out) => { if (page !== 'planner') return;   /* BONUS PICK: fill a picker list when opened, filter, pick, clear */
     out.querySelectorAll('details.pl-bpk').forEach(d => { d.addEventListener('toggle', () => { if (!d.open) return; const l = d.querySelector('.pl-bpl');
@@ -2267,7 +2405,7 @@
   });
   if (DCL_ON) document.addEventListener('click', e => { if (e.target.closest && e.target.closest('details.pl-bpk')) return;   // a tap outside closes an open picker
     document.querySelectorAll('details.pl-bpk[open]').forEach(o => { o.open = false; }); });
-  const focusHtml = (c, k, tot, body) => clTk(bpIns(c, dclCard(focusHtml0(c, k, tot, body))), c);   // CLARITY: the tick key; BONUS PICK row
+  const focusHtml = (c, k, tot, body) => clTk(gswIns(c, bpIns(c, dclCard(focusHtml0(c, k, tot, body)))), c);   // CLARITY: the tick key; BONUS PICK row; GEAR SWAPS
   const focusHtml0 = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
     return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs' : `Run ${k + 1} of ${tot}`}</span></div>` + (FO ? gearSw() : '')   // GEAR LEVEL IN THE CARD
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
@@ -2450,7 +2588,7 @@
     if (fi) fi.addEventListener('change', e => { const fs = [...e.target.files]; if (!fs.length) return;
       Promise.all(fs.map(f => f.text().then(text => ({ name: f.name, text })))).then(files => { const r = readSave(files);
         if (!r.valid) { S.err = 'That is not an Adventurer’s Path save. Pick P..._SaveChar_TheAdventurersPathRPG.pld (and its _P0, _P1 ... files if it has them).'; K.route(); return; }
-        S.own = r.own; S.pts = r.pts; S.ml = r.ml; S.rank = r.rank; S.wp = r.wp; S.vip = r.vip || 0; S.src = 'save'; S.tok = r.tok; S.sw = r.sw || {}; S.hfx = !!r.hfx; S.bp = {}; bpSave();   // ACCOUNT SWORDS // PREREQ GATES: Challenge Tokens (save key Itzlp)
+        S.own = r.own; S.pts = r.pts; S.ml = r.ml; S.rank = r.rank; S.wp = r.wp; S.vip = r.vip || 0; S.src = 'save'; S.tok = r.tok; S.sw = r.sw || {}; S.hfx = !!r.hfx; S.bp = {}; bpSave(); try { sessionStorage.removeItem('ap_vipf'); } catch (e) {}   /* VIP FARM CALC */   // ACCOUNT SWORDS // PREREQ GATES: Challenge Tokens (save key Itzlp)
         S.err = r.n ? '' : r.saved ? 'Save loaded: no Legacy items in your Legacy Bag or storages yet.' : 'Save loaded, but it is still empty (new account): the game writes Legacy, Points and Map Level when you type -save in game.';
         save(); K.route(); }); });
     const mi = out.querySelector('#pl-ml'); if (mi) mi.addEventListener('change', () => { S.ml = Math.max(1, parseInt(mi.value, 10) || 1); save(); K.route(); });
