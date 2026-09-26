@@ -492,7 +492,7 @@ window.AP = (function () {
     const s = L[0]; if (!s) return AV[id] ? esc(AV[id][2]) : '';
     const verb = { shop: 'buy at', free: 'free at', quest: 'quest reward from', drop: 'drops from', chest: 'from', points: 'Points buy at', exchange: 'exchange at', world_points: 'World Points buy at', 'hero kit': 'starting item of', evolves: 'evolves from' }[s.kind] || s.kind;
     const q = s.kind === 'quest' ? (QRW[id] || []).find(x => !s.from || !x.npc || x.npc.id === s.from.id) : null, qr = q && (q.reward_items || []).find(x => x.id === id);
-    const extra = [q ? esc(znQName(q)) + (qr && qr.count > 1 ? `, ${fmt(qr.count)}${q.repeat ? ' per turn-in' : 'x'}` : '') : '', s.chance != null ? pct(s.chance) : '', s.kind === 'shop' && s.note ? esc(s.note) : '', s.kind === 'drop' && /each nearby hero/.test(s.note || '') ? 'every hero nearby rolls' : '',
+    const extra = [q ? esc(znQName(q)) + (qr && qr.count > 1 ? `, ${fmt(qr.count)}${q.repeat ? ' per turn-in' : 'x'}` : '') : '', s.kind === 'quest' && /\bclear gives it\b/.test(s.note || '') ? esc(String(s.note).split(': ').slice(1).join(': ')) : s.chance != null ? pct(s.chance) : '', s.kind === 'shop' && s.note ? esc(s.note) : '', s.kind === 'drop' && /each nearby hero/.test(s.note || '') ? 'every hero nearby rolls' : '',
       s.kind === 'drop' && /talk to|only after|N[0-9]\+/.test(s.note || '') ? esc(s.note) : ''].filter(Boolean).join(', ');   // clue drops: the NPC talk / N gate that switches the drop on
     return `${verb} ${s.from ? ref(s.from) : esc(s.note || '')}${htWhere(s.from)}${extra ? ` <span class="small">${extra}</span>` : ''}${L.length > 1 ? (short ? ` <span class="small">+${L.length - 1} more</span>` : ` <span class="small">· +${L.length - 1} more source${L.length > 2 ? 's' : ''}</span>`) : ''}`; };
   const htScroll = r => { if (!r.scroll) return ''; const sc = item[r.scroll.id], src = sc && (sc.sources || [])[0], f = r.scroll_from;
@@ -509,7 +509,8 @@ window.AP = (function () {
     const rk = s => (HT_ORD[s.kind] ?? 20) + (s.chance != null && s.chance < 25 && ['free', 'chest', 'points'].includes(s.kind) ? 30 : 0);
     if (Math.min(99, ...(i.sources || []).filter(s => s.kind !== 'craft').map(rk)) !== HT_ORD.quest) return '';
     return `<ol class="ht">${L.map(q => { const r = (q.reward_items || []).find(x => x.id === id) || {}, hint = String(q.zone_hint || (Z[q.zone] || {}).name || '').replace(/\s*\(([^()]*)\)\s*$/, ', $1');
-      const tail = [r.count > 1 ? fmt(r.count) + (q.repeat ? ' per turn-in' : 'x') : '', r.chance != null && r.chance < 100 ? pct(r.chance) : ''].filter(Boolean).join(', ');
+      const nth = ((i.sources || []).find(s => s.kind === 'quest' && (s.from || {}).id === (q.npc || {}).id && /\bclear gives it\b/.test(s.note || '')) || {}).note;   // NTH CLEAR (2026-09-26): Hunter's Heirloom = the 5th Troll Boss Hunt clear (items.json note)
+      const tail = [nth ? esc(String(nth).split(': ').slice(1).join(': ')) : '', r.count > 1 ? fmt(r.count) + (q.repeat ? ' per turn-in' : 'x') : '', r.chance != null && r.chance < 100 ? pct(r.chance) : ''].filter(Boolean).join(', ');
       return `<li>Quest <b>${esc(znQName(q))}</b>${/^Hidden Quest/.test(q.name || '') ? ' <span class="tag">hidden</span>' : ''}${q.repeat ? '' : ' <span class="tag">once</span>'} from ${q.npc ? ref(q.npc) : '-'}${hint ? ` <span class="small">(${zoneLinks(esc(hint))})</span>` : ''}: ${zoneLinks(esc(q.needs || '-'))}${tail ? ` <span class="small">· ${tail}</span>` : ''}</li>`; }).join('')}</ol>`; };
   const qCovers = (id, s) => s.kind === 'quest' && !!s.from && (QRW[id] || []).some(q => q.npc && q.npc.id === s.from.id);
   /* one-line best route for the small cards (user 2026-09-25: small panels lead with what matters): the recipe (parts + scroll, then the
@@ -599,7 +600,7 @@ window.AP = (function () {
         continue; }
       if (s.kind === 'shop') L.push({ m: 0, h: `buy at ${ref(f)}${htWhere(f)}${nt ? ` <span class="small">${esc(nt)}</span>` : ''}` });
       else if (s.kind === 'craft') { if (!L.some(x => x.cr)) L.push({ m: 50, cr: 1, h: madeBy(id).length ? getLine(id) : 'craft: ' + esc(nt) }); }
-      else if (s.kind === 'quest') { const q = /^x(\d+)/.exec(nt); L.push({ m: (q ? +q[1] : 1) >= cnt ? 40 : 3000, h: `quest reward from ${ref(f)}${htWhere(f)}${nt || s.chance != null ? ` <span class="small">${[esc(nt), s.chance != null ? pct(s.chance) : ''].filter(Boolean).join(' · ')}</span>` : ''}` }); }
+      else if (s.kind === 'quest') { const q = /^x(\d+)/.exec(nt); L.push({ m: (q ? +q[1] : 1) >= cnt ? 40 : 3000, h: `quest reward from ${ref(f)}${htWhere(f)}${nt || s.chance != null ? ` <span class="small">${[esc(nt), s.chance != null && !/\bclear gives it\b/.test(nt) ? pct(s.chance) : ''].filter(Boolean).join(' · ')}</span>` : ''}` }); }
       else if (['points', 'world_points', 'exchange'].includes(s.kind)) L.push({ m: 5000, h: `buy at ${ref(f)}${htWhere(f)}${nt ? ` <span class="small">${esc(nt)}</span>` : ''}` });
       else if (s.kind === 'chest') L.push({ m: 4000, h: `from ${ref(f)}${s.chance != null ? ` <span class="small">${pct(s.chance)}</span>` : ''}` });
       else L.push({ m: 100, h: `${srcShort(s)}${nt ? ` <span class="small">· ${esc(nt)}</span>` : ''}` }); }

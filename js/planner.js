@@ -582,6 +582,18 @@
   const killF = k => (k = Math.max(1, Math.round(+k || 1))) > 1 ? `~${fmt(k)} kills` : '1 kill';   // kills on average (planner_pack k85 = 1 / drop chance), no minutes
   const triesF = ch => Math.max(1, Math.round(100 / Math.max(0.01, ch)));   // bags / chests opened on average = 1 / chance (AVERAGE LUCK, user rule 2026-09-26; was 85% luck)
   const payF = (g, s) => [g ? fmt(g) + ' gold' : '', s ? fmt(s) + ' Boss Souls' : ''].filter(Boolean).join(' + ');
+  /* NTH CLEAR (2026-09-26, findings/public/checks/hunters_heirloom_check.md): a repeatable side quest whose 100% item comes once, on the
+     hero's Nth clear. The line
+     sits on the giver's route step (the step naming the quest NPC) and says how many kills; acq.py prices the N clears (the lab night) */
+  const NTHQ = new Map();
+  const nthQ = (id, w) => { if (!id || !w || w[0] !== 'q' || !w[2]) return null; const k = id + '|' + w[2]; if (NTHQ.has(k)) return NTHQ.get(k);
+    const q = (((W.quests || {}).side) || []).find(x => (x.npc || {}).id === w[2] && (x.reward_items || []).some(r => r.id === id && +r.chance >= 100));
+    const m = q && /(\d+)(st|nd|rd|th) clear only|only on your (\d+)(st|nd|rd|th) clear/i.exec(String(q.reward || ''));
+    let r = null;
+    if (m) { const n = +(m[1] || m[3]), ord = n + (m[2] || m[4]), tg = /^kill (?:the )?(.+?)\.?$/i.exec(String(q.needs || '').trim());
+      const bid = tg ? Object.keys(W.boss || {}).find(b => ((W.boss[b] || {}).name || '') === tg[1]) : null;
+      r = { u: w[2], z: q.zone || w[3], txt: `${esc(String(q.name || w[1]).replace(/\s*[(]Boss[)]$/, ''))} from the ${srcA(w[2], (q.npc || {}).name || w[2])}: ${tg ? `kill the ${bid ? srcA(bid, tg[1]) : esc(tg[1])} ${n} times, the ${ord} clear gives it` : `the ${ord} clear gives it`}` }; }
+    NTHQ.set(k, r); return r; };
   function whereTxt(w, cp) {                                         // cp = copies on this line
     const [k, nm, id, z, ch, g, sl, mn, kl, x, fl] = w, zn = z ? zname(z) : '', zt = zn && !String(nm).includes(zn) ? ` (${zlH(z)})` : '', once = /o/.test(fl || '');
     if (k === 'b' || k === 'm') return srcA(id, nm) + zt + ', ' + (/P/.test(fl || '') ? 'drops once per player per game' : once ? (ch >= 85 ? 'drops once per run' : `${pctF(ch)} drop, one try per run`)   // AUDIT minor 9: flag P (planner_pack)
@@ -784,9 +796,12 @@
         if (!w || w[0] === 'k' || SCP.skip(id, w)) continue;   // GIANT SCYTHE CARRY: the carry lines replace the stage items' evolve lines
         if (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) fire.push(id);   // TESTER PAGE FIXES: source in (or route through) the Firelands
         if (w[6]) { spent += w[6] * nw; bsIS[p] += w[6] * nw; why.push(ilink(id)); }
-        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${whereTxt(w, nw)}${SCP.add(id, w)}${FAP.craft(id, w, p, nw)}</span></li>`, zo = ZO[w[3]];
+        const nq = nthQ(id, w);   // NTH CLEAR: giver's step + kill count
+        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${nq ? nq.txt : whereTxt(w, nw)}${SCP.add(id, w)}${FAP.craft(id, w, p, nw)}</span></li>`, zo = ZO[w[3]];
         let j = -1;
-        if (w[0] === 'o') { for (let i = pS[p]; i <= pE[p]; i++) if (+steps[i].step >= +w[9]) { j = i; break; } }
+        if (nq) { for (let i = pS[p]; i <= pE[p]; i++) if (String(steps[i].do || '').includes('{{u:' + nq.u + '}}')) { j = i; break; }   // NTH CLEAR: the quest giver's step
+          if (j < 0 && nq.z) for (let i = pS[p]; i <= pE[p]; i++) if (steps[i].zone === nq.z) { j = i; break; } }
+        else if (w[0] === 'o') { for (let i = pS[p]; i <= pE[p]; i++) if (+steps[i].step >= +w[9]) { j = i; break; } }
         else if (w[0] === 'f' && w[3]) j = steps.findIndex((x, i) => i <= stop && x.zone === w[3]);   // free: take it the first time you are there
         else if (/L/.test(w[10] || '') && w[3]) { for (let i = pE[p]; i >= pS[p]; i--) if (steps[i].zone === w[3]) { j = i; break; } if (j < 0) j = pE[p]; }   // fortress kill: after its quests
         else if (w[3]) {
@@ -945,7 +960,7 @@
   const andJ = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : (a[0] || '');
   const tpSrc = id => { const s = (((K.item || {})[id] || {}).sources || [])[0]; if (!s) return ''; const f = s.from || {}, ch = s.chance != null && isFinite(+s.chance) ? pctF(+s.chance) : '';
     if (s.kind === 'drop') return `${srcA(f.id, f.name)} drop${ch ? ', ' + ch + ' per kill' : ''}`;
-    if (s.kind === 'quest') return `quest ${esc(String(s.note || '').split(',')[0])}${ch ? ', ' + ch : ''}`;
+    if (s.kind === 'quest') return `quest ${esc(String(s.note || '').split(',')[0])}${ch && !/\bclear gives it\b/.test(String(s.note || '')) ? ', ' + ch : ''}`;   // NTH CLEAR: the note says which clear
     return ''; };
   const tpTrainer = id => { const s = ((((K.item || {})[id] || {}).sources) || []).find(x => x.kind === 'free' && x.from && x.from.id); if (!s) return 'a Universal Skill Trainer';
     const z = (W.unit_zone || {})[s.from.id]; return srcA(s.from.id, s.from.name || 'Universal Skill Trainer') + (z ? ' in ' + zlH(z) : ''); };
