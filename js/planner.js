@@ -500,30 +500,30 @@
   const bossAt = (b, n, m, i, lv) => { const s = bossAt0(b, n, m, i, lv); if (s < 0 || !pqHasH(b)) return s; const c = pqChain(n, m, i, lv, true); return c < 0 ? -1 : Math.max(s, c); };
   const pqChainHtml = (why, notes, rw) => `<details class="zn-rules"><summary>Show steps</summary><ul class="pl-ul">`
     + `<li>Step 7 (${ilink('I02Y')} to Frodo) opens his hidden Boss Hunt: kills before it do not count.</li>`
-    + `<li>Kill in this order: ${PQHB.map(b => esc(bname(b))).join(' › ')}. Each counts only after the one before, each comes back 90 s after a kill.${notes.length ? ' ' + notes.join(' ') : ''}</li>`
+    + `<li>Kill in this order: ${PQHB.map(b => srcA(b, bname(b))).join(' › ')}. Each counts only after the one before, each comes back 90 s after a kill.${notes.length ? ' ' + notes.join(' ') : ''}</li>`
     + `<li>Back to ${esc(bname('n009') === 'n009' ? 'Frodo' : bname('n009'))} for the <a href="#item/I03C">${K.icon('I03C')}Firelands Transfer Scroll</a>: keep it and use it when you go (one use per game, the Firelands teleport stone stays open for your party).</li>`
-    + `<li>In the Firelands kill the ${esc(bname('O003'))} (he comes back after a kill).</li>`
+    + `<li>In the ${zlH('z10')} kill the ${srcA('O003', bname('O003'))} (he comes back after a kill).</li>`
     + `<li>Back to Frodo: ${ilink('I03L')} for every player.</li>${rw ? '<li>' + rwTxt() + '</li>' : ''}</ul></details>`;   // MAGIC RING
   /* the chain line at its step, before that step's goal lines; not needed = the optional line at step 7 (collapsed the same way) */
   const pqHuntAt = (li, i, X, need, FPL) => { const x = X.steps[i]; if (!x) return;
     if (!X.hunt) { const why = [], add = t => { if (t && !why.includes(t)) why.push(t); };
-      need.forEach(b => { if (b.id && bzone(b.id) === 'z10') add(esc(bname(b.id))); else if (b.fire) add(ilink(String(b.fire).split('*')[0])); });
+      need.forEach(b => { if (b.id && bzone(b.id) === 'z10') add(srcA(b.id, bname(b.id))); else if (b.fire) add(ilink(String(b.fire).split('*')[0])); });
       ((FPL && FPL.fire) || []).forEach(id => add(id === 'souls' ? 'the Boss Souls farm at the Flame Lord' : ilink(id)));
       const hi = HIDX[X.h], c = hi != null ? pqChain(X.n, X.m, hi, eqStep(X.h, X.n, X.m).k, true) : -1;   // FRODO PLACE (patch_page_frodo_place 2026-09-26): optional chain too
       const k = c < 0 ? -1 : X.steps.findIndex(y => +y.step >= c);
       const on = b => X.steps.findIndex(y => +y.step < c && String(y.do || '').includes('{{u:' + b + '}}')), notes = [];
-      PQHB.forEach(b => { const j = on(b); if (j < 0) return; const sn = +X.steps[j].step; if (sn < 7) notes.push(`Your step ${sn} ${esc(bname(b))} kill does not count.`); });
+      PQHB.forEach(b => { const j = on(b); if (j < 0) return; const sn = +X.steps[j].step; if (sn < 7) notes.push(`Your step ${sn} ${srcA(b, bname(b))} kill does not count.`); });
       X.hunt = { why, at: c < 0 ? -1 : k < 0 ? X.steps.length - 1 : k, notes, hd: hi != null }; }
     const H = X.hunt;
     if (!H.why.length) { const rw = !!(FPL && FPL.rw && H.at >= 0 && FPL.rw.i >= H.at);   // FRODO PLACE: at the step the hero finishes it (no hero data: step 7), no line if he cannot
       if (H.hd ? i === H.at : +x.step === 7) li.push(`<li class="pl-rp"><span class="small">Optional: Frodo's quest chain gives every player a ${ilink('I03L')}. Nothing on this run needs it.${rw ? '<span> · Magic Ring: worth it after the boat (Absolute Ring)</span>' : ''}</span>${pqChainHtml('', H.notes, rw)}</li>`);
       if (rw && i === FPL.rw.i) li.push(`<li class="pl-rb pl-n"><b>Absolute Ring</b> · ${rwTxt()}</li>`); return; }   // FRODO PLACE: the run gives the Magic Ring = the ring line
     if (H.at < 0) { if (+x.step === 7) tpHunt(li, X.steps, X.stop, need, FPL); return; }   // no hero data: the old block
-    if (i === H.at) li.push(`<li class="pl-rb pl-n"><b>Frodo's quest chain</b> · opens the Firelands, needed for ${andJ(H.why)}${pqChainHtml(andJ(H.why), H.notes, !!(FPL && FPL.rw && FPL.rw.i >= H.at))}</li>`);
+    if (i === H.at) li.push(`<li class="pl-rb pl-n"><b>Frodo's quest chain</b> · opens the ${zlH('z10')}, needed for ${andJ(H.why)}${pqChainHtml(andJ(H.why), H.notes, !!(FPL && FPL.rw && FPL.rw.i >= H.at))}</li>`);
     if (FPL && FPL.rw && FPL.rw.i >= H.at && i === FPL.rw.i) li.push(`<li class="pl-rb pl-n"><b>Absolute Ring</b> · ${rwTxt()}</li>`); };   // MAGIC RING: right after the chain (N4+) / in Late (N1-3)
   /* route lines before a goal line (b = a routeHtml need, X = the route: seen, n, steps) */
   const pqLi = (lb, t, note, warn) => `<li class="pl-rb pl-n"><b>${lb}</b> · ${t}${note ? ' <span class="small">· ' + note + '</span>' : ''}${warn ? ' <span class="small warntext">' + warn + '</span>' : ''}</li>`;
-  const pqZ = u => { const z = bzone(u); return z ? ` <span class="small">(${esc(zname(z))})</span>` : ''; };
+  const pqZ = u => { const z = bzone(u); return z ? ` <span class="small">(${zlH(z)})</span>` : ''; };
   const pqPre = (b, X) => { const out = []; if (!b || !X || (!b.id && !b.pqe && !b.pqn)) return out;
     const n = X.n, sl = +((X.steps[b.at] || {}).step || 0), says = tok => X.steps.slice(0, b.at + 1).some(x => String(x.do || '').includes(tok));
     const once = k => { if (X.seen.has(k)) return false; X.seen.add(k); return true; };
@@ -531,20 +531,20 @@
       if (k === 'k') out.push(pqLi('First', `kill ${srcA(p[1], bname(p[1]))}${pqZ(p[1])}`, [p[2] ? pqT(p[2]) : '', BOAT.has(p[1]) && BOATSTEP != null && sl < +BOATSTEP ? BOATTXT : ''].filter(Boolean).join(' · ')));
       else if (k === 't') { const K = Math.max(1, +p[4] || 1), nm = bname(p[1]);
         out.push(pqLi('Ticket', +p[3] >= 99.5 ? `kill ${srcA(p[1], nm)}${pqZ(p[1])}: it drops ${ilink(p[2])}`
-          : !(W.boss || {})[p[1]] ? `kill ${esc(nm)} x${fmt(K)}${pqZ(p[1])} (all players count): the ${fmt(K)}th drops ${ilink(p[2])}`
+          : !(W.boss || {})[p[1]] ? `kill ${srcA(p[1], nm)} x${fmt(K)}${pqZ(p[1])} (all players count): the ${fmt(K)}th drops ${ilink(p[2])}`
           : `kill ${srcA(p[1], nm)}${pqZ(p[1])} until ${ilink(p[2])} drops (${pctF(+p[3])}, ~${fmt(K)} kills at 85% luck)`, 'use it with the arena empty')); }
-      else if (k === 'g') out.push(pqLi('Ticket', `buy ${ilink(p[1])} at the ${srcA('n019', 'Challenge Display')} (Light Guardian Fortress): ${payF(+p[2], +p[3])}`, 'use it with the arena empty'));
-      else if (k === 'p') out.push(pqLi('Ticket', `${ilink(p[1])} at the ${srcA('n019', 'Challenge Display')} (Light Guardian Fortress): using it takes ${fmt(+p[2])} Points + ${fmt(+p[3])} Challenge Tokens`,
+      else if (k === 'g') out.push(pqLi('Ticket', `buy ${ilink(p[1])} at the ${srcA('n019', 'Challenge Display')} (${zlH('z24')}): ${payF(+p[2], +p[3])}`, 'use it with the arena empty'));
+      else if (k === 'p') out.push(pqLi('Ticket', `${ilink(p[1])} at the ${srcA('n019', 'Challenge Display')} (${zlH('z24')}): using it takes ${fmt(+p[2])} Points + ${fmt(+p[3])} Challenge Tokens`,
         `you have ${fmt(+S.pts || 0)} Points${S.src === 'save' && S.tok != null ? ' and ' + fmt(+S.tok || 0) + ' tokens' : ''}. Both go the moment you buy it, even when the arena is busy: empty the arena first. Tokens: clear the main quest in Challenge mode on N4+, N - 3 per clear (N4 1 ... N9 6), kept in your save`));
       else if (k === 'i') { if (!says('{{i:' + p[1] + '}}')) out.push(pqLi('First', `take ${ilink(p[1])} from the first ${srcA(p[2], bname(p[2]))} kill`, pqT(p[3]))); }
       else if (k === 'w') out.push(pqLi('First', pqT(p[1])));
-      else if (k === 'f') out.push(pqLi('First', `kill ${esc(bname(p[1]))}${p[5] ? ` <span class="small">(${esc(zname(p[5]))})</span>` : pqZ(p[1])} until ${ilink(p[2])} drops (1 in ${fmt(+p[3])}, ~${fmt(+p[4])} kills at 85% luck)`));
+      else if (k === 'f') out.push(pqLi('First', `kill ${srcA(p[1], bname(p[1]))}${p[5] ? ` <span class="small">(${zlH(p[5])})</span>` : pqZ(p[1])} until ${ilink(p[2])} drops (1 in ${fmt(+p[3])}, ~${fmt(+p[4])} kills at 85% luck)`));
       else if (k === 'd') out.push(pqLi('First', `kill ${srcA(p[1], bname(p[1]))}${pqZ(p[1])} until ${ilink(p[2])} drops (${pctF(+p[3])}, ~${fmt(+p[4])} kills at 85% luck)`));
-      else if (k === 'y') out.push(pqLi('First', `kill the ${srcA(p[1], bname(p[1]))}${pqZ(p[1])}`, `on N4 its first death spawns the ${esc(bname(gid))}`,
+      else if (k === 'y') out.push(pqLi('First', `kill the ${srcA(p[1], bname(p[1]))}${pqZ(p[1])}`, `on N4 its first death spawns the ${srcA(gid, bname(gid))}`,
         says('{{u:' + p[1] + '}}') ? 'Kill it only here: take the other quest option before this.' : '')); };
     if (b.id) (PQ[b.id] || []).forEach(p => one(p, b.id));
     if (b.pqn) (PQN[b.pqn] || []).forEach(p => { if (p[0] === 'r') (PQ[p[1]] || []).forEach(q => one(q, p[1])); else one(p, ''); });
-    if (b.pqe && once('e|' + b.pqe.id + '|' + b.pqe.lv)) out.push(pqLi('First', `get ${ilink(b.pqe.id)} to +${b.pqe.lv} with Legacy stones on your hero or pet (~${fmt(Math.round(b.pqe.souls * enhR(b.pqe.lv)))} Boss Souls, ${srcA('n00M', 'Legacy Equipment Enhancer')}, Holy Light Fortress), then back into the Legacy Bag`));
+    if (b.pqe && once('e|' + b.pqe.id + '|' + b.pqe.lv)) out.push(pqLi('First', `get ${ilink(b.pqe.id)} to +${b.pqe.lv} with Legacy stones on your hero or pet (~${fmt(Math.round(b.pqe.souls * enhR(b.pqe.lv)))} Boss Souls, ${srcA('n00M', 'Legacy Equipment Enhancer')}, ${zlH('z11')}), then back into the Legacy Bag`));
     return out; };
   /* a run that stops at step 0 still gets its route when a goal has a step first (Adult Black Dragon: the Young Black Dragon kill) */
   const pqRoute0 = r => !!PD.pq && rtNeeds(r).some(x => x.id && (PQ[x.id] || []).some(p => p[0] !== 'b' && p[0] !== 'h' && !(p[0] === 'k' && pqOn(p[1], r.n, 0))));
@@ -553,6 +553,12 @@
   const ZO = {}; (W.zones || []).forEach(z => { if (/^\d+$/.test(String(z.order))) ZO[z.id] = +z.order; });
   const zname = z => ((W.zones || []).find(x => x.id === z) || {}).name || '';
   const bzone = b => (W.unit_zone || {})[b] || (PD.bz || {})[b];
+  /* LEGACY LINKS (2026-09-26, user: "the Legacy steps inside the planner are not interactive"): zone name -> wiki link, item -> plain link (no icon, for bold heads and card summaries) */
+  const zlH = z => (z && K.zlink && K.zlink(z)) || esc(zname(z));
+  const nlk = id => K.item[id] ? `<a href="#item/${encodeURIComponent(id)}">${esc(iname(id))}</a>` : esc(iname(id));
+  let LB_NM = null;   // route heads 'Upgrade X' / 'Get X' / 'Farm X': X = a Legacy item name
+  const lbH = lb => { lb = String(lb || ''); const m = /^(Upgrade|Get|Farm) (.+)$/.exec(lb); if (!m) return esc(lb);
+    if (!LB_NM) { LB_NM = {}; Object.keys(POS).forEach(id => { LB_NM[iname(id)] = id; }); } const id = LB_NM[m[2]]; return id ? m[1] + ' ' + nlk(id) : esc(lb); };
   const tmpl = t => esc(String(t || '')).replace(/\{\{(u|z|i):([A-Za-z0-9]{4})\}\}/g, (m, k, id) => k === 'i' ? iname(id) : k === 'z' ? zname(id) : (((W.boss || {})[id] || {}).name || (((W.mon || {})[id] || {}).name) || id));
   /* ---- FARM PLAN (2026-09-25; user: the route shows where to farm each suggested item and where to farm Boss Souls for enhancing).
      PD.fw (scripts/planner_pack.py): t = 'where' tuples [kind, source, id, zone, drop %, gold, Boss Souls, minutes (3-in-4 luck + look-up),
@@ -576,7 +582,7 @@
   const triesF = ch => Math.max(1, Math.ceil(Math.log(0.15) / Math.log(1 - Math.min(0.99, ch / 100)) - 1e-9));   // bags / chests opened at 85% luck (AUDIT minor 13: ceil)
   const payF = (g, s) => [g ? fmt(g) + ' gold' : '', s ? fmt(s) + ' Boss Souls' : ''].filter(Boolean).join(' + ');
   function whereTxt(w, cp) {                                         // cp = copies on this line
-    const [k, nm, id, z, ch, g, sl, mn, kl, x, fl] = w, zn = z ? zname(z) : '', zt = zn && !String(nm).includes(zn) ? ` (${esc(zn)})` : '', once = /o/.test(fl || '');
+    const [k, nm, id, z, ch, g, sl, mn, kl, x, fl] = w, zn = z ? zname(z) : '', zt = zn && !String(nm).includes(zn) ? ` (${zlH(z)})` : '', once = /o/.test(fl || '');
     if (k === 'b' || k === 'm') return srcA(id, nm) + zt + ', ' + (/P/.test(fl || '') ? 'drops once per player per game' : once ? (ch >= 85 ? 'drops once per run' : `${pctF(ch)} drop, one try per run`)   // AUDIT minor 9: flag P (planner_pack)
       : ch >= 99.5 ? 'drops every kill' : `${pctF(ch)} drop, ${killF(kl)}`) + (x ? ', ' + esc(x) : '');
     if (k === 's') return `${payF(g, sl) || 'buy it'}${cp > 1 && (g || sl) ? ' each' : ''} at the ${srcA(id, nm)}${zt}`;
@@ -686,7 +692,7 @@
       if (short >= 1 && !(rate > 0 && short / rate < 2)) {             // under 2 minutes of farming: the next bosses cover it
         const what = up.concat(why).join(', ');
         const spk = sf && +sf[3] > 0 ? sf[3] * f : 0, kn = spk ? Math.ceil(short / spk) : 0;   // PD.sf[3] = Boss Souls per kill at the band's N (older data: no kill count)
-        end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${sf && rate > 0 ? `farm ${srcA(sf[0], bname(sf[0]))}${sf[2] ? ' (' + esc(zname(sf[2])) + ')' : ''}: ${kn ? killF(kn) + ' for ' : '~'}${fmt(Math.round(short))} Boss Souls` : `farm ~${fmt(Math.round(short))} more Boss Souls`}${what ? ', pays for ' + what : ''}</li>`;
+        end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${sf && rate > 0 ? `farm ${srcA(sf[0], bname(sf[0]))}${sf[2] ? ' (' + zlH(sf[2]) + ')' : ''}: ${kn ? killF(kn) + ' for ' : '~'}${fmt(Math.round(short))} Boss Souls` : `farm ~${fmt(Math.round(short))} more Boss Souls`}${what ? ', pays for ' + what : ''}</li>`;
         farmed += short;
         if (sf && rate > 0 && sf[2] === 'z10') fire.push('souls');     // TESTER PAGE FIXES: Boss Souls farm at the Flame Lord
       } else if (up.length) end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${up.join(', ')} <span class="small">(bosses on the way pay for it)</span></li>`;
@@ -759,7 +765,7 @@
      hero's Ringwraith beat row (bossAt0) and the first part where PD.fw has an Absolute Ring route (acq ring_route: all 5 kills x1.5,
      median hero: N1-3 Late, N4+ Mid). rwMin = its minutes for pqMins */
   const RW_B = 'H00M', RW_R = 'I03L', RW_A = 'I050', RW_S = 'I051', RWC = new Map();
-  const rwTxt = () => `Sail to Ringwraith Island (boat), kill the ${srcA(RW_B, 'Ringwraith')} 5 times, keep the 5 <a href="#item/${RW_S}">${K.icon(RW_S)}Wraith Souls</a> with the ${ilink(RW_R)}: it becomes the ${ilink(RW_A)} when you pick up any item.`;
+  const rwTxt = () => `Sail to ${zlH('z30')} (boat), kill the ${srcA(RW_B, 'Ringwraith')} 5 times, keep the 5 <a href="#item/${RW_S}">${K.icon(RW_S)}Wraith Souls</a> with the ${ilink(RW_R)}: it becomes the ${ilink(RW_A)} when you pick up any item.`;
   const rwPlan = (h, n, m, L, steps, stop) => { const hi = HIDX[h]; if (!FW || hi == null || !steps || !steps.length) return { i: -1, abs: false };
     const k = eqStep(h, n, m).k, ck = [h, n, m, L, stop, steps.length, k, +G.gl || 0, G.rf ? 1 : 0, +S.ml || 1].join('|'); if (RWC.has(ck)) return RWC.get(ck);
     const T = FW.k[MK[m] + '|' + band(n)] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
@@ -827,7 +833,7 @@
     if (s.kind === 'quest') return `quest ${esc(String(s.note || '').split(',')[0])}${ch ? ', ' + ch : ''}`;
     return ''; };
   const tpTrainer = id => { const s = ((((K.item || {})[id] || {}).sources) || []).find(x => x.kind === 'free' && x.from && x.from.id); if (!s) return 'a Universal Skill Trainer';
-    const z = (W.unit_zone || {})[s.from.id]; return srcA(s.from.id, s.from.name || 'Universal Skill Trainer') + (z ? ' in ' + esc(zname(z)) : ''); };
+    const z = (W.unit_zone || {})[s.from.id]; return srcA(s.from.id, s.from.name || 'Universal Skill Trainer') + (z ? ' in ' + zlH(z) : ''); };
   /* one run part's extra lines (under its gear line): pet bag, rune, universal skills. TPS = what earlier parts already said */
   const tpPart = (h, n, m, L, p, TPS) => { const st = FPS[p], gk = band(n) + '|' + MK[m], bk = MK[m] + '|' + band(n), ml = +S.ml || 1, r = rhOf(h, n, m, L), out = [];
     const gifts = tpGifts(ml); let picks;
@@ -871,27 +877,27 @@
       if (o && !TP_FI.has(o) && (r.parts || []).some(x => x && TP_FI.has(x.id))) { TP_FI.add(o); more = true; } } }
     return TP_FI; };
   const tpHunt =(li, steps, stop, need, FPL) => { const why = [], add = x => { if (x && !why.includes(x)) why.push(x); };
-    need.forEach(b => { if (b.id && bzone(b.id) === 'z10') add(esc(bname(b.id))); else if (b.fire) add(ilink(String(b.fire).split('*')[0])); });   // PREREQ GATES: bag items through the Firelands
+    need.forEach(b => { if (b.id && bzone(b.id) === 'z10') add(srcA(b.id, bname(b.id))); else if (b.fire) add(ilink(String(b.fire).split('*')[0])); });   // PREREQ GATES: bag items through the Firelands
     ((FPL && FPL.fire) || []).forEach(id => add(id === 'souls' ? 'the Boss Souls farm at the Flame Lord' : ilink(id)));
     if (!why.length) { li.push(`<li class="pl-rp"><span class="small">Optional: Frodo's hidden Boss Hunt gives every player a ${ilink('I03L')} (7 bosses in a fixed order, then the Flame Lord in the Firelands). Nothing on this run needs it.</span></li>`); return; }
     const on = b => steps.findIndex((x, i) => i <= stop && String(x.do || '').includes('{{u:' + b + '}}'));
     const opt = (i, b) => String(steps[i].do || '').includes('or kill {{u:' + b + '}}');
     const pre = [], early = [], opts = [], extra = [];
-    TP_HUNT.forEach((b, j) => { const i = on(b), nm = esc(bname(b));
-      if (i < 0) { extra.push(`${nm} (${esc(zname(bzone(b)))})`); return; }
+    TP_HUNT.forEach((b, j) => { const i = on(b), nm = srcA(b, bname(b));
+      if (i < 0) { extra.push(`${nm} (${zlH(bzone(b))})`); return; }
       const s = +steps[i].step;
       if (s < 7) { pre.push(opt(i, b) ? `a ${nm} kill at step ${s}` : `your step ${s} ${nm} kill`); return; }
       const inOrder = TP_HUNT.slice(0, j).every(pb => { const pi = on(pb); return pi >= 0 && +steps[pi].step > 7 && +steps[pi].step < s && !opt(pi, pb); });
       if (opt(i, b)) opts.push(`${nm} (step ${s})`);
-      else if (!inOrder) early.push(`your step ${s} ${nm} kill comes too early: kill it again after the ${esc(bname(TP_HUNT[j - 1]))}`); });
+      else if (!inOrder) early.push(`your step ${s} ${nm} kill comes too early: kill it again after the ${srcA(TP_HUNT[j - 1], bname(TP_HUNT[j - 1]))}`); });
     const cap = t => t.charAt(0).toUpperCase() + t.slice(1), notes = [];
     if (pre.length) notes.push(cap(andJ(pre)) + ' does not count');
     early.forEach(t => notes.push(cap(t)));
     if (opts.length) notes.push(`${andJ(opts)} count${opts.length > 1 ? '' : 's'} only if you pick the boss option once the bosses before ${opts.length > 1 ? 'them' : 'it'} are dead`);
     if (extra.length) notes.push(`${andJ(extra)} ${extra.length > 1 ? 'are' : 'is'} not on your route`);
-    li.push(`<li class="pl-rb pl-n"><b>Frodo's Boss Hunt</b> · opens the Firelands, needed for ${andJ(why)}`
-      + `<div class="small">Kill in this order from now on: ${TP_HUNT.map(b => esc(bname(b))).join(' › ')}. Kills before this step or out of order do not count, each boss comes back 90 s after a kill.`
-      + `${notes.length ? ' ' + notes.join('. ') + '.' : ''} Then back to Frodo for the <a href="#item/I03C">${K.icon('I03C')}Firelands Transfer Scroll</a>, kill the Flame Lord in the Firelands and go back to Frodo: ${ilink('I03L')} for every player.</div></li>`); };
+    li.push(`<li class="pl-rb pl-n"><b>Frodo's Boss Hunt</b> · opens the ${zlH('z10')}, needed for ${andJ(why)}`
+      + `<div class="small">Kill in this order from now on: ${TP_HUNT.map(b => srcA(b, bname(b))).join(' › ')}. Kills before this step or out of order do not count, each boss comes back 90 s after a kill.`
+      + `${notes.length ? ' ' + notes.join('. ') + '.' : ''} Then back to Frodo for the <a href="#item/I03C">${K.icon('I03C')}Firelands Transfer Scroll</a>, kill the ${srcA('O003', bname('O003'))} in the ${zlH('z10')} and go back to Frodo: ${ilink('I03L')} for every player.</div></li>`); };
   function routeHtml(h, n, m, bosses, stopStep, L) {                // CARDS UI: an open numbered list (quest steps + boss / upgrade steps numbered)
     const steps = (((W.qguide || {}).steps) || []).filter(x => +x.step <= 20 + n);
     const need = bosses.filter(b => b && (b.id || b.txt)).map(b => Object.assign({}, b, { zo: b.id ? ZO[bzone(b.id)] : undefined }));   // txt = a pick without a boss (bossless)
@@ -909,11 +915,11 @@
       if (pi > cur) { if (FPL && cur >= 0) FPL.end(li, cur); cur = pi; const gb = buildRow(h, n, m, L, pi) + tpPart(h, n, m, L, pi, TPS);   // each part opens with its full build
         if (FPL) FPL.head(li, pi, gb); else if (gb) li.push(`<li class="pl-rp pl-gh"><b>${['Early', 'Mid', 'Late'][pi]} gear</b> <span class="small">(farm while you pass)</span><div class="pl-gb">${gb}</div></li>`); }
       const dT = (+S.ml || 1) > 30 ? String(x.do).replace(' and {{i:I0Y0}} (one random item, Map Level 30 or lower)', '') : x.do;   // Beginner Bonus only up to Map Level 30
-      li.push(`<li class="pl-n"><span class="small">${esc(zname(x.zone))}</span> · ${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
+      li.push(`<li class="pl-n"><span class="small">${zlH(x.zone)}</span> ·${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
       if (FPL) FPL.step(li, i);
       pqHuntAt(li, i, PQX, need, FPL);                                // PREREQ GATES: Frodo's quest chain line (before this step's goal lines)
       if (SCR && SCR.fc && PQX.hunt && PQX.hunt.at === i && PQX.hunt.why.length) li.push(SCR.fire());   // GIANT SCYTHE CARRY: the Flame Lord kill
-      need.filter(b => b.at === i).forEach(b => li.push(...pqPre(b, PQX), `<li class="pl-rb pl-n"><b>${esc(b.label)}</b> · ${b.id ? esc(bname(b.id)) : esc(b.txt)}${b.zo !== undefined && bzone(b.id) !== x.zone ? ' <span class="small">(' + esc(zname(bzone(b.id))) + ')</span>' : ''}${b.note ? ' <span class="small">· ' + esc(b.note) + '</span>' : ''}${b.id && (PD.bnote || {})[b.id] ? ' <span class="small">· ' + esc(PD.bnote[b.id]) + '</span>' : ''}${b.id && BOAT.has(b.id) && BOATSTEP != null && +x.step < +BOATSTEP ? ' <span class="small">· ' + BOATTXT + '</span>' : ''}${b.warn ? ' <span class="small warntext">' + esc(b.warn) + '</span>' : ''}${b.id ? TGR.chip(b.id) : ''}</li>`));
+      need.filter(b => b.at === i).forEach(b => li.push(...pqPre(b, PQX), `<li class="pl-rb pl-n"><b>${lbH(b.label)}</b> · ${b.id ? srcA(b.id, bname(b.id)) : b.th || esc(b.txt)}${b.zo !== undefined && bzone(b.id) !== x.zone ? ' <span class="small">(' + zlH(bzone(b.id)) + ')</span>' : ''}${b.note ? ' <span class="small">· ' + esc(b.note) + '</span>' : ''}${b.id && (PD.bnote || {})[b.id] ? ' <span class="small">· ' + esc(PD.bnote[b.id]) + '</span>' : ''}${b.id && BOAT.has(b.id) && BOATSTEP != null && +x.step < +BOATSTEP ? ' <span class="small">· ' + BOATTXT + '</span>' : ''}${b.warn ? ' <span class="small warntext">' + esc(b.warn) + '</span>' : ''}${b.id ? TGR.chip(b.id) : ''}</li>`));
     });
     if (FPL && cur >= 0) FPL.end(li, cur);
     li.push(`<li class="pl-rp pl-stop"><b>Stop here</b> <span class="small">(${stop + 1 >= steps.length ? 'run finished' : 'the rest of the run gives you nothing you planned'})</span></li>`);
@@ -1039,7 +1045,7 @@
   const unvTag = (g, r) => unvTxt(g, r) ? ` <span class="small warntext">${esc(unvTxt(g, r))}</span>` : '';
   const upLine = (g, r) => { if (g.u.ch && r && r.got.some(x => x.u.to === g.u.from)) return '';   // ON THE WAY: a chained step sits on its first step's line
     const ch = []; for (let c = g, k = 0; r && k < 8 && (c = r.got.find(x => x.u.ch && x.u.from === c.u.to)); k++) ch.push(c);
-    return `<li>${ilink(g.u.from)} → ${ilink(g.u.to)}${ch.map(x => ' → ' + ilink(x.u.to)).join('')} <span class="small">· ${esc((g.nb ? g.nb.how || g.u.text : g.u.text) + (killTxt(g) ? ' · ' + killTxt(g) : '') + ch.map(x => ' · then ' + x.u.text).join('') + (g.nb && g.nb.fgt ? ' · ' + g.nb.fgt : ''))}</span>${unvTag(g, r)}</li>`; };   // AUDIT M3
+    return `<li>${ilink(g.u.from)} → ${ilink(g.u.to)}${ch.map(x => ' → ' + ilink(x.u.to)).join('')} <span class="small">· ${esc((g.nb ? g.nb.how || g.u.text : g.u.text) + (killTxt(g) ? ' · ' + killTxt(g) : '') + ch.map(x => ' · then ' + x.u.text).join(''))}${g.nb && g.nb.fgt ? ' · ' + (g.nb.fgh || esc(g.nb.fgt)) : ''}</span>${unvTag(g, r)}</li>`; };   // AUDIT M3
   /* route lines of a Legacy run: a boss pick at its boss step, a pick without a boss at its slot; an ARMOR FRAGMENT SET: one line per spot at
      the step it opens, the town-unit kills (last > 0) at the end of the route in that order, then the upgrade (routeHtml puts 'last' last) */
   const rtNeeds = r => r.got.concat(r.ugot || []).flatMap(g => { const lb = 'Upgrade ' + iname(g.u.from);
@@ -1048,18 +1054,19 @@
     const w = unvTxt(g, r), s = g.nb.set;
     if (!s) return [{ txt: g.nb.how || g.u.text, label: lb, st: g.nb.slot, warn: w, fire: g.nb.fire, pqn: g.nb.pqn }];   // PREREQ GATES: fire = the hunt block
     const rows = [...s.rows].sort((a, b) => a.last - b.last || a.at - b.at), nm = iname(String(s.key).split('*')[0]);
-    return rows.map((x, j) => ({ txt: `${x.lb} (${zname(x.z)}${x.via ? `, via ${bname(x.via)}'s portal` : ''}), ${x.note}`, label: `${nm} ${j + 1}/${rows.length}`, st: x.at, last: x.last }))
+    return rows.map((x, j) => ({ txt: `${x.lb} (${zname(x.z)}${x.via ? `, via ${bname(x.via)}'s portal` : ''}), ${x.note}`,
+      th: `${esc(x.lb)} (${zlH(x.z)}${x.via ? `, via ${srcA(x.via, bname(x.via))}'s portal` : ''}), ${esc(x.note)}`, label: `${nm} ${j + 1}/${rows.length}`, st: x.at, last: x.last }))
       .concat([{ txt: g.nb.how, label: lb, st: g.nb.slot, last: 9, warn: w }]); });
   const nbSpend = r => { const all = r.got.concat(r.ugot || []), p = all.reduce((t, g) => t + ((g.nb || {}).pts || 0) + (+g.pq || 0), 0), w = all.reduce((t, g) => t + ((g.nb || {}).wp || 0), 0);
     return p || w ? `<p class="small">Spends ${[p ? `${fmt(p)} of your ${fmt(+S.pts || 0)} Points` : '', w ? `${fmt(w)} of your ${fmt(+S.wp || 0)} World Points` : ''].filter(Boolean).join(' and ')}.</p>` : ''; };
   /* LEGACY BAG (patch_legacy_bag): route line before an upgrade whose item is not in the Bag at that moment, and the Bag line of a focus view */
   const BAGW = { B: 'the kill', s: 'the arena', q: 'the fight', d: 'the trade' };
-  const bagTxt = (s, g) => { const x = iname(s.x);
-    if (s.hand) return `${s.hand === 'e' ? `put ${x} in slot 1 of your hero or pet for the stones` : `move ${x} to your hero or pet for this (the Bag drops materials)`}, then ${iname(g.u.to)} ${s.toBag ? 'into the Bag' : 'to storage'}`;
-    return `${s.y ? `swap ${x} into the Bag for ${iname(s.y)}` : `put ${x} into the Bag`} before ${BAGW[s.kind] || 'it'}${s.back ? `, ${iname(s.y)} back after` : ''}${s.weak ? ' (weaker Bag, counted)' : ''}`; };
+  const bagTxt = (s, g, L) => { const nm = L || iname, x = nm(s.x);   // L = ilink: the html of the same line
+    if (s.hand) return `${s.hand === 'e' ? `put ${x} in slot 1 of your hero or pet for the stones` : `move ${x} to your hero or pet for this (the Bag drops materials)`}, then ${nm(g.u.to)} ${s.toBag ? 'into the Bag' : 'to storage'}`;
+    return `${s.y ? `swap ${x} into the Bag for ${nm(s.y)}` : `put ${x} into the Bag`} before ${BAGW[s.kind] || 'it'}${s.back ? `, ${nm(s.y)} back after` : ''}${s.weak ? ' (weaker Bag, counted)' : ''}`; };
   const bagNeeds = (r, needs) => { const sw = (r.bag || {}).sw || {}, all = r.got.concat(r.ugot || []), done = new Set(), out = [];
     needs.forEach(x => { const g = all.find(y => x.label === 'Upgrade ' + iname(y.u.from)), key = g ? g.u.from + '>' + g.u.to : '';
-      if (g && sw[key] && !done.has(key)) { done.add(key); out.push({ txt: bagTxt(sw[key], g), label: 'Legacy Bag', st: x.st, last: x.last }); }
+      if (g && sw[key] && !done.has(key)) { done.add(key); out.push({ txt: bagTxt(sw[key], g), th: bagTxt(sw[key], g, ilink), label: 'Legacy Bag', st: x.st, last: x.last }); }
       out.push(x); });
     return out; };
   const bagHtml = c => { if (!c || !c.h || !c.n || !MK[c.m] || !Object.keys(S.own).length) return '';
@@ -1112,9 +1119,9 @@
      other goals: your best 6 for this hero). Priority (user 2026-09-25): items of counted upgrades > strongest items > chance items */
   const otBag = (id, bag, forced, h, gk) => { if (bag.includes(id)) return { ok: 1 };
     const sl = (POS[id] || {}).slot, same = bag.find(y => (POS[y] || {}).slot === sl);
-    if (same) return { ok: 0, t: `${iname(same)} holds the ${sl} slot` };
+    if (same) return { ok: 0, t: `${ilink(same)} holds the ${esc(sl)} slot` };   // t = html (LEGACY LINKS)
     const wk = bag.filter(y => !forced.includes(y)).sort((a, b) => bagVal(h, gk, a) - bagVal(h, gk, b))[0];
-    return { ok: 0, t: wk ? `keeping it in the Bag all run takes ${iname(wk)}'s slot` : 'no Bag slot left' }; };
+    return { ok: 0, t: wk ? `keeping it in the Bag all run takes ${ilink(wk)}'s slot` : 'no Bag slot left' }; };
   const otwOf = c => { if (c._ow !== undefined) return c._ow; c._ow = null; const r = c.r, g0 = String(c.key || '').split('|')[0];
     if (!r || !Object.keys(S.own).length || !MK[c.m] || !c.h) return null;
     const h = c.h, gk = band(c.n) + '|' + MK[c.m], lg = g0 === 'legacy'; let x, bag, forced = [], pcOf = () => 0;
@@ -1134,17 +1141,17 @@
   const otPct = v => (v >= 0.995 ? 99 : Math.max(1, Math.round(v * 100))) + '%';
   const otOrd = k => ['', '1st', '2nd', '3rd'][k] || k + 'th';
   const otLi = o => { const nm = ilink(o.id); if (o.fgOnly) return `<li>${nm} <span class="small">· farm it:</span>${fgOffHtml(o)}</li>`;   // FARM GOALS
-    if (!o.ch) { const bs = o.st.slice(0, o.sure).map(y => bname(y.last));
-      return `<li>${nm} → ${o.st.slice(0, o.sure).map(y => ilink(y.to)).join(' → ')} <span class="small">· ${esc(andJ(bs))} on your route${o.bag.ok ? '' : ` · swap it into the Bag for ${bs.length > 1 ? 'those kills' : 'that kill'}`}</span></li>`; }
+    if (!o.ch) { const bs = o.st.slice(0, o.sure).map(y => srcA(y.last, bname(y.last)));
+      return `<li>${nm} → ${o.st.slice(0, o.sure).map(y => ilink(y.to)).join(' → ')} <span class="small">· ${andJ(bs)} on your route${o.bag.ok ? '' : ` · swap it into the Bag for ${bs.length > 1 ? 'those kills' : 'that kill'}`}</span></li>`; }
     const k = o.j85, t = [];
-    if (k > 0) t.push(`${k} step${k > 1 ? 's' : ''} likely (to ${iname(o.st[k - 1].to)}${o.pc ? ', the upgrade above included' : ''})`);
+    if (k > 0) t.push(`${k} step${k > 1 ? 's' : ''} likely (to ${ilink(o.st[k - 1].to)}${o.pc ? ', the upgrade above included' : ''})`);
     if (o.pn >= 0.05) t.push(`${k ? 'a ' + otOrd(k + 1) : 'a step'} ~${otPct(o.pn)}`);
     const s = t.join(', ') + ` · avg ${o.avg.toFixed(1)}`;
-    return `<li>${nm} <span class="small">· ${o.bag.ok ? `${esc(s)} · keep it in the Legacy Bag all run` : `left out: ${esc(o.bag.t)}. In the Bag instead: ${esc(s)}`}</span>${fgOffHtml(o)}</li>`; };   // FARM GOALS: farm-on offers
+    return `<li>${nm} <span class="small">· ${o.bag.ok ? `${s} · keep it in the Legacy Bag all run` : `left out: ${o.bag.t}. In the Bag instead: ${s}`}</span>${fgOffHtml(o)}</li>`; };   // FARM GOALS: farm-on offers
   const otwHtml = c => { const L = otwOf(c); return L ? `<div class="small pl-otw"><b>Also on the way</b> <span class="small">(only Legacy items in the Legacy Bag evolve)</span><ul class="pl-ul">${L.map(otLi).join('')}</ul></div>` : ''; };
   /* one card line: the chance items that fit in the run's Bag and the sure boss chains (never ranked) */
   const otwCard = c => { const L = (otwOf(c) || []).filter(o => !o.fgOnly && (!o.ch || o.bag.ok)); if (!L.length) return '';
-    return `<div class="pl-cf">+ bonus: ${esc(L.map(o => { const k = (o.ch ? o.j85 : o.sure) - o.pc; return iname(o.id) + (k > 0 ? ` +${k}${o.ch ? ' likely' : ''}` : ` ${otPct(o.pn)} for +1`); }).join(', '))}</div>`; };
+    return `<div class="pl-cf">+ bonus: ${L.map(o => { const k = (o.ch ? o.j85 : o.sure) - o.pc; return nlk(o.id) + esc(k > 0 ? ` +${k}${o.ch ? ' likely' : ''}` : ` ${otPct(o.pn)} for +1`); }).join(', ')}</div>`; };
   /* route lines (Points / First Legacy): each sure boss step at its boss */
   const otNeeds = c => (otwOf(c) || []).filter(o => !o.ch).flatMap(o => o.st.slice(0, o.sure).map((y, j) => ({ id: y.last, label: 'On the way', st: o.x.bs.get(y.last),
     note: `${iname(j ? o.st[j - 1].to : o.id)} → ${iname(y.to)}${o.bag.ok ? '' : ', swap it into the Legacy Bag first'}` }))).concat(fgOptNeeds(c));   // FARM GOALS: optional farm at the stop
@@ -1200,36 +1207,36 @@
     return (r._pkl = out); };
   const chPostL = r => { r._pkl = null; const L = pkOf(r); r.pk = L.length + L.reduce((t, w) => t + w.st.length, 0); };
   const chPost = r => r.at ? chPostS(r) : chPostL(r);
-  const chBag = (id, bag, h, gk) => { const sl = (POS[id] || {}).slot, same = bag.find(y => (POS[y] || {}).slot === sl);
-    if (same) return `swap it into the Bag for ${iname(same)} before the kill`;
+  const chBag = (id, bag, h, gk, L) => { const nm = L || iname, sl = (POS[id] || {}).slot, same = bag.find(y => (POS[y] || {}).slot === sl);   // L = ilink: html
+    if (same) return `swap it into the Bag for ${nm(same)} before the kill`;
     if (bag.length < 6) return 'Bag it before the kill';
-    const wk = bag.slice().sort((a, b) => bagVal(h, gk, a) - bagVal(h, gk, b))[0]; return `swap it into the Bag for ${iname(wk)} before the kill`; };
+    const wk = bag.slice().sort((a, b) => bagVal(h, gk, a) - bagVal(h, gk, b))[0]; return `swap it into the Bag for ${nm(wk)} before the kill`; };
   const chOf = c => { if (c._ch !== undefined) return c._ch; c._ch = null; const r = c.r, g0 = String(c.key || '').split('|')[0]; if (!r || !MK[c.m] || !c.h) return null;
     const gk = band(c.n) + '|' + MK[c.m], o = { h: c.h, gk, stop: r.stop };
     if (g0 === 'start') return (c._ch = Object.assign(o, { lg: 0, L: r.ch || [], bag: pickBag(c.h, gk, S.own, []) }));
     if (g0 === 'legacy') return (c._ch = Object.assign(o, { lg: 1, L: pkOf(r), bag: r.bag ? r.bag.start : pickBag(c.h, gk, S.own, []) }));
     return null; };
-  const chStep = y => `${andJ(y.bs.map(bname))}, step ${y.s}`;
+  const chStep = y => `${andJ(y.bs.map(b => srcA(b, bname(b))))}, step ${y.s}`;   // html (LEGACY LINKS)
   const chFarm = w => w.why && w.why.k === 'k' ? ` <span class="small">· farm on for ${ilink(w.why.to)}: ${esc(w.why.text)}</span>` : '';
-  const chLi = (w, o) => { const lead = o.lg ? ` <span class="small">· ${esc(w.x[5] === 'boss' ? bname(w.x[2]) + ', step ' + w.t0 : w.x[7])}</span>` : '';
+  const chLi = (w, o) => { const lead = o.lg ? ` <span class="small">· ${w.x[5] === 'boss' ? srcA(w.x[2], bname(w.x[2])) + ', step ' + w.t0 : esc(w.x[7])}</span>` : '';
     if (!w.st.length) return `<li>${ilink(w.id)}${lead}${chFarm(w)}</li>`;
-    const pl = Math.max(0, ...w.st.map(y => y.s)) - o.stop, bits = w.st.map(chStep).concat(o.bag.includes(w.id) ? [] : [chBag(w.id, o.bag, o.h, o.gk)]);
-    return `<li>${ilink(w.id)}${lead} → ${w.st.map(y => ilink(y.to)).join(' → ')} <span class="small">· ${esc(bits.join(' · '))}${pl > 0 ? ` (play on ${pl} step${pl > 1 ? 's' : ''})` : ''}</span>${chFarm(w)}</li>`; };
+    const pl = Math.max(0, ...w.st.map(y => y.s)) - o.stop, bits = w.st.map(chStep).concat(o.bag.includes(w.id) ? [] : [chBag(w.id, o.bag, o.h, o.gk, ilink)]);
+    return `<li>${ilink(w.id)}${lead} → ${w.st.map(y => ilink(y.to)).join(' → ')} <span class="small">· ${bits.join(' · ')}${pl > 0 ? ` (play on ${pl} step${pl > 1 ? 's' : ''})` : ''}</span>${chFarm(w)}</li>`; };
   const chHint = L => { const nN = [], eN = [];
     L.forEach(w => { const y = w.why; if (!y || w.st.length) return;
-      if (y.k === 'n') { const t = `${iname(y.to)} N${y.n}${y.p ? '+' : ''}`; if (!nN.includes(t)) nN.push(t); }
-      else if (y.k === 'e') eN.push(`${iname(w.last)} needs +${y.lv}`); });
-    return nN.length ? `<p class="small pl-otw">Next steps are on other N: ${esc(nN.join(', '))}.${eN.length ? ' ' + esc(eN.join('. ')) + '.' : ''}</p>` : ''; };
+      if (y.k === 'n') { const t = `${ilink(y.to)} N${y.n}${y.p ? '+' : ''}`; if (!nN.includes(t)) nN.push(t); }
+      else if (y.k === 'e') eN.push(`${ilink(w.last)} needs +${y.lv}`); });
+    return nN.length ? `<p class="small pl-otw">Next steps are on other N: ${nN.join(', ')}.${eN.length ? ' ' + eN.join('. ') + '.' : ''}</p>` : ''; };
   /* ---- CHAINFIX (patch_page_chainfix 2026-09-26, user: "Bonus on this run lists Broken Emerald N3 and Secret Helm N7 that I can't
      do"). First Legacy: the chained upgrades of the run's new items go UNDER their goal line ('You get', one sub-line per step: A → B · kill
      <boss> (route step)); the steps you cannot do on this run are ONE greyed 'Next' line (the step closest to this N), never in 'Also' */
   const chYg = o => { const L = o.L.filter(w => w.st.length); if (!L.length) return '';
     return `<div class="pl-chg">${L.map(w => { const pl = Math.max(0, ...w.st.map(y => y.s)) - o.stop;
-      return w.st.map((y, j) => { const bag = !j && !o.bag.includes(w.id) ? chBag(w.id, o.bag, o.h, o.gk) : '', swap = /^swap/.test(bag) ? ' · ' + bag : '';
-        return `<div class="pl-yc" data-id="${esc(w.id)}" data-f="${esc(y.from)}" data-t="${esc(y.to)}">${ilink(y.from)} → ${ilink(y.to)} <span class="small">· kill ${andJ(y.bs.map(b => K.ulink(b, bname(b))))}<span class="pl-ys"></span>${esc(swap)}${j === w.st.length - 1 && pl > 0 ? ` (play on ${pl} step${pl > 1 ? 's' : ''})` : ''}</span></div>`; }).join(''); }).join('')}</div>`; };
+      return w.st.map((y, j) => { const bag = !j && !o.bag.includes(w.id) ? chBag(w.id, o.bag, o.h, o.gk, ilink) : '', swap = /^swap/.test(bag) ? ' · ' + bag : '';
+        return `<div class="pl-yc" data-id="${esc(w.id)}" data-f="${esc(y.from)}" data-t="${esc(y.to)}">${ilink(y.from)} → ${ilink(y.to)} <span class="small">· kill ${andJ(y.bs.map(b => K.ulink(b, bname(b))))}<span class="pl-ys"></span>${swap}${j === w.st.length - 1 && pl > 0 ? ` (play on ${pl} step${pl > 1 ? 's' : ''})` : ''}</span></div>`; }).join(''); }).join('')}</div>`; };
   const chNx = (w, n) => { const y = w.why; if (!y || !y.to || !y.from) return null; const hd = `${ilink(y.from)} → ${ilink(y.to)}`;
     if (y.k === 'n') return { s: Math.abs((y.n || n) - n) - (y.n > n ? 0.5 : 0), h: `${hd} needs ${y.bs && y.bs.length ? andJ(y.bs.map(b => K.ulink(b, bname(b)))) + ' on ' : ''}N${y.n || n}${y.p ? '+' : ''}${y.m ? ' ' + MN[y.m] : ''}` };
-    if (y.k === 'e') return { s: 20, h: `${hd} needs ${esc(iname(y.from))} at +${y.lv}` };
+    if (y.k === 'e') return { s: 20, h: `${hd} needs ${ilink(y.from)} at +${y.lv}` };
     if (y.k === 'p') return { s: 30, h: `${hd} needs a Points ticket` };
     if (y.k === 'k') return { s: 40, h: `${hd} · farm: ${esc(y.text || '')}` };
     if (y.k === 'h') return { s: 50, h: `${hd} needs another hero` };
@@ -1240,9 +1247,9 @@
     if (!o.lg) return chYg(o) + chNext(o, c);   // CHAINFIX
     return o.L.length ? `<div class="small pl-otw"><b>Free pickups</b><ul class="pl-ul">${o.L.map(w => chLi(w, o)).join('')}</ul><span class="small">-save keeps only the Bag and storage: move new Legacy there first.</span></div>` : ''; };
   const chCard = c => { const o = chOf(c); if (!o) return '';
-    if (!o.lg) { const t = o.L.flatMap(w => w.st.map(y => iname(y.to))); return t.length ? `<div class="pl-cf">+ then ${esc(t.join(', '))}</div>` : ''; }
-    const t = o.L.map(w => [w.id].concat(w.st.map(y => y.to)).map(iname).join(' → '));
-    return t.length ? `<div class="pl-cf">+ bonus: ${esc(t.slice(0, 3).join(', '))}${t.length > 3 ? ` +${t.length - 3} more` : ''}</div>` : ''; };
+    if (!o.lg) { const t = o.L.flatMap(w => w.st.map(y => nlk(y.to))); return t.length ? `<div class="pl-cf">+ then ${t.join(', ')}</div>` : ''; }
+    const t = o.L.map(w => [w.id].concat(w.st.map(y => y.to)).map(nlk).join(' → '));
+    return t.length ? `<div class="pl-cf">+ bonus: ${t.slice(0, 3).join(', ')}${t.length > 3 ? ` +${t.length - 3} more` : ''}</div>` : ''; };
   /* route lines: First Legacy 'Then' at each chained boss; Legacy goal 'Pick up' at a pickup's boss and 'Then' for chains up to the stop
      (play-on steps stay in the block, the route and run length are the upgrades' own) */
   const chNeeds = c => { const o = chOf(c); if (!o) return [];
@@ -1251,7 +1258,7 @@
         note: `${iname(y.from)} → ${iname(y.to)}${!j && !q && !o.bag.includes(w.id) ? ', ' + chBag(w.id, o.bag, o.h, o.gk) : ''}` }))))); };
   /* AUDIT minor 16: a run that stops at step 0 (e.g. the Adult Black Dragon, N4 only, open from the start): no route or gear list, the bosses
      to go to straight away */
-  const stop0At = r => { const bs = rtNeeds(r).filter(x => x.id).map(x => bname(x.id) + (bzone(x.id) ? ' in ' + zname(bzone(x.id)) : ''));
+  const stop0At = r => { const bs = rtNeeds(r).filter(x => x.id).map(x => srcA(x.id, bname(x.id)) + (bzone(x.id) ? ' in ' + zlH(bzone(x.id)) : ''));
     return bs.length ? ': go straight to the ' + [...new Set(bs)].join(', ') : ''; };
   /* ---- TIGHT / HELD / FARM GOALS (patch_page_tight_farm 2026-09-25, user-approved; data: planner_pack patch_pack_tight_held + the
      TESTER MODEL grid, scripts/pending/patch_tester_model.py). All optional: without PD.rt / PD.bt / PD.rh / PD.krh the page is as before.
@@ -1366,9 +1373,10 @@
     return out; };
   const fgMin = v => v < 20 ? Math.max(1, Math.round(v)) : 5 * Math.round(v / 5);
   /* USER RULE: no spot named for 'any kill' / 'any boss' steps; a unit the code requires is named (with its zone) */
-  const fgPart = s => s.ty === 'a' ? `~${fmt(s.n)} more monsters (any monster)` : s.ty === 'b' ? `~${fmt(s.n)} more bosses (any boss)`
+  const fgPart = (s, H) => s.ty === 'a' ? `~${fmt(s.n)} more monsters (any monster)` : s.ty === 'b' ? `~${fmt(s.n)} more bosses (any boss)`
+    : H ? `~${fmt(s.n)} ${srcA(s.u, bname(s.u) + (/s$/.test(bname(s.u)) ? '' : 's'))}${bzone(s.u) ? ' (' + zlH(bzone(s.u)) + ')' : ''}`
     : `~${fmt(s.n)} ${bname(s.u)}${/s$/.test(bname(s.u)) ? '' : 's'}${bzone(s.u) ? ' (' + zname(bzone(s.u)) + ')' : ''}`;
-  const fgTxt = o => o.sp.length ? 'kill ' + o.sp.map(fgPart).join(' + ') + `, about ${fgMin(o.fm)} min` : 'the run\'s own kills do it, no extra time';   // plain text: callers escape
+  const fgTxt = (o, H) => o.sp.length ? 'kill ' + o.sp.map(s => fgPart(s, H)).join(' + ') + `, about ${fgMin(o.fm)} min` : 'the run\'s own kills do it, no extra time';   // plain text (callers escape); H = html with links
   /* route lines of a farm pick (Legacy goal): one per farm part, at the stop */
   const fgNeeds = o => o.sp.map((s, j) => { const lb = 'Farm ' + iname(o.id), last = 8 + j / 10;
     if (s.ty === 'a') return { txt: `kill ~${fmt(s.n)} more monsters (any monster)`, label: lb, st: o.stop2, last };
@@ -1392,7 +1400,7 @@
         if (!best || sc > best.sc || (sc === best.sc && tot < best.tot)) best = { o, ss, LL, sc, tot }; });
       if (!best) { a2 = a2.map(y => y.u === g.u ? g : y); continue; }   // no farm plan: the old kill count stays
       const o = best.o; s2 = best.ss; L2 = best.LL; far += o.fm; n2 += o.t - 1;
-      a2 = a2.map(y => y.u === g.u ? Object.assign({}, y, { nb: Object.assign({}, y.nb, { fg: o, fgt: 'farm to ' + iname(o.to) + ': ' + fgTxt(o), how: g.u.text + ', keep it in your Legacy Bag all run' }) }) : y);
+      a2 = a2.map(y => y.u === g.u ? Object.assign({}, y, { nb: Object.assign({}, y.nb, { fg: o, fgt: 'farm to ' + iname(o.to) + ': ' + fgTxt(o), fgh: 'farm to ' + ilink(o.to) + ': ' + fgTxt(o, 1), how: g.u.text + ', keep it in your Legacy Bag all run' }) }) : y);
       for (let j = 1; j < o.t; j++) { const y = o.st[j]; add.push({ u: { line: g.u.line, slot: g.u.slot, from: y.from, to: y.to, text: y.text, alts: [], nb: null, ch: 1 }, a: [[]], at: [s2], fgs: 1 }); } }
     const nm = base(s2, L2) + far;
     r.got = a2.filter(y => r.got.some(z => z.u === y.u)).concat(add); r.stop = s2; r.L = L2; r.mins = nm; };
@@ -1403,9 +1411,9 @@
     Object.values(S.own).forEach(id => { const ps = POS[id]; if (!ps || skip(ps.line, 1)) return; const o0 = out.find(o => o.id === id); if (o0 && !o0.ch) return;
       const fg = fgOf(id, x, o0 ? o0.j85 + 1 : 1); if (!fg.length) return;
       if (o0) o0.fg = fg; else out.push({ id, fgOnly: 1, ch: 1, st: [], fg, x, bag: otBag(id, bag, forced, h, gk) }); }); };
-  const fgOffHtml = o => !o.fg || !o.fg.length ? '' : `<div class="small">${o.fgOnly ? '' : 'Farm it on: '}${o.fg.map(f => `to ${ilink(f.to)}: ${esc(fgTxt(f))}${f.stop2 > o.x.stop ? ` (play on to quest step ${f.stop2} first)` : ''}`).join(' · ')}${o.bag && !o.bag.ok ? ' · keep it in the Legacy Bag while you farm' : ''}</div>`;
+  const fgOffHtml = o => !o.fg || !o.fg.length ? '' : `<div class="small">${o.fgOnly ? '' : 'Farm it on: '}${o.fg.map(f => `to ${ilink(f.to)}: ${fgTxt(f, 1)}${f.stop2 > o.x.stop ? ` (play on to quest step ${f.stop2} first)` : ''}`).join(' · ')}${o.bag && !o.bag.ok ? ' · keep it in the Legacy Bag while you farm' : ''}</div>`;
   const fgOptNeeds = c => (otwOf(c) || []).filter(o => o.fg && o.fg.length).map(o => { const f = o.fg[o.fg.length - 1]; if (f.stop2 > o.x.stop) return null;
-    return { txt: `${iname(o.id)} → ${iname(f.to)}: ${fgTxt(f)}`, label: 'Optional farm', st: o.x.stop, last: 8 }; }).filter(Boolean);
+    return { txt: `${iname(o.id)} → ${iname(f.to)}: ${fgTxt(f)}`, th: `${ilink(o.id)} → ${ilink(f.to)}: ${fgTxt(f, 1)}`, label: 'Optional farm', st: o.x.stop, last: 8 }; }).filter(Boolean);
   /* ---- CARDS UI (patch_cards_ui 2026-09-25, user-approved presentation rework): each goal ranks its runs exactly as before (Legacy /
      First Legacy: rkV then minutes; Points: Points of a 3-hour session) and the page shows the top CARDN as ranked cards side by side, a
      filter bar (hero, N, mode, max run length: the model's minutes decide, never shown) and, on a tap, that run alone as a numbered step
@@ -1432,7 +1440,7 @@
        ['no quest steps', 'the goal needs no main quest steps'], ['spends Points', 'the run buys something with Points']]
       .map(([a, b]) => `<li><b>${esc(a)}</b> <span class="small">· ${esc(b)}</span></li>`).join('') + `</ul></details>`;
   const f10 = v => Math.max(0, Math.min(10, Math.round(v * 10)));
-  const namesH = ids => { const nm = ids.map(iname); return esc(nm.slice(0, 2).join(', ')) + (nm.length > 2 ? ` <span class="small">+${nm.length - 2} more</span>` : ''); };
+  const namesH = ids => { const nm = ids.map(iname); return ids.slice(0, 2).map(nlk).join(', ') + (nm.length > 2 ? ` <span class="small">+${nm.length - 2} more</span>` : ''); };
   const gearP = L => L >= 0 ? `<p class="small">Gear: ${esc(gearTxt(L))}.</p>` : '';
   const stLi = x => `<li>${ilink(x[1])} <span class="small">· ${esc(x[7])}</span></li>`;
   /* ---- Legacy goal cards (legacyRuns: every run (N x mode x hero) that upgrades the most of your items, chained steps included) */
@@ -1630,16 +1638,16 @@
     if (!rb && !rp && f && f.matches('span.small')) { zone = f.innerHTML; const nx = f.nextSibling; f.remove(); if (nx && nx.nodeType === 3) nx.nodeValue = nx.nodeValue.replace(/^\s*·\s*/, ''); }
     if (hd === 'Then' || hd === 'Pick up') { const s = [...li.querySelectorAll(':scope > span.small')].find(x => /^·/.test(DCL.txt(x)));
       if (s) { const t = DCL.txt(s).replace(/^·\s*/, ''), m = hd === 'Then' ? /^(.+?) → (.+?)(?:, (.+))?$/.exec(t) : null;
-        if (m) { lg.push(CL.bd('leg', `${clI(m[1])} → ${clI(m[2])}`)); if (m[3]) nt.push(esc(m[3])); s.remove(); }
+        if (m) { lg.push(CL.bd('leg', `${clI(m[1])} → ${clI(m[2])}`)); if (m[3]) { const bm = /^(swap it into the Bag for )(.+?)( before the kill)$/.exec(m[3]); nt.push(bm ? esc(bm[1]) + clI(bm[2]) + esc(bm[3]) : esc(m[3])); } s.remove(); }
         else if (hd === 'Pick up') { lg.push(CL.bd('leg', clI(t))); s.remove(); } } }
     [...li.querySelectorAll(':scope > span.small, :scope > div.small')].forEach(s => { if (s.classList.contains('warntext')) return; const t = DCL.txt(s);
-      if (/^\(([^()]+)\)$/.test(t)) { if (rb && !zone) { zone = esc(t.slice(1, -1)); s.remove(); } return; }
+      if (/^\(([^()]+)\)$/.test(t)) { if (rb && !zone) { zone = s.innerHTML.trim().replace(/^\(/, '').replace(/\)$/, ''); s.remove(); } return; }
       if (!t) return; nt.push(s.innerHTML.replace(/^\s*·\s*/, '')); s.remove(); });
     if (/^Get /.test(hd)) { kind = 'goal'; lg.push(CL.bd('leg', clI(hd.slice(4)))); }
     else if (/^Upgrade /.test(hd)) { kind = 'goal'; lg.push(CL.bd('leg', clI(hd.slice(8)) + ' <span class="pl-bdn">↑</span>')); }
     else if (/^Farm /.test(hd)) { kind = 'goal'; bd.push(CL.bd('farm', clI(hd.slice(5)))); }
     else if (hd === 'First' || hd === 'Ticket') { kind = 'gate'; bd.push(CL.bd('gate', '<span class="pl-gtf">first</span>', 'Needed before the goal it opens')); }
-    else if (/^Frodo's/.test(hd)) { kind = 'gate'; bd.push(CL.bd('gate', 'Firelands', 'Opens the Firelands')); }
+    else if (/^Frodo's/.test(hd)) { kind = 'gate'; bd.push(CL.bd('gate', zlH('z10'), 'Opens the Firelands')); }
     else if (hd === 'Legacy Bag') { kind = 'bag'; lg.push(CL.bd('leg', 'Bag swap')); }
     else if (hd === 'Absolute Ring') { kind = 'ring'; bd.push(CL.bd('get', ilink('I050'))); }
     else if (hd === 'Boss Souls') { kind = 'souls'; const m = /(~[\d,]+ kills|1 kill) for ~?([\d,]+) Boss Souls/.exec(DCL.txt(li)); bd.push(CL.bd('farm', m ? `${m[1]} · ${m[2]} souls` : 'Boss Souls')); }
@@ -1661,7 +1669,7 @@
   const clChip = (a, n, st, slow) => `<span class="pl-gc${st ? ' st' : ''}${slow ? ' slow' : ''}"${slow ? ' title="may take too long to farm"' : ''}>${a}${n > 1 ? `<span class="pl-cnt">x${n}</span>` : ''}${st ? '<span class="pl-stt">starter</span>' : ''}</span>`;
   const clSec = (sc, si) => { const li = sc.h, nb = li.querySelector(':scope > b'), name = nb ? DCL.txt(nb).replace(/\s*gear$/i, '') : 'Part', G = [];
     const gb = li.querySelector(':scope > .pl-gb'), hu = li.querySelector(':scope > ul.pl-ul');
-    const nums = sc.rows.map(r => +r.dataset.n).filter(x => x > 0), zs = sc.rows.filter(r => !r.classList.contains('pl-rb')).map(r => r.querySelector('.pl-rm > .pl-zc')).filter(Boolean).map(DCL.txt);
+    const nums = sc.rows.map(r => +r.dataset.n).filter(x => x > 0), zs = sc.rows.filter(r => !r.classList.contains('pl-rb')).map(r => r.querySelector('.pl-rm > .pl-zc')).filter(Boolean).map(e => e.innerHTML.trim());
     const souls = sc.rows.reduce((t, r) => t + (r._cls || 0), 0);
     if (gb) { const chips = [], slow = new Set(); let slowH = '';
       gb.querySelectorAll(':scope > span.small').forEach(s => { if (/may not fit|too long to farm/.test(s.textContent)) { s.querySelectorAll('a[href^="#item/"]').forEach(a => slow.add(a.getAttribute('href'))); slowH = s.innerHTML.replace(/^\s*·\s*[^:<]*:\s*/, ''); } });
@@ -1684,7 +1692,7 @@
       const nl = a => a.map(n => CL.len(n) > CL_NOTE ? DCL.q(n) : `<div class="pl-bm">${n}</div>`).join('');
       if (cb.length) G.push(['Carry', cb.join(' ') + nl(cn), 'carry']);
       if (gb2.length) G.push(['Get first', gb2.join(' ') + nl(gn), 'first']); }
-    const zr = zs.length ? esc(zs[0]) + (zs[zs.length - 1] !== zs[0] ? ' → ' + esc(zs[zs.length - 1]) : '') : '';
+    const zr = zs.length ? zs[0] + (zs[zs.length - 1] !== zs[0] ? ' → ' + zs[zs.length - 1] : '') : '';
     const nr = nums.length ? (nums.length > 1 ? `steps ${nums[0]}-${nums[nums.length - 1]}` : `step ${nums[0]}`) : '';
     li.className = 'pl-rp pl-gh pl-sec'; li.dataset.si = String(si % 3);
     li.innerHTML = `<div class="pl-sh"><b class="pl-snm">${esc(name)}</b>${zr ? `<span class="pl-sx">· ${zr}</span>` : ''}${nr ? `<span class="pl-sx">· ${nr}</span>` : ''}</div>`
@@ -2126,7 +2134,7 @@
       CF().h = h || ''; save(); K.route(); });
     const open = el => { FOY = window.scrollY; FO = { g: S.goal, k: el.dataset.run }; K.route(); const fe = document.querySelector('.pl-focus'); if (fe) fe.scrollIntoView({ block: 'start' }); };
     out.querySelectorAll('.pl-card[data-run]').forEach(el => { el.addEventListener('click', e => { if (!e.target.closest('a')) open(el); });
-      el.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(el); } }); });
+      el.addEventListener('keydown', e => { if (e.target.closest('a')) return; if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(el); } }); });   // LEGACY LINKS: Enter on a link follows the link
     out.querySelectorAll('.pl-bk').forEach(b => b.addEventListener('click', plBack));
     /* GEAR LEVEL IN THE CARD: the open run's switch (greyed levels do nothing); the pick is remembered as your comfort level */
     out.querySelectorAll('.pl-gsw [data-fg]').forEach(b => b.addEventListener('click', () => { if (!FO || b.getAttribute('aria-disabled') === 'true') return;
