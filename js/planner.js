@@ -1733,9 +1733,10 @@
   K.hooks.push((page, out) => { if (page !== 'planner' || !out) return; const f = out.querySelector('.pl-focus[data-tk]'), ol = f && f.querySelector('ol.pl-steps.pl-cl'); if (!ol) return;
     const key = f.dataset.tk, st = tkAll()[key] || {}, rows = [...ol.querySelectorAll(':scope > li[data-tk]')], rs = f.querySelector('.pl-tkr');
     const paint = () => { let nx = null; rows.forEach(li => { const on = !!st[li.dataset.tk], cb = li.querySelector('.pl-tk input'); li.classList.toggle('pl-done', on); if (cb) cb.checked = on;
-        li.classList.remove('pl-next'); if (!on && !nx && !li.matches('.pl-dim, .pl-k-opt')) nx = li; });
+        li.classList.remove('pl-next'); if (!on && !nx && !li.matches('.pl-k-opt')) nx = li; });   // user 2026-09-26: NEXT = first unticked step, plain ones too
       if (nx) nx.classList.add('pl-next'); if (rs) rs.hidden = !Object.keys(st).length; };
-    rows.forEach(li => { const cb = li.querySelector('.pl-tk input'); if (cb) cb.addEventListener('change', () => { if (cb.checked) st[li.dataset.tk] = 1; else delete st[li.dataset.tk]; tkPut(key, st); paint(); }); });
+    rows.forEach((li, i) => { const cb = li.querySelector('.pl-tk input'); if (cb) cb.addEventListener('change', () => {   // tick = this step and every step above it; untick = this step and every step below it
+      rows.forEach((r, j) => { if (r !== li && r.matches('.pl-k-opt')) return; if (cb.checked && j <= i) st[r.dataset.tk] = 1; if (!cb.checked && j >= i) delete st[r.dataset.tk]; }); tkPut(key, st); paint(); }); });
     if (rs) rs.addEventListener('click', () => { Object.keys(st).forEach(x => delete st[x]); tkPut(key, st); paint(); });
     paint(); });
   const dclCard = html => { if (!DCL_ON || !html) return html;
