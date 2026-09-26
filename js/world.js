@@ -570,9 +570,86 @@ window.AP = (function () {
     const gives = ln ? `On pickup it turns into ${ref(ln.root)}, step 1 of the ${link('legacyline', ln.root.id, ln.name)} line (${fmt(ln.steps.length)} steps).` : '';
     if (short) return [buy.length ? `<b>Get it:</b> ${buy.join(' · ')}` : '', gives].filter(Boolean).join('<br>');
     return `<ol class="ht">${buy.length ? `<li><b>Get it:</b> ${buy.join('<br>')}</li>` : ''}${gives ? `<li>${gives}</li>` : ''}</ol>${pts ? `<p class="small">${lgPtsNote()}</p>` : ''}`; };
+  /* WHERE TO FARM (patch_item_mat_steps 2026-09-26; findings/public/audit_math/legacy_bag_combines.md, map 1.02 script): a Legacy 'put it
+     in one bag with' step = trigger CC: 0.01 s after ANY unit picks up an item it checks THAT unit's 6 slots for the step item and each
+     material stack (charges >= count). The Legacy Bag drops materials, so it happens on the hero or the pet; two steps keep the item in the
+     Bag and only the materials on the unit (W.leg_mat[from>to].at = 'bag'). Materials stack in one slot (trigger Die_Jia).
+     Each material: up to 2 sources, best first = fewest minutes for the count: creeps = kills at 85% luck / (min(30 a minute, how many
+     stand on the map, each respawns 60 s after death) x sqrt(weakest candidate's HP / its HP)); a non-respawning creep adds a run per
+     map-full; bosses = kills x respawn; shops first, a recipe next, quests / chests / Points last; a boss in a 'Danger' zone only when
+     nothing else drops it. No minutes on the page (user rule): kill counts only. */
+  const LMAT = W.leg_mat || {}, MSP = W.mon_spawn || {}, KPM1 = +(((W.plan || {}).kpm || [])[1]) || 30, MFK = {};
+  const LMF = {}; Object.keys(LMAT).forEach(k => { const f = k.split('>')[0]; (LMF[f] = LMF[f] || []).push(k); });
+  const mfK85 = (c, p) => { const key = c + '|' + p; if (key in MFK) return MFK[key]; let r = Infinity;   /* fewest kills with an 85% chance of c drops */
+    if (p >= 1) r = c; else if (p > 0) { const d = new Float64Array(c); d[0] = 1;
+      for (let k = 1; k <= 200000; k++) { let s = 0; for (let j = c - 1; j >= 0; j--) { d[j] = d[j] * (1 - p) + (j ? d[j - 1] * p : 0); s += d[j]; } if (k >= c && 1 - s >= 0.85) { r = k; break; } } }
+    return (MFK[key] = r); };
+  const mfDanger = id => { const nm = (BOSS[id] || MON[id] || {}).name, z = Z[zoneOf(id)]; return !!nm && !!z && (z.what || []).some(t => /^Danger:/.test(t) && t.includes(nm)); };
+  const mfSrc = (id, cnt) => { const i = item[id]; if (!i) return [];
+    const L = [], cre = [], g = lgOf(id);
+    if (g) L.push({ m: -1, h: `step ${fmt(g.k + 1)} of the ${link('legacyline', g.ln.root.id, g.ln.name)} line` });
+    for (const s of i.sources || []) { const f = s.from || {}, fid = f.id, b = BOSS[fid], mo = MON[fid], nt = s.note || '';
+      const gate = /only after|talk to|\bN\d\+/.test(nt) ? ' · ' + esc(nt) : '';
+      if (s.kind === 'drop' && (b || mo)) {
+        let p = s.chance != null ? s.chance : b ? ((b.drops || []).find(d => d.id === id) || {}).chance : null; if (p == null) p = 100;
+        const k = mfK85(cnt, p / 100), zn = htWhere(f), each = p >= 100 ? '1 per kill' : pct(p);
+        if (b) { const rs = +b.respawn_s || 0, bad = mfDanger(fid), up = (b.mechanics || []).some(t => /^Every respawn/.test(t));
+          L.push({ m: (rs ? k * (rs / 60 + 0.5) : k > 1 ? 1e5 : 3) + (bad ? 1e6 : 0), bad, fm: 1, h: `${ulink(fid)}${zn} <span class="small">${each} · ${fmt(k)} kill${k > 1 ? 's' : ''}${rs ? ` · respawns in ${fmt(rs)} s` : ' · once per run'}${up ? ', stronger each time' : ''}${bad ? ' · hard boss' : ''}${gate}</span>` }); }
+        else { const sp = (MSP[fid] || []).reduce((t, x) => t + (+x[2] || 1), 0) || 1, rsp = mo.respawns !== false && !/once per game/.test(nt);
+          const o = { fm: 1, hp: +mo.hp || 1, k, sp, rsp, h: `${ulink(fid)}${zn} <span class="small">${each} · ${fmt(k)} kills · ${rsp ? `respawns, ${fmt(sp)} on the map` : `no respawn, ${fmt(sp)} per run`}${gate}</span>` };
+          cre.push(o); L.push(o); }
+        continue; }
+      if (s.kind === 'shop') L.push({ m: 0, h: `buy at ${ref(f)}${htWhere(f)}${nt ? ` <span class="small">${esc(nt)}</span>` : ''}` });
+      else if (s.kind === 'craft') { if (!L.some(x => x.cr)) L.push({ m: 50, cr: 1, h: madeBy(id).length ? getLine(id) : 'craft: ' + esc(nt) }); }
+      else if (s.kind === 'quest') { const q = /^x(\d+)/.exec(nt); L.push({ m: (q ? +q[1] : 1) >= cnt ? 40 : 3000, h: `quest reward from ${ref(f)}${htWhere(f)}${nt || s.chance != null ? ` <span class="small">${[esc(nt), s.chance != null ? pct(s.chance) : ''].filter(Boolean).join(' · ')}</span>` : ''}` }); }
+      else if (['points', 'world_points', 'exchange'].includes(s.kind)) L.push({ m: 5000, h: `buy at ${ref(f)}${htWhere(f)}${nt ? ` <span class="small">${esc(nt)}</span>` : ''}` });
+      else if (s.kind === 'chest') L.push({ m: 4000, h: `from ${ref(f)}${s.chance != null ? ` <span class="small">${pct(s.chance)}</span>` : ''}` });
+      else L.push({ m: 100, h: `${srcShort(s)}${nt ? ` <span class="small">· ${esc(nt)}</span>` : ''}` }); }
+    const hm = Math.min(...cre.map(o => o.hp));
+    cre.forEach(o => { o.m = o.k / (Math.min(KPM1, o.sp) * Math.sqrt(hm / o.hp)) + (o.rsp ? 0 : (Math.ceil(o.k / o.sp) - 1) * 60); });
+    const A = L.sort((x, y) => x.m - y.m), ok = A.filter(x => !x.bad), U = ok.length ? ok : A;
+    const fixed = (i.sources || []).filter(s => s.kind !== 'craft').every(s => /once per game/.test(s.note || ''));   // fixed once-per-game spots (7 Armor Fragments = all of them): list every spot
+    const R = U.slice(0, fixed ? 6 : 2); R.all = fixed && R.length > 1; return R; };
+  /* the list: one row per material (count + linked name | best source, 'or' the next); phone: the sources go under the name */
+  const mfList = mats => { const R = mats.map(([id, c]) => [id, c, mfSrc(id, c)]); if (!R.length) return '';
+    const farm = R.some(r => r[2].some(x => x.fm));
+    return `<div class="mf"><div class="mf-h">${farm ? 'Where to farm' : 'Where to get'}${farm ? ' <span class="small">· kills for the count at 85% luck, solo</span>' : ''}</div>`
+      + R.map(([id, c, S]) => `<div class="mf-r"><div class="mf-m">${c > 1 ? fmt(c) + 'x ' : ''}${ilink(id)}</div><div class="mf-s">${S.length ? S.map((x, j) => (j ? (S.all ? '<i>and</i> ' : '<i>or</i> ') : '') + x.h).join('<br>') : '<span class="small">see its page</span>'}</div></div>`).join('') + `</div>`; };
+  if (!document.getElementById('mf-css')) document.head.insertAdjacentHTML('beforeend', '<style id="mf-css">.mf{margin:8px 0 2px;padding-top:6px;border-top:1px solid var(--rule)}.mf-h{font-weight:600;margin-bottom:2px}'
+    + '.mf-r{display:grid;grid-template-columns:minmax(130px,30%) 1fr;gap:2px 10px;padding:4px 0;border-bottom:1px dashed var(--rule)}.mf-r:last-child{border-bottom:0}.mf-m{font-weight:600}'
+    + '.mf-d{margin-top:3px}.mf-d>summary{cursor:pointer;color:var(--accent)}.mf-d .mf{border-top:0;margin-top:2px;padding-top:0}.mf-d .mf-h{display:none}.ll-t .mf-r{grid-template-columns:1fr}.ll-t .mf-s{padding-left:10px}'
+    + '@media (max-width:640px){.mf-r{grid-template-columns:1fr}.mf-s{padding-left:10px}}</style>');
+  /* material names in a step text -> item links (longest name first, whole words only) */
+  const mfLink = (txt, mats) => { let h = esc(txt); const ph = [];
+    mats.map(([id]) => [id, esc(iname(id))]).sort((a, b) => b[1].length - a[1].length).forEach(([id, nm]) => { let p = -1, k = 0;
+      while ((k = h.indexOf(nm, k)) >= 0) { if (!/[A-Za-z0-9]/.test(h[k - 1] || ' ') && !/[A-Za-z0-9]/.test(h[k + nm.length] || ' ')) { p = k; break; } k += nm.length; }
+      if (p < 0) return; ph.push(ilink(id)); h = h.slice(0, p) + '\u0001' + (ph.length - 1) + '\u0002' + h.slice(p + nm.length); });
+    return h.replace(/\u0001(\d+)\u0002/g, (_, k) => ph[k]); };
+  const mfOf = from => { const seen = new Map(); (LMF[from] || []).forEach(k => LMAT[k].m.forEach(([id, c]) => seen.set(id, Math.max(c, seen.get(id) || 0)))); return [...seen]; };
+  /* item page, Legacy step: plain steps for a 'one bag' upgrade (prev -> id) */
+  const mfSteps = (prev, id, how) => { const e = LMAT[prev.id + '>' + id]; if (!e) return '';
+    const n = +((/\bN(\d)\+/.exec(how) || [])[1] || 0), md = /Challenge mode/.test(how) ? ' in Challenge mode' : /Death mode/.test(how) ? ' in Death mode' : '';
+    const when = `${n ? `On N${n}+` : 'On any difficulty'}${md}`, pv = ref(prev), all = e.m.every(([x]) => lgOf(x));
+    const ml = e.m.map(([x, c]) => (c > 1 ? fmt(c) + 'x ' : '') + ilink(x)), mt = ml.length > 2 ? `every ${all ? 'item' : 'material'} below` : ml.join(' and ');
+    const st = e.m.some(([, c]) => c > 1) ? ' Each material stacks in one slot.' : '', full = e.at === 'unit' && e.m.length + 1 === 6 ? ' (all 6 slots)' : '';
+    const farm = !all && e.m.some(([x, c]) => mfSrc(x, c).some(y => y.fm));
+    const S = [`${farm ? 'Farm' : 'Get'} ${ml.length > 2 ? `the ${all ? 'items' : 'materials'} below` : mt}.`];
+    if (e.at === 'bag') S.push(`Keep ${pv} in your Legacy Bag.`, `${when}: carry ${mt} on your hero or pet.${st} It evolves in the Bag the moment that unit picks up an item, so pick up the last one there.`);
+    else S.push(`Put ${pv} in slot 1 of the Legacy Bag (F2) and press Equipment Transfer (W): it moves to your pet. The Bag drops materials, so it can't evolve there.`,
+      `${when}${e.enh ? `, with it at +${fmt(e.enh)}` : ''}: put it and ${mt} on one unit, the pet or your hero${full}.${st} It evolves the moment that unit picks up an item, so pick up the last one there.`,
+      `${ref({ id })} appears on that unit: send it back to the Bag from the pet's slot 1 (Equipment Transfer). Only Bag items give stats.`);
+    return `<ol class="ht-sub">${S.map(x => `<li>${x}</li>`).join('')}</ol>${mfList(e.m)}`; };
+  /* crafted item page: 5+ of a farmed material (no shop sells it) */
+  const mfCraft = id => { const rs = madeBy(id); if (!rs.length) return '';
+    const r = rs.find(x => x.unseal && x.unseal.result.id === id) || rs.find(x => (x.result || {}).id === id) || rs[0];
+    const need = x => { const i = item[x]; return !!i && i.slot === 'Material' && !(i.sources || []).some(s => s.kind === 'shop'); };
+    const L = r.parts.filter(p => (p.count || 1) >= 5 && need(p.id)).map(p => [p.id, p.count]);
+    if (r.unseal && r.unseal.result.id === id && r.unseal.count >= 5 && need(r.unseal.talisman.id)) L.push([r.unseal.talisman.id, r.unseal.count]);
+    return mfList(L); };
   const lgHow = (id, short) => { const g = lgOf(id); if (!g) return ''; const { ln, k, prev, how } = g;
     const start = k === 0 ? `<b>Get it:</b> ${lgStartH(ln)}` : `<b>Start the line:</b> ${ref(ln.root)} · ${lgStartH(ln)}`;
-    const up = k > 0 && prev ? `<b>Then evolve:</b> ${esc(how).split(' OR ').join(' <i>or</i> ')} <span class="small">(${ref(prev)} → step ${fmt(k + 1)} of ${fmt(ln.steps.length)})</span>` : '';
+    const mats = k > 0 && prev ? mfOf(prev.id) : [], mst = !short && k > 0 && prev ? mfSteps(prev, id, how) : '';   // WHERE TO FARM: linked materials + plain steps
+    const up = k > 0 && prev ? `<b>Then evolve:</b> ${mst ? `<span class="small">(${ref(prev)} → step ${fmt(k + 1)} of ${fmt(ln.steps.length)})</span>${mst}` : `${mats.length ? mfLink(how, mats).split(' OR ').join(' <i>or</i> ') : esc(how).split(' OR ').join(' <i>or</i> ')} <span class="small">(${ref(prev)} → step ${fmt(k + 1)} of ${fmt(ln.steps.length)})</span>`}` : '';
     const need = ln.first_needs && k < 3 ? `<span class="small">Next steps need: ${esc(ln.first_needs)}</span>` : '';
     return short ? [start, up].filter(Boolean).join('<br>') : `<ol class="ht"><li>${start}</li>${up ? `<li>${up}</li>` : ''}</ol>${need}${k === 0 && lgPts(ln) ? `<p class="small">${lgPtsNote()}</p>` : ''}`; };
   P.item = id => {
@@ -582,7 +659,7 @@ window.AP = (function () {
         + `<div class="card howto"><h4 style="margin-top:0">How to get</h4>${lgHow(id)}</div>`
         + `<div class="card"><div class="kv"><b>Legacy line</b><span>${link('legacyline', ln.root.id, ln.name)} <span class="small">${esc(ln.slot || '')} · step ${fmt(k + 1)} of ${fmt(n)} · <a href="${lgDeep(ln, k)}">show in the line</a></span></span>`
         + (st && st.stats ? `<b>Stats</b><span>${esc(st.stats)}</span>` : '')
-        + (k < n - 1 && st && st.next ? `<b>Next step when</b><span>${esc(st.next).split(' OR ').join('<br><i>or</i> ')}${nx ? ` <span class="small">→ ${ref(nx)}</span>` : ''}</span>` : k === n - 1 ? '<b>Next step</b><span>last step of the line</span>' : '')
+        + (k < n - 1 && st && st.next ? `<b>Next step when</b><span>${(mfOf(st.id).length ? mfLink(st.next, mfOf(st.id)) : esc(st.next)).split(' OR ').join('<br><i>or</i> ')}${nx ? ` <span class="small">→ ${ref(nx)}</span>` : ''}</span>` : k === n - 1 ? '<b>Next step</b><span>last step of the line</span>' : '')
         + (() => { const PD = W.plan; if (!PD || k >= n - 1) return '';                                  /* who can do the next upgrade */
             const E = (PD.edges[id] || [])[0]; if (!E) return '';
             const a = E[2][0] || [], mask = a[3] ? BigInt('0x' + a[3]) : 0n, ids = PD.heroes.filter((h, i) => ((mask >> BigInt(i)) & 1n) === 1n);
@@ -620,7 +697,7 @@ window.AP = (function () {
       + (acqLine(id) ? `<b>When</b><span>${acqLine(id)}${a && !ht_ && !qh ? ` <span class="small">· ${esc(a[2])}</span>` : ''}</span>` : a ? `<b>When</b><span>${esc(a[0] === 'post' ? 'after beating the game' : 'from ' + a[0])} <span class="small">· ${esc(a[1])} · ${esc(a[2])}</span></span>` : '')
       + kvSrc + (i.stacks && i.stacks !== '-' ? `<b>Copies</b><span>${esc(stkTxt(i.stacks))}</span>` : '') + (i.pet_bag ? `<b>Pet bag</b><span>works from the pet bag</span>` : '') + `</div></div>`
       + evoCard(id)
-      + (ht_ || qh ? `<div class="card howto"><h4 style="margin-top:0">How to get</h4>${ht_ || qh}</div>` : '')
+      + (ht_ || qh ? `<div class="card howto"><h4 style="margin-top:0">How to get</h4>${ht_ || qh}${ht_ ? mfCraft(id) : ''}</div>` : '')   // WHERE TO FARM: bulk materials
       + src
       + (mb.length && !swap ? `<h4>Made from</h4>` + tbl(rt, mb.map(recipeRow)) : '')
       + (ui.length ? `<h4>Used in</h4>` + tbl(rt, ui.slice(0, 8).map(recipeRow)) + (ui.length > 8 ? `<details class="tcol"><summary>${ui.length - 8} more recipes</summary>${tbl(rt, ui.slice(8).map(recipeRow))}</details>` : '') : '');
@@ -798,7 +875,9 @@ window.AP = (function () {
   const llStats = (l, i, hl) => { const cur = (l.steps[i].stats || '').split(', ').filter(Boolean); if (!hl || !i) return esc(cur.join(', '));
     const prev = new Set((l.steps[i - 1].stats || '').split(', ')); return cur.map(t => prev.has(t) ? esc(t) : `<b class="ll-up">${esc(t)}</b>`).join(', '); };
   const llNext = (l, i) => { const s = l.steps[i], nx = l.steps[i + 1];
-    return `<span class="ll-nx">${s.to && (!nx || nx.id !== s.to.id) ? `→ ${ref(s.to)}: ` : ''}${esc(s.next || '').split(' OR ').join('<br><i>or</i> ')}</span>`; };
+    const mats = mfOf(s.id);   // WHERE TO FARM: material names linked + a folded list
+    return `<span class="ll-nx">${s.to && (!nx || nx.id !== s.to.id) ? `→ ${ref(s.to)}: ` : ''}${(mats.length ? mfLink(s.next || '', mats) : esc(s.next || '')).split(' OR ').join('<br><i>or</i> ')}</span>`
+      + (mats.length ? `<details class="mf-d"><summary>${mats.some(([x]) => mfSrc(x, 1).some(y => y.fm)) ? `Where to farm ${mats.length > 1 ? 'them' : 'it'} <span class="small">· kills at 85% luck</span>` : `Where to get ${mats.length > 1 ? 'them' : 'it'}`}</summary>${mfList(mats)}</details>` : ''); };
   const llTable = (l, idx, hl, me) => `<div class="tbl compact ll-t"><table><tr><th class="num">#</th><th>Item</th><th>Stats</th><th>Next step</th></tr>${idx.map(i => `<tr${i === me ? ' class="ll-me"' : ''}><td class="num">${fmt(i + 1)}</td><td>${ref(l.steps[i])}</td><td class="small">${llStats(l, i, hl)}</td><td class="small">${llNext(l, i)}</td></tr>`).join('')}</table></div>`;
   const llFold = root => root.querySelectorAll('.ll-nx').forEach(e => { const b = e.nextElementSibling; if (b && b.classList.contains('ll-more')) return; if (e.scrollHeight > e.clientHeight + 2) e.insertAdjacentHTML('afterend', '<button type="button" class="ll-more">more</button>'); });
   out.addEventListener('click', e => { const b = e.target.closest('button.ll-more'); if (!b) return; const on = b.previousElementSibling.classList.toggle('full'); b.textContent = on ? 'less' : 'more'; });
