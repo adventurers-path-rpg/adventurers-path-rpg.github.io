@@ -148,7 +148,7 @@
     const best = c.map(id => [w && NP ? powOf(swSt(id), w.slice(0, NP), null) : 0, id]).sort((x, y) => y[0] - x[0]).slice(0, 2).map(x => x[1]);
     return a.concat(best).reduce((v, id) => addTo(v, swSt(id)), {}); };
   const swTxt = () => { const { c, a } = swIds(S.sw), nm = c.concat(a).map(iname);
-    return (nm.length ? ' · start items: ' + nm.join(', ') + (c.length > 2 ? ' (best 2 of the level-8 swords counted)' : '') : '') + (S.hfx ? ' · hero special effects owned (not in the replays yet)' : ''); };
+    return (nm.length ? ' · start items: ' + nm.join(', ') + (c.length > 2 ? ' (best 2 of the level-8 swords counted)' : '') : '') + (S.src === 'save' ? ' · ' + fmt(+S.tok || 0) + ' Challenge Tokens' + ((+S.tok || 0) < TKMIN ? ` (${TKMIN} for a +25 item)` : '') : '') + (S.hfx ? ' · hero special effects owned (counted in boss fights, not yet in run times)' : ''); };
   /* LEGACY BAG (patch_legacy_bag 2026-09-25; findings/public/audit_math/legacy_bag_rules.md, extract_102/war3map.j L = line): the Bag (F2,
      H00Q) holds 6 Legacy items, one per slot type. Only Bag items
      give stats, to the hero; the two
@@ -309,9 +309,27 @@
   /* the quest step after which a hero (index i) at account step lv fights boss b on N, mode m (v52): PD.beat 'b|N|m' = the build of the
      stage where the boss opens (stopOf); if that fails, the full build at the end of the first later stage whose row 'b|N|m|stage' passes
      (rows are stored only where they change). -1 = not doable, also when the boss has no row at all */
-  /* AUDIT M4: below Map Level PD.nsml (90) there is no +30 stone and the save holds no Challenge Tokens: PD.bns[k] = the same rows
+  /* AUDIT M4: below Map Level PD.nsml (90) there is no +30 stone (Challenge Tokens: SAVE ROWS below): PD.bns[k] = the same rows
      [opening, stage 0, 1, 2] ('' = no row) with the ladder's stone / tokens / ML 190 boots off, stored where they differ from PD.beat */
-  const bnsOf = k => (+S.ml || 1) < (+PD.nsml || 90) ? ((PD.bns || {})[k] || null) : null;
+  /* SAVE ROWS (patch_page_save_rows 2026-09-26; data scripts/pending/patch_pd_save_rows.py): the beat rows that match your account.
+     Below Map Level PD.nsml (90) no +30 stone: PD.bns (no Challenge-Token item either) or, when your save holds PD.tkmin (5)+ tokens, PD.btk
+     (one +25 token item). From 90: PD.beat (the ladder's token item from step 5) or, when your save holds fewer, PD.bnt. No save = the
+     ladder's rule. PD.hfx[variant] = the same rows for the heroes in PD.hfx.h with their special effect on (your save owns I0UJ) */
+  const TKMIN = +PD.tkmin || 5;
+  const rowVar = () => { const t = S.src === 'save' ? (+S.tok || 0) : null;
+    if ((+S.ml || 1) < (+PD.nsml || 90)) return t != null && t >= TKMIN && PD.btk ? 'btk' : 'bns';
+    return t != null && t < TKMIN && PD.bnt ? 'bnt' : 'beat'; };
+  const bnsOf = k => { const v = rowVar(); return v === 'beat' ? null : ((PD[v] || {})[k] || null); };
+  const HXI = {}; ((PD.hfx || {}).h || []).forEach((j, x) => { HXI[j] = x; });
+  const hxOn = i => !!S.hfx && S.src === 'save' && i != null && HXI[i] != null;
+  const hxRow = (k, i) => hxOn(i) ? (((PD.hfx || {})[rowVar()] || {})[k] || null) : null;
+  /* rowsOf -> { r: [opening, stage 0, 1, 2] ('' = no row), x: the hero's char in them } or null (the boss has no beat row) */
+  const rowsOf = (k, i) => { const hr = hxRow(k, i); if (hr) return { r: hr, x: HXI[i] };
+    const ns = bnsOf(k); if (ns) return { r: ns, x: i };
+    const s0 = (PD.beat || {})[k]; if (s0 === undefined) return null;
+    return { r: [s0, PD.beat[k + '|0'] || '', PD.beat[k + '|1'] || '', PD.beat[k + '|2'] || ''], x: i }; };
+  const rvSig = i => rowVar() + ((i == null ? !!S.hfx && S.src === 'save' : hxOn(i)) ? 'h' : '');
+  const ktC = (key, i) => { if (hxOn(i)) { const q = (((PD.hfx || {}).kt || {})[key] || '')[HXI[i]]; if (q) return q; } return ((PD.kt || {})[key] || '')[i]; };
   /* AFTER-RUN FIGHTS (patch_page_afterrun 2026-09-25, user-approved; data planner_pack PD.abf / PD.abon from sim_account's end-of-run
      fights): PD.abf['N|m'][hero][account step][gear level] = the bosses the replay's END gear loses at that gear level (comma list; null =
      not replayed). A boss the beat rows let you fight is not doable when the replay at the gear level of this run (lvlFor to the end of the
@@ -322,12 +340,12 @@
     const c = cellOf(n, m, i, lv); if (!c) return false; let L = lvlFor(c, 20 + n); if (L < 0) L = lvlFor(c, st);
     const x = L >= 0 ? row[L] : null; return typeof x === 'string' && x !== '' && x.split(',').includes(b); };
   const bossAt0 = (b, n, m, i, lv) => { const s = bossAt00(b, n, m, i, lv); return s >= 0 && abLost(b, n, m, i, lv, s) ? -1 : s; };
-  const bossAt00 = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, ns = bnsOf(k), s0 = ns ? ns[0] : (PD.beat || {})[k]; if (s0 === undefined) return -1;   // PREREQ GATES: bossAt = this + the hunt
+  const bossAt00 = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, R = rowsOf(k, i), s0 = R ? R.r[0] : undefined, X = R ? R.x : i; if (s0 === undefined) return -1;   // SAVE ROWS // PREREQ GATES: bossAt = this + the hunt
     /* STEP 0 FIX (2026-09-26, tester: 'kill Centaur Khan N7 right away?'): the opening row is fought at the stage's END hero level
        (tier_calc hero_lv: Early = the level at step 12) with half its gear; a boss open from step 0 is not 'go straight there' at
        level 1: it passes from the end of that stage (the full stage build only adds). Lab night: planner_data rows by the real level */
-    const st0 = stopOf(b, n); if (okAt(s0[i], lv)) return st0 > 0 ? st0 : stEnd(stageOf(st0), n);
-    for (let j = stageOf(st0); j <= 2; j++) { const s = ns ? ns[1 + j] || undefined : PD.beat[k + '|' + j]; if (s !== undefined && okAt(s[i], lv)) return Math.max(st0, stEnd(j, n)); }
+    const st0 = stopOf(b, n); if (okAt(s0[X], lv)) return st0 > 0 ? st0 : stEnd(stageOf(st0), n);
+    for (let j = stageOf(st0); j <= 2; j++) { const s = R.r[1 + j] || undefined; if (s !== undefined && okAt(s[X], lv)) return Math.max(st0, stEnd(j, n)); }
     return -1; };
   /* where the route lists a boss fought after step st: the step it opens at, or the stage end it was pushed to */
   const slotOf = (b, n, st) => { if (st !== stopOf(b, n)) return st; const fs = fsOf(b, n); return fs == null ? 20 + n : fs; };
@@ -405,7 +423,7 @@
      [7] 1 = a chance count, average luck): kills x the hero's kill time (PD.kt, 60 s without a row) + the gaps */
   const KB_MIN = 1.5;
   const killMins = (g, n, m, i) => { const a = g.a || [], k = +a[5] || 0; if (k <= 1 || !a[0] || !a[0].length) return 0;
-    const q = ((PD.kt || {})[a[0][0] + '|' + n + '|' + m] || '')[i], t = q ? B36.indexOf(q) * 10 : 60;
+    const q = ktC(a[0][0] + '|' + n + '|' + m, i), t = q ? B36.indexOf(q) * 10 : 60;
     return (k * t + (k - 1) * (+a[6] || 0)) / 60; };
   const killTxt = g => { const a = g.a || [], k = +a[5] || 0; return k > 1 && a[0] && a[0].length ? (+a[7] ? `~${fmt(k)} kills on average` : `${fmt(k)} kills`) : ''; };
   const nbMins = (got, base, n, stop, m, i) => { let add = 0, sw = 0, kills = 0, bk = 0;
@@ -486,7 +504,7 @@
   const PQ = PD.pq || {}, PQE = PD.pqe || {}, PQH = PD.pqh || {}, PQR = PD.pqr || {}, PQF = new Set(PD.pqf || []), PQN = PD.pqn || {}, PQW = 2, PQA = 1.5;   // walk / arena teleport minutes
   const PQRS = {}; (PD.rqb || []).forEach(x => { if (!(x[0] in PQRS)) PQRS[x[0]] = +x[1]; });
   const pqOn = (g, n, st) => g in PQRS && PQRS[g] <= 20 + n && (st == null || PQRS[g] <= st);   // the main quest kills it by then
-  const pqKt = (b, n, m, i) => { const q = ((PD.kt || {})[b + '|' + n + '|' + m] || '')[i]; return q ? B36.indexOf(q) * 10 : 60; };
+  const pqKt = (b, n, m, i) => { const q = ktC(b + '|' + n + '|' + m, i); return q ? B36.indexOf(q) * 10 : 60; };
   const pqPts = ids => (ids || []).reduce((t, b) => t + (PQ[b] || []).reduce((s, p) => s + (p[0] === 'p' ? +p[2] || 0 : 0), 0), 0);
   const pqKey = p => p[0] === 'k' ? 'k|' + p[1] : p.join('|');       // a gate boss once, whatever its note
   const pqT = t => K.tok ? K.tok(String(t || '')) : tmpl(t);          // {{u:}} / {{i:}} / {{z:}} tokens like the route's step lines
@@ -531,7 +549,7 @@
      Lord when the run needs the Firelands; every Firelands goal (bossAt) and bag item through the Firelands comes after it. Its minutes:
      PD.pqh (the 7 kills + walks + the scroll trip) in pqMins */
   const PQHB = ['O000', 'H007', 'H008', 'H009', 'H00A', 'O001', 'H00B'], PQHC = new Map();
-  const pqChain = (n, m, i, lv, fl) => { const k = n + m + '|' + i + '|' + lv + '|' + (fl ? 1 : 0) + '|' + ((+S.ml || 1) < (+PD.nsml || 90) ? 1 : 0) + '|' + G.gl + (G.rf ? 'f' : ''); if (PQHC.has(k)) return PQHC.get(k);
+  const pqChain = (n, m, i, lv, fl) => { const k = n + m + '|' + i + '|' + lv + '|' + (fl ? 1 : 0) + '|' + rvSig(i) + '|' + G.gl + (G.rf ? 'f' : ''); if (PQHC.has(k)) return PQHC.get(k);
     let st = 7; for (const b of PQHB.concat(fl ? ['O003'] : [])) { if ((PD.beat || {})[b + '|' + n + '|' + m] === undefined) continue; const s = bossAt0(b, n, m, i, lv); if (s < 0) { st = -1; break; } st = Math.max(st, s); }
     const r = st >= 0 && st <= 20 + n ? st : -1; PQHC.set(k, r); return r; };
   const pqHasH = b => !!PD.pq && (PQ[b] || []).some(p => p[0] === 'h');
@@ -629,20 +647,20 @@
     let r = null;
     if (m) { const n = +(m[1] || m[3]), ord = n + (m[2] || m[4]), tg = /^kill (?:the )?(.+?)\.?$/i.exec(String(q.needs || '').trim());
       const bid = tg ? Object.keys(W.boss || {}).find(b => ((W.boss[b] || {}).name || '') === tg[1]) : null;
-      r = { u: w[2], z: q.zone || w[3], txt: `${esc(String(q.name || w[1]).replace(/\s*[(]Boss[)]$/, ''))} from the ${srcA(w[2], (q.npc || {}).name || w[2])}: ${tg ? `kill the ${bid ? srcA(bid, tg[1]) : esc(tg[1])} ${n} times, the ${ord} clear gives it` : `the ${ord} clear gives it`}` }; }
+      r = { u: w[2], z: q.zone || w[3], txt: `${q.id ? fsQL(q) : esc(String(q.name || w[1]).replace(/\s*[(]Boss[)]$/, ''))} from the ${srcA(w[2], (q.npc || {}).name || w[2])}: ${tg ? `kill the ${bid ? srcA(bid, tg[1]) : esc(tg[1])} ${n} times, the ${ord} clear gives it` : `the ${ord} clear gives it`}` }; }
     NTHQ.set(k, r); return r; };
-  function whereTxt(w, cp) {                                         // cp = copies on this line
+  function whereTxt(w, cp, iid) {                                    // cp = copies on this line, iid = the item (HINT LINKS: craft parts by recipe id)
     const [k, nm, id, z, ch, g, sl, mn, kl, x, fl] = w, zn = z ? zname(z) : '', zt = zn && !String(nm).includes(zn) ? ` (${zlH(z)})` : '', once = /o/.test(fl || '');
     if (k === 'b' || k === 'm') return srcA(id, nm) + zt + ', ' + (/P/.test(fl || '') ? 'drops once per player per game' : once ? (ch >= 85 ? 'drops once per run' : `${pctF(ch)} drop, one try per run`)   // AUDIT minor 9: flag P (planner_pack)
-      : ch >= 99.5 ? 'drops every kill' : `${pctF(ch)} drop, ${killF(kl)}`) + (x ? ', ' + esc(x) : '');
+      : ch >= 99.5 ? 'drops every kill' : `${pctF(ch)} drop, ${killF(kl)}`) + (x ? ', ' + HLN.str(x) : '');   // HINT LINKS
     if (k === 's') return `${payF(g, sl) || 'buy it'}${cp > 1 && (g || sl) ? ' each' : ''} at the ${srcA(id, nm)}${zt}`;
     if (k === 'x') return `${srcA(id, nm)}${zt}: ${payF(g, sl)} (one trade per run)`;
     if (k === 'f') return `free at ${srcA(id, nm)}${zt}`;
     if (k === 'o') return `main quest step ${x} reward`;
-    if (k === 'q') return `quest ${esc(nm)}${zt}${x ? ', ' + esc(x) : ''}`;
-    if (k === 'c') return `craft${nm ? ', parts: ' + esc(nm) : ''}${g || sl ? ', ' + payF(g, sl) : ''}`;
-    if (k === 'h') { const u = /chest/i.test(nm) ? 'chest' : 'bag'; return `${esc(nm)}${zt}${ch && ch < 100 ? `, ${pctF(ch)} per ${u}, ~${fmt(triesF(ch))} ${u}s` : ''}`; }
-    if (k === 'e') return `evolve ${id ? ilink(id) : esc(nm)}${x ? ': ' + esc(x) : ''}${sl ? ' (' + fmt(sl) + ' Boss Souls)' : ''}`;
+    if (k === 'q') return `quest ${hlQuest(id, nm)}${zt}${x ? ', ' + HLN.str(x) : ''}`;   // HINT LINKS
+    if (k === 'c') return `craft${nm ? ', parts: ' + hlCraft(nm, iid) : ''}${g || sl ? ', ' + payF(g, sl) : ''}`;
+    if (k === 'h') { const u = /chest/i.test(nm) ? 'chest' : 'bag'; return `${id && K.item[id] && iname(id) === nm ? ilink(id) : esc(nm)}${zt}${ch && ch < 100 ? `, ${pctF(ch)} per ${u}, ~${fmt(triesF(ch))} ${u}s` : ''}`; }
+    if (k === 'e') return `evolve ${id ? ilink(id) : esc(nm)}${x ? ': ' + HLN.str(x) : ''}${sl ? ' (' + fmt(sl) + ' Boss Souls)' : ''}`;
     return esc(nm);
   }
   /* ---- BOSS SOULS (patch_page_souls 2026-09-25, user-approved 'spend Boss Souls before every hard boss'; findings/public/audit_math/
@@ -710,11 +728,11 @@
   const FS_GQ = { I016: [24, 'nftr'], I01G: [12, 'nenp'], I023: [24, 'nban'], I024: [24, 'nrog'], I029: [30, 'nsln'], I0L3: [40, 'npfl'], I0K2: [1, 'O004'] };   // W.quests.side needs: kills a clear, a target unit (level / zone)
   const FS_GFIX = { I0L3: 117450 };
   let FS_LAST = null;                                                 // the last farmPlan's {h, n, m, steps, pE, fsp[part]} for the part rows
-  const fsRow = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, ns = bnsOf(k), s0 = ns ? ns[0] : (PD.beat || {})[k]; if (s0 === undefined) return null;
-    if (okAt(s0[i], lv)) return { k, j: -1 };
-    for (let j = stageOf(stopOf(b, n)); j <= 2; j++) { const s = ns ? ns[1 + j] || undefined : PD.beat[k + '|' + j]; if (s !== undefined && okAt(s[i], lv)) return { k: k + '|' + j, j }; }
+  const fsRow = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, R = rowsOf(k, i); if (!R) return null;   // SAVE ROWS
+    if (okAt(R.r[0][R.x], lv)) return { k, j: -1 };
+    for (let j = stageOf(stopOf(b, n)); j <= 2; j++) { const s = R.r[1 + j] || undefined; if (s !== undefined && okAt(s[R.x], lv)) return { k: k + '|' + j, j }; }
     return null; };
-  const fsKt = (b, n, m, i) => { const q = ((PD.kt || {})[b + '|' + n + '|' + m] || '')[i]; return q ? B36.indexOf(q) * 10 : null; };
+  const fsKt = (b, n, m, i) => { const q = ktC(b + '|' + n + '|' + m, i); return q ? B36.indexOf(q) * 10 : null; };
   const fsBoss = (b, n, m, i, lv, p, endStep) => { const B = (W.boss || {})[b]; if (!B || !(+B.respawn_s > 0)) return null;
     const r = fsRow(b, n, m, i, lv); if (!r) return null; const at = bossAt(b, n, m, i, lv); if (at < 0 || at > endStep) return null;
     const kt = fsKt(b, n, m, i), tight = ((PD.bt || {})[r.k] || '').charAt(i) === '1', full = r.j >= p, rs = +B.respawn_s;
@@ -742,6 +760,55 @@
   const fsKtT = x => x.kt == null ? 'kill time ?' : `≤${x.kt} s kills`;
   const fsR = v => fmt(v >= 1000 ? Math.round(v / 50) * 50 : Math.round(v / 10) * 10);
   const fsQL = q => `<a href="#quests?qv=side&sq=&xo=${encodeURIComponent('quest/' + encodeURIComponent(q.id))}">${esc(String(q.name).replace(/\s*\(Boss\)$/, ''))}</a>`;
+  /* HINT LINKS (patch_page_hint_links 2026-09-27, user: "the hint lines under each step show item / unit / quest names as plain text").
+     HLN.one(name) = the wiki link of ONE exact name (else the escaped name), HLN.str(text) = escaped text with every known name linked,
+     HLN.dom(root) = the same on the text nodes of a rendered block (never inside a link, summary, badge, tag or form control). Kinds in
+     order (a name in two kinds = the first): bosses, creeps, shops / NPCs, zones, heroes (only where hero = true: You get / Next / Also,
+     as DCL.lk before), side quests (with and without ' (Boss)'), items (display name of 2+ words: single words are titles / skill words).
+     The same name twice in one kind (two ids) = left plain. Longest name first, whole words; creeps and bosses also with a plural 's'; a
+     name glued to another capitalised word ('Jungle Guardian', 'Wolf King Necklace') stays plain unless that word is a verb / article
+     (HLN.okw). Link text = the words already there, so every text check (badges, tick ids) is unchanged */
+  const qA = (q, t) => `<a href="#quests?qv=side&sq=&xo=${encodeURIComponent('quest/' + encodeURIComponent(q.id))}">${esc(t)}</a>`;
+  const HLN = { m: null, re: null };
+  HLN.init = () => { if (HLN.m) return; const mp = new Map();
+    const kind = (rows, pl) => { const k = new Map(), bad = new Set();
+      rows.forEach(([nm, id, f, kd]) => { nm = String(nm || '').trim(); if (nm.length < 4 || bad.has(nm)) return; if (k.has(nm) && k.get(nm).id !== id) { k.delete(nm); bad.add(nm); return; } k.set(nm, { id, f, pl, k: kd || '' }); });
+      k.forEach((v, nm) => { if (!mp.has(nm)) mp.set(nm, v); }); };
+    kind(Object.entries(W.boss || {}).map(([id, b]) => [(b || {}).name, id, t => K.ulink(id, t)]), true);
+    kind(Object.entries(W.mon || {}).map(([id, u]) => [(u || {}).name, id, t => K.ulink(id, t)]), true);
+    kind((W.shops || []).map(s => [s.name, s.id, t => K.ulink(s.id, t)]), false);
+    kind((W.zones || []).filter(z => z && z.id).map(z => [z.name, z.id, t => (K.zlink && K.zlink(z.id)) || esc(t)]), false);
+    kind(PD.heroes.filter(h => !/^(Your|The) /.test((HERO[h] || {}).name || '')).map(h => [(HERO[h] || {}).name, h, t => `<a href="#hero/${encodeURIComponent(h)}">${esc(t)}</a>`, 'h']), false);
+    const qs = (((W.quests || {}).side) || []);
+    kind(qs.map(q => [q.name, q.id, t => qA(q, t)]).concat(qs.map(q => [String(q.name || '').replace(/\s*\(Boss\)$/, ''), q.id, t => qA(q, t)])), false);
+    kind((W.items || []).map(x => [iname(x.id), x.id, () => ilink(x.id)]).filter(r => String(r[0] || '').length >= 6 && / /.test(String(r[0]).trim())), false);
+    const ks = [...mp.keys()].sort((a, b) => b.length - a.length);
+    HLN.m = mp; HLN.re = new RegExp("(?<![A-Za-z0-9'\u2019])(" + ks.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')(s?)(?![A-Za-z0-9])', 'g'); };
+  HLN.okw = new Set('A An The Your Its Kill Buy Get Farm Take Craft Upgrade Enter Defeat Talk Bring Pick Use Clear Visit Sail Walk Go Then Carry Wear Keep Swap Evolve Enhance Beat Open Return Find Hunt Repeat Deliver Collect Give Travel Reach Destroy Survive Follow Cross Head Also Next Or And With From At In On To For After Before Needs Needed First Ticket Optional Add Drop Only Back'.split(' '));
+  HLN.one = (nm, hero) => { HLN.init(); const e = HLN.m.get(String(nm || '').trim()); return e && (hero || e.k !== 'h') && String(nm).trim() === String(nm) ? e.f(String(nm)) : esc(nm); };
+  HLN.str = (t, hero) => { HLN.init(); t = String(t == null ? '' : t); const re = HLN.re; re.lastIndex = 0; let m, last = 0, h = '';
+    while ((m = re.exec(t))) { const e = HLN.m.get(m[1]), end = m.index + m[0].length; if (!e || (m[2] && !e.pl) || (e.k === 'h' && !hero)) continue;
+      const pw = /(?:^|[^A-Za-z0-9'’])([A-Z][A-Za-z'’-]*) $/.exec(t.slice(Math.max(0, m.index - 40), m.index));
+      if ((pw && !HLN.okw.has(pw[1]) && !/['’]s$/.test(pw[1])) || /^ [A-Z][a-z]/.test(t.slice(end, end + 3))) continue;   // glued to an unknown capitalised word
+      h += esc(t.slice(last, m.index)) + e.f(m[1] + m[2]); last = end; }
+    return h + esc(t.slice(last)); };
+  HLN.skip = 'a, summary, button, select, option, label, input, textarea, .pl-bd, .pl-sh, .tag, .pl-zc, .pl-tk, h3, h4';
+  HLN.dom = (root, hero) => { if (!root || typeof document === 'undefined') return; HLN.init();
+    const w = document.createTreeWalker(root, 4), ns = []; while (w.nextNode()) ns.push(w.currentNode);
+    ns.forEach(nd => { const pe = nd.parentElement; if (!pe || pe.closest(HLN.skip) || !/[A-Za-z]{3}/.test(nd.nodeValue)) return;
+      const h = HLN.str(nd.nodeValue, hero); if (h.indexOf('<a ') < 0) return; const t = document.createElement('template'); t.innerHTML = h; nd.parentNode.replaceChild(t.content, nd); }); };
+  const hlTx = h => String(h).replace(/<[^>]*>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+  /* craft line parts: 'A x4 + [B] (source, source)' -> the recipe's own part ids (duplicate item names too), the sources through NL */
+  const hlCraft = (nm, iid) => { nm = String(nm || ''); const sm = /\s*\(([^()]*)\)\s*$/.exec(nm), body = sm ? nm.slice(0, sm.index) : nm;
+    const rn = {}; (faRc(iid) || []).forEach(([pid]) => { rn[iname(pid)] = pid; });
+    const part = tk => { const m = /^(\[?)(.+?)(\]?)((?: x\d+)?)$/.exec(tk); if (!m) return esc(tk); const id = rn[m[2]] || (HLN.init(), (HLN.m.get(m[2]) || {}).id);
+      const h = K.item[id] && iname(id) === m[2] ? esc(m[1]) + ilink(id) + esc(m[3]) + esc(m[4]) : esc(m[1]) + HLN.one(m[2]) + esc(m[3]) + esc(m[4]); return hlTx(h) === tk ? h : esc(tk); };
+    const h = body.split(' + ').map(part).join(' + ') + (sm ? nm.slice(sm.index, sm.index + sm[0].indexOf('(') + 1) + sm[1].split(', ').map(s => HLN.one(s)).join(', ') + ')' + nm.slice(sm.index + sm[0].lastIndexOf(')') + 1) : '');
+    return hlTx(h) === nm ? h : esc(nm); };
+  /* quest line: the side quest of that giver (w[2]) with this name, else by name */
+  const hlQuest = (uid, nm) => { const qs = (((W.quests || {}).side) || []), st = q => String(q.name || '').replace(/\s*\(Boss\)$/, '');
+    const q = qs.find(x => (x.npc || {}).id === uid && (st(x) === nm || x.name === nm)) || (qs.filter(x => st(x) === nm || x.name === nm).length === 1 ? qs.find(x => st(x) === nm || x.name === nm) : null);
+    return q ? qA(q, nm) : HLN.str(nm); };
   const fsTag = s => !s || !s.best ? ' <span class="small">(no boss you beat fast and safe yet)</span>' : s.risky ? ` <span class="small warntext">risky: ${fsWhy(s.best)}</span>` : '';
   const fsTips = p => { const c = FS_LAST; if (!c || c.pE[p] == null) return ''; const { h, n, m, steps, pE } = c, o = [], s = c.fsp[p];
     if (s && s.best) { const x = s.best, a = s.alt;
@@ -842,7 +909,7 @@
         if (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) fire.push(id);   // TESTER PAGE FIXES: source in (or route through) the Firelands
         if (w[6]) { spent += w[6] * nw; bsIS[p] += w[6] * nw; why.push(ilink(id)); }
         const nq = nthQ(id, w);   // NTH CLEAR: giver's step + kill count
-        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${nq ? nq.txt : whereTxt(w, nw)}${SCP.add(id, w)}${FAP.craft(id, w, p, nw)}${w[0] === 's' ? dropAlt(id, nw, steps, pE[p]) : ''}</span></li>`, zo = ZO[w[3]];
+        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${nq ? nq.txt : whereTxt(w, nw, id)}${SCP.add(id, w)}${FAP.craft(id, w, p, nw)}${w[0] === 's' ? dropAlt(id, nw, steps, pE[p]) : ''}</span></li>`, zo = ZO[w[3]];
         let j = -1;
         if (nq) { for (let i = pS[p]; i <= pE[p]; i++) if (String(steps[i].do || '').includes('{{u:' + nq.u + '}}')) { j = i; break; }   // NTH CLEAR: the quest giver's step
           if (j < 0 && nq.z) for (let i = pS[p]; i <= pE[p]; i++) if (steps[i].zone === nq.z) { j = i; break; } }
@@ -942,7 +1009,7 @@
   const RW_B = 'H00M', RW_R = 'I03L', RW_A = 'I050', RW_S = 'I051', RWC = new Map();
   const rwTxt = () => `Sail to ${zlH('z30')} (boat), kill the ${srcA(RW_B, 'Ringwraith')} 5 times, keep the 5 <a href="#item/${RW_S}">${K.icon(RW_S)}Wraith Souls</a> with the ${ilink(RW_R)}: it becomes the ${ilink(RW_A)} when you pick up any item.`;
   const rwPlan = (h, n, m, L, steps, stop) => { const hi = HIDX[h]; if (!FW || hi == null || !steps || !steps.length) return { i: -1, abs: false };
-    const k = eqStep(h, n, m).k, ck = [h, n, m, L, stop, steps.length, k, +G.gl || 0, G.rf ? 1 : 0, +S.ml || 1].join('|'); if (RWC.has(ck)) return RWC.get(ck);
+    const k = eqStep(h, n, m).k, ck = [h, n, m, L, stop, steps.length, k, +G.gl || 0, G.rf ? 1 : 0, +S.ml || 1, rvSig(hi)].join('|'); if (RWC.has(ck)) return RWC.get(ck);
     const T = FW.k[MK[m] + '|' + band(n)] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
     const abs = [0, 1, 2].some(p => (g[FPS[p]] || []).concat(g[FPS[p] + '_b'] || []).includes(RW_A)), r = { i: -1, abs };
     const c = pqChain(n, m, hi, k, true), s1 = c >= 0 ? bossAt0(RW_B, n, m, hi, k) : -1, aw = T[RW_A] || [], p0 = [0, 1, 2].find(p => aw[p] != null && aw[p] >= 0);
@@ -1454,7 +1521,7 @@
     const key = n + m + '|' + h + '|' + k + '|' + L; if (RTC.has(key)) return RTC.get(key);
     const f = (((T[h] || '').split(',')[k] || '').split('.')[L]) || '', o = new Set([...f].map(c => PD.rtb[B36.indexOf(c)]).filter(Boolean));
     RTC.set(key, o); return o; };
-  const btOf = (b, n, m, i, lv) => { const BT = PD.bt, k = b + '|' + n + '|' + m; if (!BT || i == null || bnsOf(k)) return false;   // no-stone rows (below Map Level 90) carry no flags
+  const btOf = (b, n, m, i, lv) => { const BT = PD.bt, k = b + '|' + n + '|' + m; if (!BT || i == null || bnsOf(k) || hxRow(k, i)) return false;   // SAVE ROWS: token / effect rows carry no flags either // no-stone rows (below Map Level 90) carry no flags
     const s0 = (PD.beat || {})[k]; if (s0 === undefined) return false;
     const at = (rk, s) => okAt(s[i], lv) ? (BT[rk] || '').charAt(i) === '1' && +s[i] === +lv : null;
     let r = at(k, s0); if (r !== null) return r;
@@ -1520,7 +1587,7 @@
     for (let j = 0; j < S2.length; j++) { cum += p0[j] || 0; need[j] = Math.min(1, cum); }
     for (const f of ph) { let s = 0; for (let j = f.start; j < f.end; j++) { if (!(S2[j].q > 0)) return null; s += need[j] / S2[j].q; } f.n = Math.round(s); }
     return { ph: ph.map(f => ({ ty: f.ty, uid: f.uid, gap: f.gap, n: f.n })), P: 1 }; };
-  const fgKt = (b, n, m, i) => { const q = ((PD.kt || {})[b + '|' + n + '|' + m] || '')[i]; return q ? B36.indexOf(q) * 10 : null; };
+  const fgKt = (b, n, m, i) => { const q = ktC(b + '|' + n + '|' + m, i); return q ? B36.indexOf(q) * 10 : null; };
   const fgOpen = (b, n, m, i, lv) => (PD.beat || {})[b + '|' + n + '|' + m] !== undefined ? bossAt(b, n, m, i, lv) : Math.max(0, fsOf(b, n) || 0);
   const fgBoss = (n, m, i, lv, stop) => { const o = [{ b: '', cyc: KB_MIN * 60, x: 0 }], seen = new Set();   // '' = the route's bosses again
     for (const k of Object.keys(PD.kt || {})) { const [b, kn, km] = k.split('|'); if (+kn !== n || km !== m || seen.has(b)) continue; const B = (W.boss || {})[b], t = fgKt(b, n, m, i);
@@ -1696,7 +1763,7 @@
       const stop = Math.max(0, ...Object.values(at)), L = lvlFor(c, stop); if (L < 0) return;
       const got = ST.filter(x => x[1] in at || (x[5] === 'free' && (x[1] !== 'I04J' || (S.ml || 1) >= 3) && stop >= (+x[10] || 0)));   // Intelligence Treasure: step 9, Steel Fortress
       /* a start that needs several kills (Legacy Arrow: 15 Flame Lord kills, 30 s respawn): kills x kill time (PD.kt) + the respawn waits */
-      const more = got.reduce((t, x) => { const k = +x[8] || 1; if (k <= 1) return t; const q = ((PD.kt || {})[x[2] + '|' + n + '|' + m] || '')[i];
+      const more = got.reduce((t, x) => { const k = +x[8] || 1; if (k <= 1) return t; const q = ktC(x[2] + '|' + n + '|' + m, i);
         return t + (k * (q ? B36.indexOf(q) * 10 : 60) + (k - 1) * (+x[9] || 0)) / 60; }, 0);
       runs.push({ h, n, m, lv, got, at, fin: c.jl >= 0, near: nearFin(n, m, i, e), sc: score(h, n, m), stop, L, mins: tMix(c, L, stop, n, m, i, e) + more + pqStart(got, at, n, m, i, stop, L) });
     });
@@ -1816,7 +1883,7 @@
     const note = sm.map(y => y.innerHTML.replace(/^\s*·\s*/, '')).join(' '); sm.forEach(y => y.remove()); wt.forEach(y => y.remove());
     const t = DCL.txt(DCL.box(note)), k = clKind(t), fc = k === 'farm' ? clFc(t) : '', nm = DCL.txt(c);
     return { b: CL.bd(k, c.innerHTML.trim() + (fc ? ` <span class="pl-bdn">· ${esc(fc)}</span>` : '') + wt.map(y => ' ' + y.outerHTML).join(''), t),
-      n: note ? `<span class="pl-rnk">${esc(nm)}:</span> ${note}` : '' }; };
+      n: note ? `<span class="pl-rnk">${(() => { const kc = c.cloneNode(true); kc.querySelectorAll('.ico').forEach(e => e.remove()); const kh = kc.innerHTML.trim(); return DCL.txt(kc) === nm && kh ? kh : esc(nm); })()}:</span> ${note}` : '' }; };   // HINT LINKS: the key = the line's own link
   /* 'Enhance · A to +1, B to +2 (Gazlowe, ~80 Boss Souls)' -> {b: ENHANCE badge, s: Boss Souls} */
   const clEnh = li => { const c = li.cloneNode(true), b = c.querySelector(':scope > b'); if (b) b.remove();
     const sm = [...c.querySelectorAll(':scope > span.small')].pop(); let s = 0;
@@ -2014,7 +2081,7 @@
     f.querySelectorAll('.pl-yc').forEach(d => { const k = iname(d.dataset.f) + ' → ' + iname(d.dataset.t), sp = d.querySelector('.pl-ys'); if (!rol || !sp) return;
       const hit = [...rol.querySelectorAll('li, .pl-fdl')].reverse().find(x => T(x).includes(k)), nb = hit ? (hit.closest('[data-n]') || { dataset: {} }).dataset.n : null;
       if (nb) sp.textContent = ` (step ${nb})`; });
-    f.querySelectorAll('.pl-yg, .pl-nx, .pl-also').forEach(DCL.lk);
+    f.querySelectorAll('.pl-yg, .pl-nx, .pl-also').forEach(r => HLN.dom(r, true)); f.querySelectorAll('.pl-bys, .pl-aw, ol.pl-steps').forEach(r => HLN.dom(r, false));   // HINT LINKS (was DCL.lk: bosses, zones, heroes over the first three)
     return box.innerHTML; };
   /* ---- BONUS PICK (patch_page_bonuspick 2026-09-26, user-approved; findings/public/audit_math/bonus_item_picker.md). Your random start
      gifts, picked by you: Player Bonus (solo, Map Level 23+) and the Map Level 120+ reward = 1 of 139 Level-7 items (W.gift_pools.l7),
@@ -2064,7 +2131,7 @@
   /* used = {part: [slots a gift picked before already took]}: a second gift competes for the next weakest slot */
   const bpVerdict = (x, id, np, used) => { const v = bpVal(x.h, x.gk, id), it = (K.item || {})[id] || {}, j0 = bpIn(x, id, np), cr = bpCraft(x, id, np), out = [], U = used || {}; let tag = '';
     const fit = []; for (let j = 0; j < np; j++) { const u0 = U[j] || [], l = bpList(x, j).filter(y => y.charAt(0) !== '~'), free = l.length + u0.length < 6;
-      const take = y => { if (j0 < 0) (U[j] = U[j] || []).push(y); };
+      const take = y => { if (j0 < 0 || j < j0) (U[j] = U[j] || []).push(y); };   // BONUS INLINE: worn before the build's own copy = a slot taken (a 2nd gift picks another)
       if (v == null) { if (free) { fit.push([j, null]); take(null); } continue; } if (free) { if (v > 0) { fit.push([j, null]); take(null); } continue; }
       let lo = null; l.forEach((y, q) => { if (u0.includes(y) && u0.filter(z => z === y).length > l.slice(0, q).filter(z => z === y).length) return;
         const u = bpVal(x.h, x.gk, y); if (u != null && (lo == null || u < lo[1])) lo = [y, u]; });
@@ -2082,7 +2149,75 @@
     else if (cr.set.length) { const s = cr.set.slice().sort((a, b) => a.n7 - b.n7)[0];
       out.push(`<span class="small">part of ${ilink(s.r.result.id)}, which also needs ${s.n7} more random Level-7 item${s.n7 > 1 ? 's' : ''}</span>`); }
     if (!out.length) out.push('not needed on this run');
-    return [out.join(' · '), tag]; };
+    return [out.join(' · '), tag, { fit, j0, cr, v }]; };   // BONUS INLINE: the structured verdict
+  /* ---- BONUS INLINE (patch_page_bonus_inline 2026-09-27, user: "the bonus item tells me where to use it in a separate block, but why
+     not include it in the planner progression itself?"). From bpVerdict's structured verdict {fit: [[part, replaced item | null]], j0:
+     the part the build gets the gift itself (-1 none), cr: its crafts}: (1) each part's Gear chips: the gift with a 'your bonus' mark, the
+     item it replaces struck; (2) route GET / BUY / FARM badges of a covered item greyed + 'skip' note (every part that uses it covered),
+     else 'only needed from <part> gear' / 'one fewer'; (3) a 'Bonus item' row in the part where it goes in or out; (4) the craft step that
+     uses it: 'keep it in the pet bag'. 'Before you start' keeps one short line per pick. No pick = nothing changes */
+  const BPI = { D: [] };
+  BPI.css = () => { if (!DCL_ON || document.getElementById('bpi-css')) return;
+    document.head.insertAdjacentHTML('beforeend', '<style id="bpi-css">.pl-gc.pl-gc-bp{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}.pl-gc.pl-gc-off{opacity:.5;text-decoration:line-through}'
+      + '.pl-bd.pl-bd-bpx{opacity:.45;text-decoration:line-through}.pl-bpn{color:var(--ink)}.pl-bpn>b:first-child{color:var(--accent);font-weight:700;margin-right:3px}.pl-bpdim{opacity:.55}</style>'); };
+  /* per run part: on = the gift is worn, rep = the build item it replaces, inB = the build lists the gift itself */
+  BPI.state = (x, p, V, np) => { const d = V[2] || {}, o = [];
+    for (let j = 0; j < np; j++) { const inB = d.j0 >= 0 && bpList(x, j).includes(p.id), f = (d.fit || []).find(y => y[0] === j), wf = f && (d.j0 < 0 || j < d.j0);
+      o.push({ j, on: inB || !!wf, rep: !inB && wf ? f[1] : null, inB }); }
+    return o; };
+  BPI.short = (x, p, V, np) => { const d = V[2]; if (!d) return ''; const st = BPI.state(x, p, V, np), on = st.filter(s => s.on).map(s => bpPartW(s.j)), t = [];
+    if (d.j0 >= 0) t.push(`your build uses it: skip getting it${on.length && st[0].on && !st[0].inB ? ', wear it from the start' : ''}`);
+    else if (on.length) t.push(on.length === np ? 'wear it all run' : `wear it in your ${on.join(' and ')} gear`);
+    if (d.cr && d.cr.keep) t.push(`keep it: your build crafts ${ilink(d.cr.keep.r.result.id)} from it<span class="pl-bps" data-r="${esc(d.cr.keep.r.result.id)}"></span>`);
+    return t.length ? t.join(' · ') + ' <span class="small">· shown in the route below</span>' + DCL.q(V[0]) : ''; };
+  BPI.route = (f, c, np) => { if (!DCL_ON || !BPI.D.length) return; const ol = f.querySelector('ol.pl-steps'); if (!ol) return; BPI.css();
+    const x = bpCtx(c), enc = id => `a[href="#item/${encodeURIComponent(id)}"]`;
+    const secs = [...ol.querySelectorAll(':scope > li.pl-sec')].map(li => ({ li, j: FPN.findIndex(p => DCL.txt(li.querySelector('.pl-snm')).toLowerCase().startsWith(p.toLowerCase())) })).filter(s => s.j >= 0 && s.j < np);
+    const grid = s => { let g = s.li.querySelector(':scope > .pl-sg'); if (!g) { s.li.insertAdjacentHTML('beforeend', '<div class="pl-sg"></div>'); g = s.li.querySelector(':scope > .pl-sg'); } return g; };
+    const gearV = s => { let v = s.li.querySelector('.pl-gr[data-row="gear"] > .pl-gv'); if (v) return v;
+      grid(s).insertAdjacentHTML('afterbegin', '<div class="pl-gr" data-row="gear"><span class="pl-gk">Gear</span><div class="pl-gv"></div></div>'); return s.li.querySelector('.pl-gr[data-row="gear"] > .pl-gv'); };
+    const addRow = (s, h) => grid(s).insertAdjacentHTML('beforeend', `<div class="pl-gr" data-row="bonus"><span class="pl-gk">Bonus item</span><div class="pl-gv">${h}</div></div>`);
+    const chipOf = (v, id) => [...v.querySelectorAll(':scope > .pl-gc')].find(ch => !ch.classList.contains('pl-gc-off') && ch.querySelector(enc(id)));
+    const acq = id => [...ol.querySelectorAll(`.pl-bd ${enc(id)}`)].map(a => a.closest('.pl-bd')).filter(b => b && /^(get|buy|farm)$/.test(b.dataset.k || '') && !b.closest('.pl-gr[data-row="carry"], .pl-gr[data-row="bonus"]'));
+    const note = (b, h, grey) => { if (grey) { b.classList.add('pl-bd-bpx'); b.title = 'your bonus item covers it'; }
+      const row = b.closest('li.pl-row'), gv = b.closest('.pl-gv');
+      if (row) { const rw = row.querySelector('.pl-rw'); if (!rw) return; let rn = rw.querySelector(':scope > .pl-rn'); if (!rn) { rw.insertAdjacentHTML('beforeend', '<div class="pl-rn"></div>'); rn = rw.querySelector(':scope > .pl-rn'); }
+        rn.insertAdjacentHTML('afterbegin', `<div class="pl-bpn">${h}</div>`); }
+      else if (gv) gv.insertAdjacentHTML('beforeend', `<div class="pl-bm pl-bpn">${h}</div>`); };
+    const dimNote = id => ol.querySelectorAll(`.pl-rn > div .pl-rnk ${enc(id)}`).forEach(a => { const d = a.closest('.pl-rn > div'); if (d) d.classList.add('pl-bpdim'); });
+    const stepOfB = b => { const r = b && b.closest('li[data-n]'); return r ? r.dataset.n : ''; };
+    const rep = {};                                                   // replaced item -> {j: copies, by: [pick]}
+    BPI.D.forEach(({ p, V }) => { const d = V[2]; if (!d) return; const id = p.id, st = BPI.state(x, p, V, np), who = `your ${esc(p.nm)}`;
+      /* (1) chips */
+      secs.forEach(s => { const q = st[s.j]; if (!q || !q.on) return; const v = gearV(s); let ch = chipOf(v, id);
+        if (!ch) { v.insertAdjacentHTML('afterbegin', clChip(ilink(id), 1, false, false)); ch = v.querySelector(':scope > .pl-gc'); }
+        ch.classList.add('pl-gc-bp'); ch.title = `${p.nm} (your pick)`; if (!ch.querySelector('.pl-bpm')) ch.insertAdjacentHTML('beforeend', '<span class="pl-stt pl-bpm">your bonus</span>');
+        if (!q.rep) return; const rc = chipOf(v, q.rep); if (!rc) return; const cn = rc.querySelector('.pl-cnt'), n = cn ? +cn.textContent.replace(/\D/g, '') || 1 : 1;
+        if (n > 1) { if (n - 1 > 1) cn.textContent = 'x' + (n - 1); else cn.remove(); rc.insertAdjacentHTML('afterend', clChip(rc.querySelector('a').outerHTML, 1, false, false).replace('class="pl-gc', 'title="your bonus item takes this slot" class="pl-gc pl-gc-off')); }
+        else { rc.classList.add('pl-gc-off'); rc.title = 'your bonus item takes this slot'; } });
+      st.forEach(q => { if (!q.rep) return; const o = rep[q.rep] = rep[q.rep] || { c: {}, by: [] }; o.c[q.j] = (o.c[q.j] || 0) + 1; if (!o.by.includes(p)) o.by.push(p); });
+      /* (2) the build's own copy of the gift */
+      if (d.j0 >= 0) { const bs = acq(id); bs.forEach(b => note(b, `<b>bonus</b> skip it: you already have ${ilink(id)} (${who})`, true)); if (bs.length) dimNote(id); }
+      /* (3) in / out rows */
+      secs.forEach(s => { const q = st[s.j], pv = s.j ? st[s.j - 1] : null; if (!q) return; let h = '';
+        if (q.on && !q.inB && (!pv || !pv.on)) h = `${s.j ? 'swap in' : 'wear from the start:'} ${ilink(id)} <span class="small">(${who})</span>${q.rep ? ` in place of ${ilink(q.rep)}` : ' in a free slot'}`;
+        else if (!q.on && pv && pv.on) h = pv.rep && bpList(x, s.j).includes(pv.rep) ? `swap ${ilink(id)} out for ${ilink(pv.rep)}` : `swap ${ilink(id)} out: your ${bpPartW(s.j)} gear is stronger`;
+        if (h && !q.on && d.cr && d.cr.keep && d.cr.keep.j >= s.j) h += ` · keep it in the pet bag for ${ilink(d.cr.keep.r.result.id)}`;
+        if (h) addRow(s, h); });
+      /* (4) the craft that uses it */
+      if (d.cr && d.cr.keep) { const res = d.cr.keep.r.result.id, bs = acq(res);
+        bs.forEach(b => note(b, `<b>bonus</b> keep ${ilink(id)} (${who}) in the pet bag, don't sell it: this craft uses it`, false));
+        const n0 = bs.map(stepOfB).find(Boolean), pj = d.cr.keep.j, at = n0 ? ` at step ${n0}` : ` for your ${bpPartW(pj)} gear`;
+        f.querySelectorAll(`.pl-bps[data-r="${res}"]`).forEach(e => { e.textContent = at; });
+        const s0 = secs.find(s => s.j === 0); if (s0 && pj > 0 && !st.slice(0, pj).some(q => q.on)) addRow(s0, `keep ${ilink(id)} <span class="small">(${who})</span> in the pet bag, don't sell it: it goes into ${ilink(res)}${at}`); } });
+    /* (2) items a gift replaces: skip when every part that uses them is covered */
+    Object.keys(rep).forEach(r => { const o = rep[r], need = {}, uses = [];
+      for (let j = 0; j < np; j++) { const k = bpList(x, j).filter(y => y === r).length; if (k) { uses.push(j); need[j] = k - (o.c[j] || 0); } }
+      const who = o.by.map(p => `your ${esc(p.nm)} ${ilink(p.id)}`).join(' and '), tk = o.by.length > 1 ? 'take' : 'takes', bs = acq(r); if (!bs.length) return;
+      const left = uses.filter(j => need[j] > 0), rp = uses.filter(j => o.c[j]), one = uses.every(j => bpList(x, j).filter(y => y === r).length === 1);
+      if (!left.length) { bs.forEach(b => note(b, `<b>bonus</b> skip ${ilink(r)}: ${who} ${tk} ${uses.some(j => o.c[j] > 1) ? 'those slots' : 'its slot'}`, true)); dimNote(r); return; }
+      if (one) bs.forEach(b => note(b, `<b>bonus</b> ${ilink(r)} is only needed ${left[0] > rp[0] && left.every(j => j > rp[rp.length - 1]) ? 'from' : 'for'} your ${left.map(bpPartW).join(' and ')} gear: ${who} ${tk} its slot in your ${rp.map(bpPartW).join(' and ')} gear`, false));
+      else bs.forEach(b => note(b, `<b>bonus</b> get ${rp.map(j => `${o.c[j]} ${ilink(r)} fewer for your ${bpPartW(j)} gear`).join(', ')}: ${who} ${tk} ${o.by.length > 1 || rp.some(j => o.c[j] > 1) ? 'those slots' : 'that slot'}`, false)); }); };
   /* the 'Bonus item' row of an open run: pickers + one line per picked gift. np = run parts the route reaches */
   const bpRow = (c, np) => { const ks = bpKinds(c.n); if (!ks.length || !(BP_GP.l7 || []).length) return '';
     const x = bpCtx(c), bp = S.bp || {};
@@ -2090,7 +2225,8 @@
       return `<span class="pl-bpw"><details class="pl-bpk" data-bk="${k}" data-pool="${pool}" data-h="${esc(c.h)}" data-gk="${esc(x.gk)}" data-n="${c.n}" data-m="${c.m}" data-l="${x.L}">`
         + `<summary title="${esc(why)}">${esc(nm)}: ${ok ? K.icon(id) + esc(iname(id)) : '<i>pick</i>'}</summary><div class="pl-bpd"><input class="pl-bpf" type="search" placeholder="type a name (${(BP_GP[pool] || []).length} items)" autocomplete="off"><div class="pl-bpl"></div></div></details>`
         + (id ? `<button type="button" class="pl-bpx" data-bk="${k}" title="new game: clear">✕</button>` : '') + `</span>`; }).join(' ');
-    const U = {}, ln = bpPicks(c.n).map(p => { const [t] = bpVerdict(x, p.id, np, U); return `<div class="small pl-bpv"><b>${esc(p.nm)}</b> ${ilink(p.id)}: ${t}</div>`; }).join('');
+    const U = {}; BPI.D = []; const ln = bpPicks(c.n).map(p => { const V = bpVerdict(x, p.id, np, U); BPI.D.push({ p, V }); const t = BPI.short(x, p, V, np) || V[0];   // BONUS INLINE
+      return `<div class="small pl-bpv"><b>${esc(p.nm)}</b> ${ilink(p.id)}: ${t}</div>`; }).join('');
     const odd = ks.filter(([k, , pool]) => bp[k] && !(BP_GP[pool] || []).includes(bp[k])).map(([k, nm]) => `${esc(nm)}: ${ilink(bp[k])} is not in this N's pool`);
     return `${pk}${ln}${odd.length ? `<div class="small pl-bpv">${odd.join(' · ')}</div>` : ''}`; };
   /* card tag: 'uses your bonus item' (the gift or its craft is in the build) > 'bonus item fits' (beats the weakest early item) */
@@ -2118,6 +2254,7 @@
     if (!g) { const d = document.createElement('div'); d.className = 'pl-bys pl-byc'; d.innerHTML = '<b class="pl-bt">Before you start</b><div class="pl-byg"></div>';
       const a = f.querySelector(':scope > .pl-fw') || f.querySelector(':scope > .pl-fh'); f.insertBefore(d, a ? a.nextSibling : f.firstChild); g = d.querySelector('.pl-byg'); }
     g.insertAdjacentHTML('beforeend', `<div class="pl-byr pl-bpr"><span class="pl-byl">Bonus item</span><div class="pl-byv">${row}</div></div>`);
+    try { BPI.route(f, c, np); } catch (e) { if (typeof console !== 'undefined') console.warn('bonus inline', e); }   // BONUS INLINE: the picks in the route
     return box.innerHTML; };
   const bpTagDiv = c => { const t = bpTag(c); return t ? `<div class="pl-ct">${t}</div>` : ''; };
   K.hooks.push((page, out) => { if (page !== 'planner') return;   /* BONUS PICK: fill a picker list when opened, filter, pick, clear */
@@ -2156,7 +2293,7 @@
   const LSTC = new Map();
   const listAt0 = (goal, gl, rf, deep, skip) => withG({ gl, rf }, () => { const cn = CARDN, sk = LSKIP; if (deep) CARDN = 60; LSKIP = skip || null;
     try { return LISTF[goal](); } finally { CARDN = cn; LSKIP = sk; } });
-  const listAt = (goal, gl, rf, deep, skip) => { const k = JSON.stringify([goal, +gl || 0, !!rf, !!deep, !!skip, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), CF()]);   // ACCOUNT SWORDS
+  const listAt = (goal, gl, rf, deep, skip) => { const k = JSON.stringify([goal, +gl || 0, !!rf, !!deep, !!skip, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), rvSig(), CF()]);   // ACCOUNT SWORDS
     let R = LSTC.get(k); if (!R) { R = listAt0(goal, gl, rf, deep, skip); LSTC.set(k, R); if (LSTC.size > 24) LSTC.delete(LSTC.keys().next().value); }
     return R.msg ? R : Object.assign({}, R, { cards: (R.cards || []).map(c => Object.assign({}, c, { tags: (c.tags || []).slice() })),
       find: R.find ? (h, n, m) => { const c = R.find(h, n, m); return c ? Object.assign({}, c, { tags: (c.tags || []).slice() }) : c; } : R.find }); };
