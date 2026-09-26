@@ -778,6 +778,13 @@
         : `take the kill-count option here: it gives them, for ${fr}`;
       (at[o.k] = at[o.k] || []).push(`<li>${ilink(o.pid)}${(nd || qr) > 1 ? ' x' + fmt(nd || qr) : ''} <span class="small">· ${t}</span></li>`); });
     return { craft, render }; };
+  /* DROP OPTION (user 2026-09-26, quiz 'Short note'): a BUY line also names the best creep drop of that item in a zone the route has reached
+     by the part's end (W.items sources, average luck = 100 / chance kills a copy; bosses, one-roll spots and the Firelands left out) */
+  const dropAlt = (id, nw, steps, e) => { const zs = new Set(steps.slice(0, e + 1).map(x => x.zone)); let best = null;
+    ((bsItem(id) || {}).sources || []).forEach(s => { const f = s.from || {}, u = f.id, ch = +s.chance, z = (W.unit_zone || {})[u];
+      if (s.kind !== 'drop' || !u || !(ch > 0) || !(W.mon || {})[u] || (W.boss || {})[u] || !z || z === 'z10' || !zs.has(z) || /once per|one per player/i.test(String(s.note || ''))) return;
+      if (!best || ch > best.ch) best = { u, nm: f.name || u, ch }; });
+    return best ? ` · or drop: ${srcA(best.u, best.nm)} ${pctF(best.ch)}, ~${fmt(Math.round(100 / best.ch))} kills${nw > 1 ? ' each' : ''}` : ''; };
   function farmPlan(h, n, m, L, steps, stop) {                       // -> {head(li, part), step(li, i), end(li, part)} or null (no data)
     if (!FW) return null;
     const fNeed = (FA_NEED || []).some(b => (b.id && bzone(b.id) === 'z10') || b.fire);   // SOULS FIRE (2026-09-26): a route goal in / through the Firelands opens them too (faPlan clears FA_NEED)
@@ -801,7 +808,7 @@
         if (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) fire.push(id);   // TESTER PAGE FIXES: source in (or route through) the Firelands
         if (w[6]) { spent += w[6] * nw; bsIS[p] += w[6] * nw; why.push(ilink(id)); }
         const nq = nthQ(id, w);   // NTH CLEAR: giver's step + kill count
-        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${nq ? nq.txt : whereTxt(w, nw)}${SCP.add(id, w)}${FAP.craft(id, w, p, nw)}</span></li>`, zo = ZO[w[3]];
+        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${nq ? nq.txt : whereTxt(w, nw)}${SCP.add(id, w)}${FAP.craft(id, w, p, nw)}${w[0] === 's' ? dropAlt(id, nw, steps, pE[p]) : ''}</span></li>`, zo = ZO[w[3]];
         let j = -1;
         if (nq) { for (let i = pS[p]; i <= pE[p]; i++) if (String(steps[i].do || '').includes('{{u:' + nq.u + '}}')) { j = i; break; }   // NTH CLEAR: the quest giver's step
           if (j < 0 && nq.z) for (let i = pS[p]; i <= pE[p]; i++) if (steps[i].zone === nq.z) { j = i; break; } }

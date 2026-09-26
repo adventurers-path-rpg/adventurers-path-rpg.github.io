@@ -142,6 +142,7 @@
         'Run planner: pet bag back in Before you start (free start gift tagged), Frodo’s chain sits where your hero can finish it, Absolute Ring after the boat.',
         'Run planner Souls farm: the Flame Lord (30 s respawn) now counts once your run opens the Firelands for a Legacy item, not only for gear.',
         'Run planner: bosses open from the start (Centaur Khan, Troll Boss ...) no longer say go straight there at level 1: the fight check assumes your end-of-Early level, so the card now plays the Early part first.',
+        'Run planner BUY lines also name the best monster drop you could farm instead (e.g. Agile Hood · or drop: Bristleback Healer 1.3%, ~80 kills).',
       ]],
     ]],
     ['25 Sep 2026', [
