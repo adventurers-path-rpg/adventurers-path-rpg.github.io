@@ -135,6 +135,7 @@
         'Item pages show where exactly: a pin map for drops from Rock Chunks, barrels, cages and single units (Dragon Ball: all 7 spots). Walled-in spots say how to reach them.',
       ]],
       ['Calculators', [
+        'Run planner card rebuilt for play: one step per row with a tick box and NEXT marker, coloured GET / BUY / ENHANCE / LEGACY / FARM / GATE badges, gear, pet bag, rune and skills shown at the top of each part. Pick your Player Bonus / Beginner item: the card says whether to wear it and how it upgrades.',
         'Run planner: pet bag back in Before you start (free start gift tagged), Frodo’s chain sits where your hero can finish it, Absolute Ring after the boat.',
       ]],
     ]],

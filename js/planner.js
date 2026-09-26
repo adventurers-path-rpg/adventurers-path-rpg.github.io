@@ -19,6 +19,7 @@
   let S = { own: {}, goal: '', pts: 0, ml: 1, rank: 0, wp: 0, vip: 0, src: '' };
   try { const x = JSON.parse(localStorage.getItem(LS) || 'null'); if (x && x.own) S = Object.assign(S, x); } catch (e) {}
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
+  if (!S.bp || typeof S.bp !== 'object') S.bp = {};                   // BONUS PICK (patch_page_bonuspick 2026-09-26): your picked start gifts
   /* save file (checks/save_format_102.json): a Preload script, lines call BlzSetAbilityTooltip(<n>, "-<190-char chunk>", 0); strip the '-' and
      join the chunks in file order -> "DMO25;" + key#value; pairs (escapes %25 %23 %3B %5C %22). A big save = main file "DMO25M|pages|len|hash"
      + _P0.._Pn.pld pages. IBC1..18 = Legacy Bag (1-6) + Legacy Storage 1-2 (7-18) as int32 item rawcodes (enhance level is not saved),
@@ -845,7 +846,8 @@
       const na = Object.keys(ad).length, nr = Object.keys(rm).length;
       pet = (na ? 'add ' + pl(ad) : '') + (nr ? (na ? ` <span class="small">in place of ${pl(rm)}</span>` : 'take out ' + pl(rm)) : ''); }
     TPS.pk = key; TPS.pc = pc;
-    const ex = p === 0 ? [ml >= 23 ? 'one random Level-7 item (Player Bonus, solo, Map Level 23+)' : '', ml <= 30 ? `one random ${tpBeg(n)} (Beginner Bonus)` : ''].filter(Boolean) : [];
+    const ex = p === 0 ? [ml >= 23 ? bpFree('pb', n, 'one random Level-7 item (Player Bonus, solo, Map Level 23+)') : '',   // BONUS PICK: your picks by name
+      ml >= 120 ? bpFree('m7', n, 'one random Level-7 item (Map Level 120 reward)') : '', ml <= 30 ? bpFree('bb', n, `one random ${tpBeg(n)} (Beginner Bonus)`) : ''].filter(Boolean) : [];
     if (pet || ex.length) out.push(`<b>Pet bag</b> ${pet}${ex.length ? ` <span class="small pl-pfx">· also free at the start: ${andJ(ex)}</span>` : ''}`);
     const ad = (((((W.addons || {})[h] || {})[gk]) || {})[st]) || [], rn = ad[0];
     if (rn && rn !== TPS.rune) { TPS.rune = rn; const s2 = tpSrc(rn);
@@ -1285,9 +1287,10 @@
       o = { x: [0, 1, 2].map(j => sp(f(j)).map(z => { const q = z.split(':'); return [q[0], +q[1] || 0]; })), e: [3, 4, 5].map(j => sp(f(j))), p: [6, 7, 8].map(j => sp(f(j))),
         r: [f(9), f(9) ? 1 : 0], b: (f(10) || '-;-').split(';').map(z => z && z !== '-' ? [z] : null) }; }
     RHC.set(ri, o); return o; };
-  const RND = { P7: 'random Level-7 item (Player Bonus)', A3: 'random Level-3 artifact (quest step 4)', A5: 'random Level-5 artifact (quest step 17)' };
+  const RND = { P7: 'random Level-7 item (Player Bonus)', M7: 'random Level-7 item (Map Level 120 reward)', A3: 'random Level-3 artifact (quest step 4)', A5: 'random Level-5 artifact (quest step 17)' };
   const tfName = id => { const c = String(id).slice(1); if (RND[c]) return RND[c]; const b = /^B(\d)$/.exec(c); return b ? `random ${tpBeg(+b[1])} (Beginner Bonus)` : 'random item'; };
-  const tfLink = id => String(id).charAt(0) === '~' ? `<span class="pl-rnd">${esc(tfName(id))}</span>` : ilink(id);
+  const tfLink = id => { if (String(id).charAt(0) !== '~') return ilink(id); const b = bpRnd(id);   // BONUS PICK: your pick names the random item
+    return b ? `${ilink(b)} <span class="small">(your bonus item)</span>` : `<span class="pl-rnd">${esc(tfName(id))}</span>`; };
   const krOf = x => { const r = ((PD.krh || {})[x.n + '|' + x.m] || {})[x.h]; return Array.isArray(r) && r.length >= 6 ? r : null; };   // the hero's own kills per part
   /* FARM GOALS (user-approved 'Yes, as farm goals'; findings/public/audit_math/side_evolutions.md). An owned Legacy item whose next steps
      roll per kill while it sits in the Legacy Bag can be farmed on. fgRoute = the run's own kills (otCtx: creeps per quest step, the route's bosses, the replay's
@@ -1551,7 +1554,7 @@
       + `<div class="pl-cr"><b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span>${lenW(c.mins)} run</span>` : ''}</div>`
       + `<div class="pl-cg">${c.what}</div>` + otwCard(c) + chCard(c)   // ON THE WAY
       + (c.fc != null ? `<div>${f10H(c.fc)}</div>` : c.fr != null ? `<div>${f10H(c.fr, 1)}</div>` : '')
-      + (dclTags(c.tags).length ? `<div class="pl-ct">${dclTags(c.tags).join('')}</div>` : '') + `</div>`; };
+      + (dclTags(c.tags).length ? `<div class="pl-ct">${dclTags(c.tags).join('')}</div>` : '') + bpTagDiv(c) + `</div>`; };   // BONUS PICK tag
   /* ---- DECLUTTER (patch_page_declutter 2026-09-25, user: "make the planner clearer, more compact and simpler"). The open run card is
      rebuilt from the SAME html the planner wrote (nothing is recomputed here and no fact is dropped: long text moves behind a small '?'
      or a 'show all'): header + one tag; 'Before you start' (gear switch, Legacy Bag, skills, Boss Souls total, after-run / -save rule);
@@ -1583,69 +1586,158 @@
   const dclTags = tags => { const pr = t0 => { const t = String(t0).replace(/ (?:title|data-tip)="[^"]*"/g, ''); return /needs: A bit more/.test(t) || /Jarvan V farm/i.test(t) ? -1 : /rare drops|needs: /.test(t) ? 0 : /tight/i.test(t) ? 1
       : /Beginner-friendly/i.test(t) ? 2 : /no quest steps/i.test(t) ? 3 : /Full clear OK/i.test(t) ? 4 : 5; };
     return (tags || []).filter(t => pr(t) >= 0).sort((a, b) => pr(a) - pr(b)).slice(0, 1); };
+  /* ---- CLARITY (patch_page_clarity 2026-09-26, user: "the compacted card is a downgrade: hidden info, crammed lines, lost structure").
+     The route is rebuilt from the SAME html the planner wrote (nothing recomputed): one step per row [tick] [number] [zone chip] [what to do,
+     verb in bold] + coloured action badges (GET / BUY / ENHANCE / LEGACY / FARM / GATE, item icons), short notes as a muted line under the
+     row (over CL_NOTE characters: behind '?'), plain main-quest steps DIMMED (never folded). Each 'X gear' row becomes a section: a coloured
+     header bar (name · first zone -> last zone · steps a-b) + a labelled grid (Gear chips, Pet bag, Rune, Universal skills, Boss Souls to
+     spend, Get first). Section header rows keep class pl-gh (the route checker skips them). Ticks: data-tk per row, the hook below. */
+  const CL_NOTE = 140;
+  const CLK = { get: 'get', buy: 'buy', enh: 'enhance', leg: 'legacy', farm: 'farm', gate: 'gate' };
+  const CL = { bd: (k, h, tip) => `<span class="pl-bd pl-bd-${k}" data-k="${CLK[k]}"${tip ? ` title="${esc(tip)}"` : ''}>${h}</span>`,
+    len: h => DCL.txt(DCL.box(h)).length };
+  let CL_NM = null;   // Legacy item name -> id (goal / Then lines carry plain names)
+  const clI = nm => { nm = String(nm || '').trim(); if (!CL_NM) { CL_NM = {}; Object.keys(POS).forEach(id => { CL_NM[iname(id)] = id; }); } const id = CL_NM[nm]; return id ? ilink(id) : esc(nm); };
+  /* pickup kind from its where-text (whereTxt): shop / trade = BUY, repeat kills / bags / N kills with an item = FARM, the rest = GET */
+  const clKind = t => /(gold|Boss Souls)( each)? at the |one trade per run|^buy it at /.test(t) ? 'buy'
+    : /~[\d,]+ (kills|bags|chests|clears)\b|\bkill \d+ [A-Z]/.test(t) ? 'farm' : 'get';
+  const clFc = t => { let m = /\bkill (\d+) ([A-Z][A-Za-z'’ -]*?)(?= here| with|[,.(]|$)/.exec(t); if (m) return m[1] + ' ' + m[2];
+    m = /~[\d,]+ (kills|bags|chests|clears)\b/.exec(t); return m ? m[0] : ''; };
+  const clPick = x => { const c = x.cloneNode(true), sm = [...c.querySelectorAll(':scope > span.small')], wt = [...c.querySelectorAll(':scope > .warntext, :scope > .tag')];
+    const note = sm.map(y => y.innerHTML.replace(/^\s*·\s*/, '')).join(' '); sm.forEach(y => y.remove()); wt.forEach(y => y.remove());
+    const t = DCL.txt(DCL.box(note)), k = clKind(t), fc = k === 'farm' ? clFc(t) : '', nm = DCL.txt(c);
+    return { b: CL.bd(k, c.innerHTML.trim() + (fc ? ` <span class="pl-bdn">· ${esc(fc)}</span>` : '') + wt.map(y => ' ' + y.outerHTML).join(''), t),
+      n: note ? `<span class="pl-rnk">${esc(nm)}:</span> ${note}` : '' }; };
+  /* 'Enhance · A to +1, B to +2 (Gazlowe, ~80 Boss Souls)' -> {b: ENHANCE badge, s: Boss Souls} */
+  const clEnh = li => { const c = li.cloneNode(true), b = c.querySelector(':scope > b'); if (b) b.remove();
+    const sm = [...c.querySelectorAll(':scope > span.small')].pop(); let s = 0;
+    if (sm) { const m = /~([\d,]+) Boss Souls/.exec(sm.textContent); if (m) s = +m[1].replace(/,/g, ''); sm.remove(); }
+    const body = c.innerHTML.replace(/^\s*·\s*/, '').trim().replace(/ to \+(\d+)/g, ' +$1');
+    return { s, b: CL.bd('enh', body + (s ? ` <span class="pl-bdn">· ~${fmt(s)} souls</span>` : ''), 'Enhance at Gazlowe' + (s ? ', ~' + fmt(s) + ' Boss Souls' : '')) }; };
+  const CL_VB = /(^|[^A-Za-z])(Buy|Kill|Enter|Talk|Bring|Walk|Take|Sail|Defeat|Collect|Return|Go|Head|Find|Use|Clear|Pick|Give|Craft|Visit|Deliver|Travel|Open|Hunt|Destroy|Survive|Follow|Reach|Cross)(?![A-Za-z])/i;
+  const clVerb = el => { const w = document.createTreeWalker(el, 4), ns = []; while (w.nextNode()) ns.push(w.currentNode);
+    for (const n of ns) { if (n.parentElement.closest('a, .tag, .small, details, b')) continue; const m = CL_VB.exec(n.nodeValue); if (!m) continue;
+      const i = m.index + m[1].length; if (/\bor\s*$/i.test(n.nodeValue.slice(0, i))) continue;
+      const mid = n.splitText(i); mid.splitText(m[2].length); const b = document.createElement('b'); b.className = 'pl-vb'; b.textContent = mid.nodeValue; mid.replaceWith(b); return; } };
+  /* one route line -> one row */
+  const clRow = li => {
+    if (li.classList.contains('pl-stop')) { li.classList.add('pl-end'); return; }
+    const rb = li.classList.contains('pl-rb'), rp = li.classList.contains('pl-rp'), hd = DCL.head(li), bd = (li._clb || []).slice(), lg = [], nt = [];
+    let zone = '', kind = '';
+    if (rp && !hd) { const f0 = li.firstElementChild; if (f0 && f0.matches('span.small')) { while (f0.firstChild) li.insertBefore(f0.firstChild, f0); f0.remove(); } kind = 'opt'; }
+    li.querySelectorAll(':scope > ul.pl-ul').forEach(ul => { [...ul.children].forEach(x => { const r = clPick(x); bd.push(r.b); if (r.n) nt.push(r.n); }); ul.remove(); });
+    const f = li.firstElementChild;
+    if (!rb && !rp && f && f.matches('span.small')) { zone = f.innerHTML; const nx = f.nextSibling; f.remove(); if (nx && nx.nodeType === 3) nx.nodeValue = nx.nodeValue.replace(/^\s*·\s*/, ''); }
+    if (hd === 'Then' || hd === 'Pick up') { const s = [...li.querySelectorAll(':scope > span.small')].find(x => /^·/.test(DCL.txt(x)));
+      if (s) { const t = DCL.txt(s).replace(/^·\s*/, ''), m = hd === 'Then' ? /^(.+?) → (.+?)(?:, (.+))?$/.exec(t) : null;
+        if (m) { lg.push(CL.bd('leg', `${clI(m[1])} → ${clI(m[2])}`)); if (m[3]) nt.push(esc(m[3])); s.remove(); }
+        else if (hd === 'Pick up') { lg.push(CL.bd('leg', clI(t))); s.remove(); } } }
+    [...li.querySelectorAll(':scope > span.small, :scope > div.small')].forEach(s => { if (s.classList.contains('warntext')) return; const t = DCL.txt(s);
+      if (/^\(([^()]+)\)$/.test(t)) { if (rb && !zone) { zone = esc(t.slice(1, -1)); s.remove(); } return; }
+      if (!t) return; nt.push(s.innerHTML.replace(/^\s*·\s*/, '')); s.remove(); });
+    if (/^Get /.test(hd)) { kind = 'goal'; lg.push(CL.bd('leg', clI(hd.slice(4)))); }
+    else if (/^Upgrade /.test(hd)) { kind = 'goal'; lg.push(CL.bd('leg', clI(hd.slice(8)) + ' <span class="pl-bdn">↑</span>')); }
+    else if (/^Farm /.test(hd)) { kind = 'goal'; bd.push(CL.bd('farm', clI(hd.slice(5)))); }
+    else if (hd === 'First' || hd === 'Ticket') { kind = 'gate'; bd.push(CL.bd('gate', '<span class="pl-gtf">first</span>', 'Needed before the goal it opens')); }
+    else if (/^Frodo's/.test(hd)) { kind = 'gate'; bd.push(CL.bd('gate', 'Firelands', 'Opens the Firelands')); }
+    else if (hd === 'Legacy Bag') { kind = 'bag'; lg.push(CL.bd('leg', 'Bag swap')); }
+    else if (hd === 'Absolute Ring') { kind = 'ring'; bd.push(CL.bd('get', ilink('I050'))); }
+    else if (hd === 'Boss Souls') { kind = 'souls'; const m = /(~[\d,]+ kills|1 kill) for ~?([\d,]+) Boss Souls/.exec(DCL.txt(li)); bd.push(CL.bd('farm', m ? `${m[1]} · ${m[2]} souls` : 'Boss Souls')); }
+    else if (rb) { const a = li.querySelector(':scope > b > a[href^="#item/"]'); if (a) { kind = 'carry'; bd.push(CL.bd('get', a.outerHTML)); } }
+    else if (kind === 'opt') { const a = li.querySelector('a[href="#item/I03L"]'); if (a) bd.push(CL.bd('get', a.outerHTML + ' <span class="pl-bdn">optional</span>')); }
+    if (li._clenh) { li.innerHTML = `<b>Enhance</b> at ${srcA('n00G', 'Gazlowe')}`; kind = 'enh'; }
+    const doH = document.createElement('span'); doH.className = 'pl-do'; while (li.firstChild) doH.appendChild(li.firstChild);
+    if (doH.firstChild && doH.firstChild.nodeType === 3) doH.firstChild.nodeValue = doH.firstChild.nodeValue.replace(/^\s+/, '');
+    const sn = nt.filter(n => CL.len(n) <= CL_NOTE), ln = nt.filter(n => CL.len(n) > CL_NOTE);
+    if (ln.length) doH.insertAdjacentHTML('beforeend', DCL.q(ln.join('<br>')));
+    if (!rb && !rp) clVerb(doH);
+    const all = lg.concat(bd);
+    li.innerHTML = `<label class="pl-tk" title="Tick when done"><input type="checkbox" aria-label="Done"></label><span class="pl-no"></span><div class="pl-rw"><div class="pl-rm">${zone ? `<span class="pl-zc">${zone}</span> ` : ''}</div>`
+      + (sn.length ? `<div class="pl-rn">${sn.map(n => `<div>${n}</div>`).join('')}</div>` : '') + `</div>`;
+    const rm = li.querySelector('.pl-rm'); rm.appendChild(doH); if (all.length) rm.insertAdjacentHTML('beforeend', ` <span class="pl-bx">${all.join(' ')}</span>`);
+    li.classList.add('pl-row'); if (kind) li.classList.add('pl-k-' + kind);
+    if (!rb && !rp && !all.length && !nt.length && !doH.querySelector('.tag, .warntext, details')) li.classList.add('pl-dim'); };
+  /* one 'X gear' row -> a section header (bar + grid); sc = {h: the row, rows: the rows up to the next header} */
+  const clChip = (a, n, st, slow) => `<span class="pl-gc${st ? ' st' : ''}${slow ? ' slow' : ''}"${slow ? ' title="may take too long to farm"' : ''}>${a}${n > 1 ? `<span class="pl-cnt">x${n}</span>` : ''}${st ? '<span class="pl-stt">starter</span>' : ''}</span>`;
+  const clSec = (sc, si) => { const li = sc.h, nb = li.querySelector(':scope > b'), name = nb ? DCL.txt(nb).replace(/\s*gear$/i, '') : 'Part', G = [];
+    const gb = li.querySelector(':scope > .pl-gb'), hu = li.querySelector(':scope > ul.pl-ul');
+    const nums = sc.rows.map(r => +r.dataset.n).filter(x => x > 0), zs = sc.rows.filter(r => !r.classList.contains('pl-rb')).map(r => r.querySelector('.pl-rm > .pl-zc')).filter(Boolean).map(DCL.txt);
+    const souls = sc.rows.reduce((t, r) => t + (r._cls || 0), 0);
+    if (gb) { const chips = [], slow = new Set(); let slowH = '';
+      gb.querySelectorAll(':scope > span.small').forEach(s => { if (/may not fit|too long to farm/.test(s.textContent)) { s.querySelectorAll('a[href^="#item/"]').forEach(a => slow.add(a.getAttribute('href'))); slowH = s.innerHTML.replace(/^\s*·\s*[^:<]*:\s*/, ''); } });
+      const walk = (root, st) => [...root.childNodes].forEach(n => { if (n.nodeType !== 1) return;
+        if (n.matches('a[href^="#item/"]')) { const nx = n.nextSibling, m = nx && nx.nodeType === 3 ? /^\s*x(\d+)/.exec(nx.nodeValue) : null; chips.push(clChip(n.outerHTML, m ? +m[1] : 1, st, slow.has(n.getAttribute('href')))); }
+        else if (n.matches('span.small') && /^\s*\+ starter:/.test(n.textContent)) walk(n, true); });
+      walk(gb, false);
+      if (chips.length) G.push(['Gear', chips.join('') + (slowH ? `<div class="pl-bm">may take too long to farm: ${slowH}</div>` : ''), 'gear']);
+      const sk = [];
+      gb.querySelectorAll(':scope > div.small').forEach(d => { const b = d.querySelector(':scope > b'), lab = b ? DCL.txt(b) : ''; if (b) b.remove();
+        d.querySelectorAll('.pl-pfx').forEach(x => { x.outerHTML = `<div class="pl-bm">${x.innerHTML.replace(/^\s*·\s*also/, 'Also')}</div>`; });
+        const v = d.innerHTML.trim(); if (!v) return;
+        if (lab === 'Pet bag') G.push(['Pet bag', v, 'pet']); else if (lab === 'Rune') G.push(['Rune', v, 'rune']); else if (/^Universal skill/.test(lab)) sk.push(v); else G.push([lab || 'Also', v, '']); });
+      if (sk.length) G.push(['Universal skills', sk.map(x => `<div>${x}</div>`).join(''), 'skill']); }
+    if (souls) { const sr = souls >= 1000 ? Math.round(souls / 100) * 100 : souls >= 100 ? Math.round(souls / 10) * 10 : souls;
+      G.push(['Boss Souls', `~${fmt(sr)} to spend on the enhances in this part (at ${srcA('n00G', 'Gazlowe')})`, 'souls']); }
+    if (hu) { const cb = [], cn = [], gb2 = [], gn = [];
+      [...hu.children].forEach(x => { const t = DCL.txt(x.querySelector(':scope > span.small')); const r = clPick(x);
+        if (/carry it on your hero|keep (it|the second one) off your hero|wear one/.test(t)) { cb.push(r.b); if (r.n) cn.push(r.n); } else { gb2.push(r.b); if (r.n) gn.push(r.n); } });
+      const nl = a => a.map(n => CL.len(n) > CL_NOTE ? DCL.q(n) : `<div class="pl-bm">${n}</div>`).join('');
+      if (cb.length) G.push(['Carry', cb.join(' ') + nl(cn), 'carry']);
+      if (gb2.length) G.push(['Get first', gb2.join(' ') + nl(gn), 'first']); }
+    const zr = zs.length ? esc(zs[0]) + (zs[zs.length - 1] !== zs[0] ? ' → ' + esc(zs[zs.length - 1]) : '') : '';
+    const nr = nums.length ? (nums.length > 1 ? `steps ${nums[0]}-${nums[nums.length - 1]}` : `step ${nums[0]}`) : '';
+    li.className = 'pl-rp pl-gh pl-sec'; li.dataset.si = String(si % 3);
+    li.innerHTML = `<div class="pl-sh"><b class="pl-snm">${esc(name)}</b>${zr ? `<span class="pl-sx">· ${zr}</span>` : ''}${nr ? `<span class="pl-sx">· ${nr}</span>` : ''}</div>`
+      + (G.length ? `<div class="pl-sg">${G.map(([l, h, k]) => `<div class="pl-gr"${k ? ` data-row="${k}"` : ''}><span class="pl-gk">${esc(l)}</span><div class="pl-gv">${h}</div></div>`).join('')}</div>` : ''); };
   const dclRoute = html => { if (!DCL_ON || !html || html.indexOf('pl-steps') < 0 || /class="pl-steps pl-dc/.test(html)) return html;
     const box = DCL.box(html), ol = box.querySelector('ol.pl-steps'); if (!ol) return html;
-    ol.classList.add('pl-dc');
-    const lis = () => [...ol.children].filter(e => e.tagName === 'LI'), bon = []; let souls = 0;
-    /* optional farms -> the Bonus list */
+    ol.classList.add('pl-dc', 'pl-cl');
+    const lis = () => [...ol.children].filter(e => e.tagName === 'LI'), bon = [];
+    /* optional farms -> the Also list (as DECLUTTER) */
     lis().forEach(li => { if (DCL.head(li) !== 'Optional farm') return; const c = li.cloneNode(true); c.querySelector(':scope > b').remove();
       bon.push('<b>Farm</b> ' + c.innerHTML.replace(/^\s*·\s*/, '')); li.remove(); });
-    /* gear rows: the items in one row; pet bag / rune / universal skill behind a tap */
-    lis().filter(li => li.classList.contains('pl-gh')).forEach(li => {
-      const s = li.querySelector(':scope > span.small'); if (s && /farm while you pass/.test(s.textContent)) s.remove();
-      const gb = li.querySelector(':scope > .pl-gb'); if (!gb) return;
-      DCL.tn(gb, /may not fit this gear level's farm time/g, 'may take too long to farm');
-      const ex = [...gb.querySelectorAll(':scope > div.small')]; if (!ex.length) return;
-      const lab = [...new Set(ex.map(x => DCL.txt(x.querySelector('b')).toLowerCase().replace('universal skill', 'skill')).filter(Boolean))];
-      const d = document.createElement('details'); d.className = 'pl-more pl-gx';
-      d.innerHTML = `<summary>+ ${esc(lab.join(', '))}</summary>`; ex.forEach(x => d.appendChild(x)); gb.appendChild(d); });
-    /* Enhance -> a sub-line of the step before; Boss Souls summed once */
-    lis().forEach(li => { if (DCL.head(li) !== 'Enhance') return;
-      const sm = [...li.querySelectorAll(':scope > span.small')].pop();
-      if (sm) { const m = /~([\d,]+) Boss Souls/.exec(sm.textContent); if (m) { souls += +m[1].replace(/,/g, ''); const g = sm.querySelector('a'); sm.innerHTML = g ? 'at ' + g.outerHTML : ''; } }
-      const p = li.previousElementSibling, c = li.cloneNode(true); c.querySelector(':scope > b').remove();
-      const body = '⚒ Enhance ' + c.innerHTML.replace(/^\s*·\s*/, '');
-      if (p && p.tagName === 'LI' && p.classList.contains('pl-n')) { const d = document.createElement('div'); d.className = 'pl-sub'; d.innerHTML = body; p.appendChild(d); li.remove(); }
-      else { li.innerHTML = body; li.classList.add('pl-enh'); } });
-    /* same-zone quest steps on one line (4 at most); a step with sub-lines ends its line */
-    const plain = li => li.classList.contains('pl-n') && !li.classList.contains('pl-rb') && !!li.firstElementChild && li.firstElementChild.matches('span.small');
-    const clean = li => !li.querySelector(':scope > ul, :scope > .pl-sub, :scope > details, :scope > .tag, :scope > .pl-q');
-    let prev = null;
-    lis().forEach(li => { if (!plain(li)) { prev = null; return; }
-      if (prev && DCL.txt(prev.firstElementChild) === DCL.txt(li.firstElementChild) && clean(prev) && (+prev.dataset.k || 1) < 4) {
-        const c = li.cloneNode(true); c.firstElementChild.remove(); c.innerHTML = c.innerHTML.replace(/^\s*·\s*/, '');
-        const sp = document.createElement('span'); sp.className = 'pl-sep'; sp.textContent = ' › '; prev.appendChild(sp);
-        while (c.firstChild) prev.appendChild(c.firstChild);
-        prev.dataset.k = (+prev.dataset.k || 1) + 1; li.remove(); return; }
-      prev = li; });
-    /* item pickups at a step (and under a gear row): inline 'get:' names on the step's own line, where / price / chance behind '?' */
-    lis().forEach(li => li.querySelectorAll(':scope > ul.pl-ul, :scope > .pl-gb > ul.pl-ul').forEach(ul => { ul.classList.add('pl-gets');
-      ul.querySelectorAll(':scope > li').forEach(x => { const w = [...x.querySelectorAll(':scope > span.small')]; if (!w.length) return;
-        const more = w.map(y => y.innerHTML.replace(/^\s*·\s*/, '')).join(' '); w.forEach(y => y.remove()); x.insertAdjacentHTML('beforeend', DCL.q(more)); }); }));
-    /* step numbers (a joined line shows its range), shorter fixed lines, the tight tip behind '?' */
-    let k = 0; lis().forEach(li => { if (!li.classList.contains('pl-n')) return; const a = k + 1; k += +li.dataset.k || 1; li.dataset.n = a === k ? String(a) : a + '-' + k; });
+    /* shorter fixed lines (as DECLUTTER) */
     lis().forEach(li => { if (li.classList.contains('pl-stop')) DCL.tn(li, /the rest of the run gives you nothing you planned/, 'nothing else planned after this');
       DCL.tn(li, /^Optional: Frodo's (quest chain|hidden Boss Hunt) gives every player an? $/, "Optional: Frodo's $1 → ");
       DCL.tn(li, /^\. Nothing on this run needs it\.$/, ' (this run does not need it)');
       DCL.tn(li, /^ \((7 bosses in a fixed order, then the Flame Lord in the Firelands)\)\. Nothing on this run needs it\.$/, ' (this run does not need it; $1)');
-      li.querySelectorAll('span.small').forEach(s => { const t = DCL.txt(s); if (/^survive only/.test(t)) s.outerHTML = DCL.q(esc(t.replace(/ - Safer \/ A bit more helps$/, ', more gear helps'))); }); });
-    /* ---- FOLD (patch_page_fold 2026-09-25, user: "show only the steps where the player does something for THIS plan"): 1+ lines in a
-       row that are plain main-quest steps (plain + clean above: zone + quest text, no pickup / Enhance / tight chip; never a gate, goal, gear,
-       Boss Souls, Frodo or Stop line) fold into ONE line 'Steps 12-19 · follow the main quest' + show. The step lines move inside it
-       unchanged, so the route checker still reads every quest step in order. */
-    const fold = li => plain(li) && clean(li) && !li.querySelector('.warntext');
-    const fruns = []; let frun = [];
-    lis().forEach(li => { if (fold(li)) frun.push(li); else { if (frun.length) fruns.push(frun); frun = []; } });
-    if (frun.length) fruns.push(frun);
-    fruns.forEach(r => { const a = String(r[0].dataset.n).split('-')[0], z = String(r[r.length - 1].dataset.n).split('-').pop(), f = document.createElement('li');
-      const rg = a === z ? a : a + '-' + z; f.className = 'pl-fold'; f.dataset.n = rg; f.dataset.k = r.reduce((t, x) => t + (+x.dataset.k || 1), 0);
-      f.innerHTML = `<details class="pl-fd"><summary><span class="pl-fdh">Step${a === z ? '' : 's'} ${rg} · follow the main quest</span><span class="pl-fds"></span></summary><div class="pl-fdb"></div></details>`;
-      const b = f.querySelector('.pl-fdb'); ol.insertBefore(f, r[0]);
-      r.forEach(x => { const d = document.createElement('div'); d.className = 'pl-fdl'; d.dataset.n = x.dataset.n;
-        while (x.firstChild) d.appendChild(x.firstChild); b.appendChild(d); b.appendChild(document.createTextNode(' ')); x.remove(); }); });
-    if (souls) ol.dataset.souls = souls;
+      DCL.tn(li, /may not fit this gear level's farm time/g, 'may take too long to farm'); });
+    /* Enhance lines -> an ENHANCE badge on the step before (own row right after a section header or a non-step line) */
+    lis().forEach(li => { if (DCL.head(li) !== 'Enhance') return; const r = clEnh(li), p = li.previousElementSibling;
+      if (p && p.tagName === 'LI' && p.classList.contains('pl-n')) { (p._clb = p._clb || []).push(r.b); p._cls = (p._cls || 0) + r.s; li.remove(); }
+      else { li._clb = [r.b]; li._cls = r.s; li._clenh = 1; } });
+    lis().forEach(li => { if (!li.classList.contains('pl-gh')) clRow(li); });
+    /* step numbers: every step row (quest steps and goal / gate lines) */
+    let k = 0; lis().forEach(li => { if (!li.classList.contains('pl-n')) return; li.dataset.n = String(++k); const no = li.querySelector(':scope > .pl-no'); if (no) no.dataset.n = li.dataset.n; });
+    /* GATE badges name the goal they open (the next goal / Then / Pick up row) */
+    const rows = lis();
+    rows.forEach((li, j) => { const g = li.querySelector('.pl-bd-gate .pl-gtf'); if (!g) return;
+      const nx = rows.slice(j + 1).find(r => r.classList.contains('pl-k-goal') || r.querySelector('.pl-bd-leg')), b = nx ? nx.querySelector('.pl-bx > .pl-bd') : null;
+      if (b) g.outerHTML = 'for ' + b.innerHTML.replace(/<span class="pl-bdn">[\s\S]*?<\/span>/g, '').trim(); });
+    /* sections */
+    const secs = []; let cur = null;
+    rows.forEach(li => { if (li.classList.contains('pl-gh')) { cur = { h: li, rows: [] }; secs.push(cur); } else if (cur) cur.rows.push(li); });
+    secs.forEach(clSec);
+    /* tick ids: a hash of the row text (stable when the gear level changes the other rows) */
+    const seen = {}; lis().forEach(li => { if (!li.classList.contains('pl-row')) return; const t = DCL.txt(li); let h = 2166136261;
+      for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 16777619); }
+      let id = (h >>> 0).toString(36); seen[id] = (seen[id] || 0) + 1; if (seen[id] > 1) id += '_' + seen[id]; li.dataset.tk = id; });
     if (bon.length) { const d = document.createElement('div'); d.className = 'pl-dcb'; d.hidden = true; d.innerHTML = bon.map(b => `<div>${b}</div>`).join(''); ol.parentNode.insertBefore(d, ol); }
     return box.innerHTML; };
+  /* CLARITY play mode: ticks per card (key hero|N|mode|goal), NEXT = the first unticked row that is not dimmed, 'Reset ticks' */
+  const TK_LS = 'ap_ticks';
+  const tkAll = () => { try { return JSON.parse(localStorage.getItem(TK_LS) || '{}') || {}; } catch (e) { return {}; } };
+  const tkPut = (key, v) => { try { const a = tkAll(); delete a[key]; if (Object.keys(v).length) a[key] = v; const ks = Object.keys(a);
+    ks.slice(0, Math.max(0, ks.length - 40)).forEach(x => delete a[x]); localStorage.setItem(TK_LS, JSON.stringify(a)); } catch (e) {} };
+  const clTk = (html, c) => html.replace('<div class="card pl-focus', `<div data-tk="${esc([c.h, c.n, c.m, S.goal].join('|'))}" class="card pl-focus`);
+  K.hooks.push((page, out) => { if (page !== 'planner' || !out) return; const f = out.querySelector('.pl-focus[data-tk]'), ol = f && f.querySelector('ol.pl-steps.pl-cl'); if (!ol) return;
+    const key = f.dataset.tk, st = tkAll()[key] || {}, rows = [...ol.querySelectorAll(':scope > li[data-tk]')], rs = f.querySelector('.pl-tkr');
+    const paint = () => { let nx = null; rows.forEach(li => { const on = !!st[li.dataset.tk], cb = li.querySelector('.pl-tk input'); li.classList.toggle('pl-done', on); if (cb) cb.checked = on;
+        li.classList.remove('pl-next'); if (!on && !nx && !li.matches('.pl-dim, .pl-k-opt')) nx = li; });
+      if (nx) nx.classList.add('pl-next'); if (rs) rs.hidden = !Object.keys(st).length; };
+    rows.forEach(li => { const cb = li.querySelector('.pl-tk input'); if (cb) cb.addEventListener('change', () => { if (cb.checked) st[li.dataset.tk] = 1; else delete st[li.dataset.tk]; tkPut(key, st); paint(); }); });
+    if (rs) rs.addEventListener('click', () => { Object.keys(st).forEach(x => delete st[x]); tkPut(key, st); paint(); });
+    paint(); });
   const dclCard = html => { if (!DCL_ON || !html) return html;
     const box = DCL.box(dclRoute(html)), f = box.querySelector('.pl-focus'); if (!f || f.classList.contains('pl-dcf')) return html;
     f.classList.add('pl-dcf'); const T = DCL.txt, one = s => f.querySelector(':scope > ' + s);
@@ -1681,34 +1773,29 @@
     /* header: what you get + the finish line + one tag */
     if (fw && fin) fw.querySelectorAll('.tag').forEach(x => { if (/Full clear OK/i.test(T(x))) x.remove(); });
     if (fw && fin && !/\d+\/10 test runs finished/.test(T(fw))) { const tg = fw.querySelector('.tag'), sp = document.createElement('span'); sp.className = 'pl-cf'; sp.textContent = ' · ' + fin; if (tg) fw.insertBefore(sp, tg); else fw.appendChild(sp); }
-    /* Before you start: 3-5 lines */
-    const b0 = [];
+    /* Before you start (CLARITY): a labelled box, one row per thing to set up before step 1; the pet bag / carry rows come out of the first
+       route section (later sections keep their own changes); Boss Souls moved to each section's 'Boss Souls' row */
+    const b0 = [], bm = h => h ? `<div class="pl-bm">${h}</div>` : '';
     if (gsw) { const h = gsw.querySelector('.pl-ghint'), ht = h ? h.innerHTML : ''; if (h) h.remove(); const fl = gsw.querySelector('.pl-fl'); if (fl) fl.remove();
-      b0.push('<b>Gear</b> ' + gsw.outerHTML + DCL.q(ht)); gsw.remove(); }
+      b0.push(['Gear level', gsw.outerHTML + bm(ht)]); gsw.remove(); }
     if (bag) { const c = bag.cloneNode(true), bb = c.querySelector(':scope > b'); if (bb) bb.remove(); DCL.tn(c, /\(needed for its upgrade\)/g, '(keep it there all run)');
-      b0.push('<b>Legacy Bag</b> ' + c.innerHTML.trim()); bag.remove(); }
-    /* PETBAG (patch_page_petbag 2026-09-26, user: "the bag items are not showing, especially the free Energy Gem"): the pet bag leaves the
-       gear rows' tap for one line here: the start bag, then '· Mid gear: add...' when a later part changes it; the extra start gifts behind '?' */
-    { const pbl = ol ? [...ol.querySelectorAll('.pl-gb div.small')].filter(d => T(d.querySelector(':scope > b')) === 'Pet bag') : []; let ph = '', tip = '';
-      pbl.forEach((d, j) => { const g = d.closest('li.pl-gh'), gl = g ? T(g.querySelector(':scope > b')) : '', dt = d.closest('details.pl-gx'), x = d.querySelector('.pl-pfx');
-        if (x) { tip = x.innerHTML.replace(/^\s*·\s*also/, 'Also'); x.remove(); }
-        const cp = d.cloneNode(true); cp.querySelector(':scope > b').remove(); const body = cp.innerHTML.trim();
-        if (body) ph += j && ph ? ` <span class="small">· ${esc(gl || 'later')}:</span> ${body}` : body; d.remove();
-        if (dt) { const rest = [...dt.querySelectorAll(':scope > div.small')]; if (!rest.length) dt.remove();
-          else dt.querySelector(':scope > summary').textContent = '+ ' + [...new Set(rest.map(y => T(y.querySelector('b')).toLowerCase().replace('universal skill', 'skill')).filter(Boolean))].join(', '); } });
-      if (ph) b0.push('<b>Pet bag</b> ' + ph + DCL.q(tip)); }
-    b0.push(...pre.filter(x => /^<b>Skills/.test(x)));
-    if (s) b0.push(`<b>Boss Souls</b> ~${fmt(sr)} for the enhances on the way (at Gazlowe)`);
+      b0.push(['Legacy Bag', c.innerHTML.trim()]); bag.remove(); }
+    { const pr = ol ? ol.querySelector('li.pl-sec .pl-gr[data-row="pet"]') : null; if (pr) { const v = pr.querySelector('.pl-gv'); if (v) b0.push(['Pet bag', v.innerHTML]); pr.remove(); } }
+    pre.filter(x => /^<b>Skills/.test(x)).forEach(x => b0.push(['Skills', x.replace(/^<b>Skills<\/b>\s*/, '')]));
+    (ol ? [...ol.querySelectorAll('li.pl-sec .pl-gr[data-row="carry"]')] : []).forEach(x => { const v = x.querySelector('.pl-gv'); if (v) b0.push(['Carry', v.innerHTML]); x.remove(); });
+    if (ol) ol.querySelectorAll('.pl-sg').forEach(g => { if (!g.children.length) g.remove(); });
     if (top.fin || top.jv) { const mm = top.jv ? /^Jarvan V: (\d+ Points per kill)/.exec(top.jv) : null;
-      b0.push('<b>After the run</b> farm Jarvan V' + (mm ? ', ' + mm[1] : '') + DCL.q([top.fin || '', top.jvH || ''].filter(Boolean).join('<br>'))); }
-    b0.push(...pre.filter(x => !/^<b>Skills/.test(x)));
-    const bys = b0.length ? `<div class="pl-bys"><b class="pl-bt">Before you start</b><ul class="pl-ul">${b0.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
+      b0.push(['After the run', 'farm Jarvan V' + (mm ? ', ' + mm[1] : '') + DCL.q([top.fin || '', top.jvH || ''].filter(Boolean).join('<br>'))]); }
+    pre.filter(x => !/^<b>Skills/.test(x)).forEach(x => { const m = /^<b>([^<]+)<\/b>\s*([\s\S]*)$/.exec(x); b0.push(m ? [m[1], m[2]] : ['', x]); });
+    const bys = b0.length ? `<div class="pl-bys pl-byc"><b class="pl-bt">Before you start</b><div class="pl-byg">${b0.map(([l, h]) => `<div class="pl-byr"><span class="pl-byl">${esc(l)}</span><div class="pl-byv">${h}</div></div>`).join('')}</div></div>` : '';
     const awH = aw ? `<div class="pl-aw">${aw}</div>` : '';
     const bonH = bon.length ? `<div class="pl-bon pl-also"><b class="pl-bt">Also</b>${DCL.q('Extras you can grab on the way. Only Legacy items in the Legacy Bag evolve. The route says when.')}<ul class="pl-ul">${bon.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>`
       + (bon.length > 3 ? `<details class="pl-more"><summary>show all (${bon.length})</summary><ul class="pl-ul">${bon.slice(3).map(x => `<li>${x}</li>`).join('')}</ul></details>` : '') + `</div>` : '';
     if (goalUl) { goalUl.classList.add('pl-goal', 'pl-yg'); goalUl.insertAdjacentHTML('beforebegin', '<div class="pl-gl"><b class="pl-bt">You get</b></div>');   // CHAINFIX: chains under their goal line
       chg.forEach(x => { const li = [...goalUl.children].find(l => l.querySelector(`a[href="#item/${encodeURIComponent(x.dataset.id)}"]`)); if (li) li.appendChild(x); else { const nl = document.createElement('li'); nl.appendChild(x); goalUl.appendChild(nl); } }); }
     if (rt) { const sm = rt.querySelector('.small'); if (sm) sm.textContent = sm.textContent.replace(/ quest steps?$/, ' steps'); }
+    if (rt && ol && ol.classList.contains('pl-cl')) { const sm = rt.querySelector('.small'), nn = ol.querySelectorAll(':scope > li.pl-n').length; if (sm && nn) sm.textContent = nn + ' steps';   // CLARITY: the rows' own numbers
+      rt.insertAdjacentHTML('beforeend', ' <button type="button" class="pl-tkr" hidden>Reset ticks</button>'); }
     const ins = (h, before) => { if (!h) return; const t = document.createElement('template'); t.innerHTML = h; f.insertBefore(t.content, before || null); };
     const after0 = fw || fh;
     ins(awH + bys, after0 ? after0.nextSibling : f.firstChild);
@@ -1721,7 +1808,121 @@
       if (nb) sp.textContent = ` (step ${nb})`; });
     f.querySelectorAll('.pl-yg, .pl-nx, .pl-also').forEach(DCL.lk);
     return box.innerHTML; };
-  const focusHtml = (c, k, tot, body) => dclCard(focusHtml0(c, k, tot, body));
+  /* ---- BONUS PICK (patch_page_bonuspick 2026-09-26, user-approved; findings/public/audit_math/bonus_item_picker.md). Your random start
+     gifts, picked by you: Player Bonus (solo, Map Level 23+) and the Map Level 120+ reward = 1 of 139 Level-7 items (W.gift_pools.l7),
+     Beginner Bonus (Map Level 30 or lower) by N: N1 'b1', N2-5 'b<N>', N6-7 'l6' (63 Legendary), N8-9 'l7'. Remembered in S.bp (the planner's saved settings). Per open run:
+     wear it or not per run part (its stats with this hero's stat weights, swRow / powOf, vs the weakest item of that part's gear list),
+     the build item it already is, and its craft when the other parts come on this route. Cards: tag 'uses your bonus item' / 'bonus item fits'. The model's run order is
+     not changed (the replays count the gift as the pool's average item). */
+  const BP_GP = W.gift_pools || {}, BP_L7 = new Set(BP_GP.l7 || []), BP_REC = {};
+  (W.recipes || []).forEach(r => (r.parts || []).forEach(p => { (BP_REC[p.id] = BP_REC[p.id] || []).push(r); }));
+  const bpBeg = n => n <= 1 ? 'b1' : n <= 5 ? 'b' + n : n <= 7 ? 'l6' : n <= 9 ? 'l7' : '';
+  /* the gifts your Map Level gets on a run of this N: [key, name, pool, when] */
+  const bpKinds = n => { const ml = +S.ml || 1, o = [];
+    if (ml >= 23) o.push(['pb', 'Player Bonus', 'l7', 'solo lobby only (play from slot 1), Map Level 23+, once per game']);
+    if (ml >= 120) o.push(['m7', 'Map Level 120 reward', 'l7', 'every run at Map Level 120+']);
+    if (ml <= 30 && bpBeg(n)) o.push(['bb', 'Beginner Bonus', bpBeg(n), `Map Level 30 or lower, rolled by the N when you claim it (N${n} pool)`]);
+    return o; };
+  const bpPicks = n => bpKinds(n).map(([k, nm, pool]) => ({ k, nm, pool, id: (S.bp || {})[k] })).filter(x => x.id && (BP_GP[x.pool] || []).includes(x.id));
+  /* an item's stats as calculator keys (itemX for Legacy steps; normal items from W.items st, same MAPX) */
+  const bpX = (id, p) => { if (LST[id]) return itemX(id, p); const o = {}, q = p.toLowerCase();
+    for (const [k, v] of Object.entries(((K.item || {})[id] || {}).st || {})) { if (typeof v !== 'number') continue;
+      const t = MAPX[k] || (k === q ? 'flat_main_stat' : k === q + '_amp' ? 'main_amp_pct' : ''); if (t) o[t] = (o[t] || 0) + v; }
+    return o; };
+  const BPV = new Map();
+  const bpVal = (h, gk, id) => { const k = h + '|' + gk + '|' + id; if (BPV.has(k)) return BPV.get(k);
+    const p = (HERO[h] || {}).main_stat || 'STR', w = swRow(h, gk), v = w && NP ? powOf(bpX(id, p), w.slice(0, NP), null) : null; BPV.set(k, v); return v; };
+  const bpCtx = c => { const r = c.r || {}, L0 = r.L != null ? r.L : (r.best || {}).L, L = L0 == null || L0 < 0 ? 3 : +L0;
+    return { h: c.h, n: c.n, m: c.m, L, gk: band(c.n) + '|' + MK[c.m], g: gearOf(c.h, c.n, c.m, L) }; };
+  const bpList = (x, j) => (x.g[FPS[j]] || []).concat(x.g[FPS[j] + '_b'] || []);
+  const bpIn = (x, id, np) => { for (let j = 0; j < np; j++) if (bpList(x, j).includes(id)) return j; return -1; };
+  /* the gift's crafts: keep = the build makes the result from it, up = a craft whose other parts this run gets (no 2nd random item),
+     set = a craft that needs more random Level-7 items */
+  const bpCraft = (x, id, np) => { const o = { keep: null, up: [], set: [] }, bi = x.n <= 3 ? 0 : x.n <= 6 ? 1 : 2;
+    (BP_REC[id] || []).forEach(r => { const res = r.result.id, oth = r.parts.filter(p => p.id !== id), n7 = oth.filter(p => BP_L7.has(p.id)).length, j = bpIn(x, res, np);
+      if (j >= 0) { if (!o.keep) o.keep = { r, j }; return; }
+      if (n7) { o.set.push({ r, n7 }); return; }
+      const when = oth.map(p => { const k = bpIn(x, p.id, np); if (k >= 0) return { p, k, own: 1 }; const a = ((W.acq || {})[p.id] || [])[bi];
+        return a && +a[0] < np ? { p, k: +a[0] } : null; });
+      if (when.every(Boolean)) o.up.push({ r, when }); });
+    return o; };
+  const bpPartW = j => ['early', 'mid', 'late'][j] || 'late';
+  const bpCraftTxt = (id, r, when) => { const ps = r.parts.filter(p => p.id !== id).map(p => {
+      const w = (when || []).find(y => y.p.id === p.id), t = w ? (w.own ? `your ${bpPartW(w.k)} gear` : bpPartW(w.k)) : '';
+      return (p.count > 1 ? p.count + ' ' : '') + ilink(p.id) + (t ? ` <span class="small">(${t})</span>` : ''); });
+    const sc = r.scroll && r.scroll.id ? ` + ${ilink(r.scroll.id)}${r.scroll_from && r.scroll_from.id ? ` <span class="small">(${K.ulink(r.scroll_from.id, r.scroll_from.name)})</span>` : ''}` : '';
+    return `${ilink(id)} + ${ps.join(' + ')}${sc} → ${ilink(r.result.id)}`; };
+  /* one gift on one run: [verdict html, tag kind 'use' | 'fit' | ''] */
+  /* used = {part: [slots a gift picked before already took]}: a second gift competes for the next weakest slot */
+  const bpVerdict = (x, id, np, used) => { const v = bpVal(x.h, x.gk, id), it = (K.item || {})[id] || {}, j0 = bpIn(x, id, np), cr = bpCraft(x, id, np), out = [], U = used || {}; let tag = '';
+    const fit = []; for (let j = 0; j < np; j++) { const u0 = U[j] || [], l = bpList(x, j).filter(y => y.charAt(0) !== '~'), free = l.length + u0.length < 6;
+      const take = y => { if (j0 < 0) (U[j] = U[j] || []).push(y); };
+      if (v == null) { if (free) { fit.push([j, null]); take(null); } continue; } if (free) { if (v > 0) { fit.push([j, null]); take(null); } continue; }
+      let lo = null; l.forEach((y, q) => { if (u0.includes(y) && u0.filter(z => z === y).length > l.slice(0, q).filter(z => z === y).length) return;
+        const u = bpVal(x.h, x.gk, y); if (u != null && (lo == null || u < lo[1])) lo = [y, u]; });
+      if (lo && v > lo[1] * 1.02) { fit.push([j, lo[0]]); take(lo[0]); } }
+    if (j0 >= 0) { tag = 'use'; out.push(j0 ? `your build gets it for the ${bpPartW(j0)} gear: you already have it, skip getting it` : 'your build wears it: you already have it, skip getting it');
+      if (j0 > 0 && fit.some(f => f[0] < j0)) out.push('wear it from the start'); }
+    else if (fit.length) { tag = 'fit'; const ws = [...new Set(fit.map(f => f[1]).filter(Boolean))];
+      out.push((fit.length === np ? 'wear it all run' : `wear it in your ${fit.map(f => bpPartW(f[0])).join(' and ')} gear`)
+        + (ws.length ? ` <span class="small">(in place of ${ws.map(ilink).join(', ')})</span>` : fit.some(f => !f[1]) ? ' <span class="small">(a free slot)</span>' : '')); }
+    else if (v != null) out.push('your build gear is stronger on this run');
+    if (!Object.keys(it.st || {}).length) out.push('<span class="small">its effect is not counted by the planner</span>');
+    if (cr.keep) { tag = 'use'; out.push(`keep it: your build crafts ${ilink(cr.keep.r.result.id)} from it for the ${bpPartW(cr.keep.j)} gear <span class="small">(${bpCraftTxt(id, cr.keep.r)})</span>`); }
+    else if (cr.up.length) { const u = cr.up.slice().sort((a, b) => (bpVal(x.h, x.gk, b.r.result.id) || 0) - (bpVal(x.h, x.gk, a.r.result.id) || 0))[0], lv7 = +(((K.item || {})[u.r.result.id] || {}).level) >= 7 && !(u.r.scroll && u.r.scroll.id);
+      out.push(`upgrade on this run: ${bpCraftTxt(id, u.r, u.when)}` + (lv7 ? ` <span class="small">· the parts merge when your hero or pet holds them all${tag ? '' : ': keep it on the pet until then'}</span>` : tag ? '' : ' <span class="small">· keep it on the pet until then</span>')); }
+    else if (cr.set.length) { const s = cr.set.slice().sort((a, b) => a.n7 - b.n7)[0];
+      out.push(`<span class="small">part of ${ilink(s.r.result.id)}, which also needs ${s.n7} more random Level-7 item${s.n7 > 1 ? 's' : ''}</span>`); }
+    if (!out.length) out.push('not needed on this run');
+    return [out.join(' · '), tag]; };
+  /* the 'Bonus item' row of an open run: pickers + one line per picked gift. np = run parts the route reaches */
+  const bpRow = (c, np) => { const ks = bpKinds(c.n); if (!ks.length || !(BP_GP.l7 || []).length) return '';
+    const x = bpCtx(c), bp = S.bp || {};
+    const pk = ks.map(([k, nm, pool, why]) => { const id = bp[k], ok = id && (BP_GP[pool] || []).includes(id);
+      return `<span class="pl-bpw"><details class="pl-bpk" data-bk="${k}" data-pool="${pool}" data-h="${esc(c.h)}" data-gk="${esc(x.gk)}" data-n="${c.n}" data-m="${c.m}" data-l="${x.L}">`
+        + `<summary title="${esc(why)}">${esc(nm)}: ${ok ? K.icon(id) + esc(iname(id)) : '<i>pick</i>'}</summary><div class="pl-bpd"><input class="pl-bpf" type="search" placeholder="type a name (${(BP_GP[pool] || []).length} items)" autocomplete="off"><div class="pl-bpl"></div></div></details>`
+        + (id ? `<button type="button" class="pl-bpx" data-bk="${k}" title="new game: clear">✕</button>` : '') + `</span>`; }).join(' ');
+    const U = {}, ln = bpPicks(c.n).map(p => { const [t] = bpVerdict(x, p.id, np, U); return `<div class="small pl-bpv"><b>${esc(p.nm)}</b> ${ilink(p.id)}: ${t}</div>`; }).join('');
+    const odd = ks.filter(([k, , pool]) => bp[k] && !(BP_GP[pool] || []).includes(bp[k])).map(([k, nm]) => `${esc(nm)}: ${ilink(bp[k])} is not in this N's pool`);
+    return `${pk}${ln}${odd.length ? `<div class="small pl-bpv">${odd.join(' · ')}</div>` : ''}`; };
+  /* card tag: 'uses your bonus item' (the gift or its craft is in the build) > 'bonus item fits' (beats the weakest early item) */
+  const bpTag = c => { const ps = bpPicks(c.n); if (!ps.length) return ''; let best = '', nm = '';
+    try { const x = bpCtx(c), U = {}; ps.forEach(p => { const [, t] = bpVerdict(x, p.id, 3, U); if (t === 'use' || (t === 'fit' && !best)) { if (best !== 'use') { best = t; nm = iname(p.id); } } }); } catch (e) { return ''; }
+    return best ? `<span class="tag ${best === 'use' ? 'ok' : 'acc'} pl-bpt" title="${esc(nm)}">${best === 'use' ? 'uses your bonus item' : 'bonus item fits'}</span>` : ''; };
+  /* picker list: this pool, the build's own items first, then by value for this hero */
+  const bpOpts = d => { const pool = BP_GP[d.dataset.pool] || [], h = d.dataset.h, gk = d.dataset.gk, n = +d.dataset.n, m = d.dataset.m, L = +d.dataset.l;
+    let g = {}; try { g = gearOf(h, n, m, L); } catch (e) { g = {}; } const inB = new Set(FPS.flatMap(st => (g[st] || []).concat(g[st + '_b'] || [])));
+    const rows = pool.map(id => [id, inB.has(id) ? 1 : 0, bpVal(h, gk, id) || 0]).sort((a, b) => b[1] - a[1] || b[2] - a[2] || iname(a[0]).localeCompare(iname(b[0])));
+    return rows.map(([id, b]) => { const it = (K.item || {})[id] || {};
+      return `<button type="button" class="pl-bpo" data-id="${esc(id)}" data-q="${esc(iname(id).toLowerCase() + ' ' + String(it.slot || '').toLowerCase())}">${K.icon(id)}<span class="${it.rar ? 'r-' + it.rar : ''}">${esc(iname(id))}</span><span class="small">${esc(it.slot || '')}${b ? ' · in your build' : ''}</span></button>`; }).join(''); };
+  /* the route's '~' random start items and the pet bag's 'also free at the start' line name your pick */
+  const bpRnd = id => { const c = String(id).slice(1), bp = S.bp || {}, b = /^B(\d)$/.exec(c);
+    const v = c === 'P7' ? bp.pb : c === 'M7' ? bp.m7 : b ? bp.bb : null, pool = b ? bpBeg(+b[1]) : 'l7';
+    return v && (BP_GP[pool] || []).includes(v) ? v : null; };
+  const bpFree = (k, n, t) => { const p = bpPicks(n).find(y => y.k === k); return p ? `${ilink(p.id)} (your ${esc(p.nm)} item)` : t; };
+  /* the open run: the 'Bonus item' row goes last into the 'Before you start' box (CLARITY rows); np = the gear parts the route reaches */
+  const bpIns = (c, html) => { if (!DCL_ON || !html || !c || !c.h) return html;
+    const box = DCL.box(html), f = box.querySelector('.pl-focus'); if (!f) return html;
+    const ps = [...f.querySelectorAll('li.pl-gh')].map(li => { const t = DCL.txt(li.querySelector('.pl-snm') || li.querySelector(':scope > b')).toLowerCase();
+      return FPN.findIndex(p => t.startsWith(p.toLowerCase())) + 1; }).filter(y => y > 0), np = ps.length ? Math.max(...ps) : 3;
+    let row = ''; try { row = bpRow(c, np); } catch (e) { row = ''; } if (!row) return html;
+    let g = f.querySelector('.pl-bys .pl-byg');
+    if (!g) { const d = document.createElement('div'); d.className = 'pl-bys pl-byc'; d.innerHTML = '<b class="pl-bt">Before you start</b><div class="pl-byg"></div>';
+      const a = f.querySelector(':scope > .pl-fw') || f.querySelector(':scope > .pl-fh'); f.insertBefore(d, a ? a.nextSibling : f.firstChild); g = d.querySelector('.pl-byg'); }
+    g.insertAdjacentHTML('beforeend', `<div class="pl-byr pl-bpr"><span class="pl-byl">Bonus item</span><div class="pl-byv">${row}</div></div>`);
+    return box.innerHTML; };
+  const bpTagDiv = c => { const t = bpTag(c); return t ? `<div class="pl-ct">${t}</div>` : ''; };
+  K.hooks.push((page, out) => { if (page !== 'planner') return;   /* BONUS PICK: fill a picker list when opened, filter, pick, clear */
+    out.querySelectorAll('details.pl-bpk').forEach(d => { d.addEventListener('toggle', () => { if (!d.open) return; const l = d.querySelector('.pl-bpl');
+        out.querySelectorAll('details.pl-bpk[open]').forEach(o => { if (o !== d) o.open = false; });
+        if (l && !l.childElementCount) l.innerHTML = bpOpts(d); const fi = d.querySelector('.pl-bpf'); if (fi) fi.focus(); });
+      const fi = d.querySelector('.pl-bpf'); if (fi) fi.addEventListener('input', () => { const q = fi.value.trim().toLowerCase(); d.querySelectorAll('.pl-bpo').forEach(b => { b.hidden = !!q && !b.dataset.q.includes(q); }); });
+      d.addEventListener('click', e => { const b = e.target.closest('.pl-bpo'); if (!b) return; S.bp = Object.assign({}, S.bp || {}, { [d.dataset.bk]: b.dataset.id }); save(); K.route(); }); });
+    out.querySelectorAll('.pl-bpx').forEach(b => b.addEventListener('click', () => { const o = Object.assign({}, S.bp || {}); delete o[b.dataset.bk]; S.bp = o; save(); K.route(); }));
+  });
+  if (DCL_ON) document.addEventListener('click', e => { if (e.target.closest && e.target.closest('details.pl-bpk')) return;   // a tap outside closes an open picker
+    document.querySelectorAll('details.pl-bpk[open]').forEach(o => { o.open = false; }); });
+  const focusHtml = (c, k, tot, body) => clTk(bpIns(c, dclCard(focusHtml0(c, k, tot, body))), c);   // CLARITY: the tick key; BONUS PICK row
   const focusHtml0 = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
     return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs' : `Run ${k + 1} of ${tot}`}</span></div>` + (FO ? gearSw() : '')   // GEAR LEVEL IN THE CARD
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
