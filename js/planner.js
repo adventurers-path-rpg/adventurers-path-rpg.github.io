@@ -1559,6 +1559,27 @@
       .map(([a, b]) => `<li><b>${esc(a)}</b> <span class="small">· ${esc(b)}</span></li>`).join('') + `</ul></details>`;
   const f10 = v => Math.max(0, Math.min(10, Math.round(v * 10)));
   const namesH = ids => { const nm = ids.map(iname); return ids.slice(0, 2).map(nlk).join(', ') + (nm.length > 2 ? ` <span class="small">+${nm.length - 2} more</span>` : ''); };
+  /* CARD FROM→TO (tester 2026-09-26: 'Frigid Round Shield' read as its NEXT step). Legacy cards name each upgrade FROM → TO + the short
+     condition that sets the run (mode, a one-hero lock, the N the run must be on) from the edge alt; a same-line pair drops the shared
+     name ('Full Body Axe 6 → 7'); chained steps stay on their first step's entry. First Legacy cards: 'item (where it comes from)' */
+  const nlkT = (id, t) => K.item[id] ? `<a href="#item/${encodeURIComponent(id)}">${esc(t)}</a>` : esc(t);
+  const SNUM = /^(.*?)\s*(?:\((?:Seal |Lv\.? ?)?(\d+)\)|\s(\d+))$/;
+  const ftH = ids => { const p = ids.map(id => SNUM.exec(iname(id))), num = j => p[j][2] || p[j][3], sm = j => j > 0 && j < ids.length && p[j] && p[j - 1] && p[j][1] && p[j][1] === p[j - 1][1];
+    return ids.map((id, j) => sm(j) ? nlkT(id, num(j)) : sm(j + 1) ? nlkT(id, p[j][1] + ' ' + num(j)) : nlk(id)).join(' → '); };
+  const hero1 = mask => { if (!mask) return null; let k = 0, w = null; PD.heroes.forEach((h, i) => { if (hasBit(mask, i)) { k++; w = h; } }); return k === 1 ? w : null; };
+  const condT = (as, r) => { const t = [], put = s => { if (s && !t.includes(s)) t.push(s); };
+    as.forEach(a => { if (!a) return; if (a[2]) put(MN[a[2]]); const h1 = hero1(a[3]); if (h1) put(hName(h1));
+      if (+a[1] && (a[4] !== '>' || +a[1] === r.n)) put('N' + a[1] + (a[4] === '>' ? '+' : '')); });
+    return t.length ? ` (${esc(t.join(', '))})` : ''; };
+  const lgWhat = (r, fq) => { const all = r.got.concat(r.ugot || []), roots = all.filter(g => !(g.u.ch && all.some(x => x.u.to === g.u.from)));
+    const E = roots.map(g => { const ch = [g]; for (let c = g, k = 0; k < 8 && (c = all.find(x => x.u.ch && x.u.from === c.u.to)); k++) ch.push(c);
+      return { n: ch.length, f: fq ? Math.min(...ch.map(x => fq[x.u.to] || 0)) : 0, h: ftH([g.u.from].concat(ch.map(x => x.u.to))) + condT(ch.map(x => x.a), r) }; });
+    if (fq) E.sort((a, b) => a.f - b.f);
+    const rest = E.slice(2).reduce((t, e) => t + e.n, 0);
+    return `<b>${all.length}</b> upgrade${all.length > 1 ? 's' : ''} · ${E.slice(0, 2).map(e => e.h).join(' · ')}${rest ? ` <span class="small">+${rest} more</span>` : ''}`; };
+  const stSrc = x => x[5] === 'boss' ? bname(x[2]) + (+x[8] > 1 ? ' x' + x[8] : '') : (/ at (.+?)(?: \(|,|$)/.exec(x[7] || '') || /^(.+?) (?:near .+? )?drops/.exec(x[7] || '') || [0, 'free'])[1];
+  const stWhat = (r, fq) => { const E = r.got.slice(); if (fq) E.sort((a, b) => (fq[a[1]] || 0) - (fq[b[1]] || 0));
+    return `<b>${E.length}</b> Legacy line${E.length > 1 ? 's' : ''} · ${E.slice(0, 2).map(x => `${nlk(x[1])} (${esc(stSrc(x))})`).join(' · ')}${E.length > 2 ? ` <span class="small">+${E.length - 2} more</span>` : ''}`; };
   const gearP = L => L >= 0 ? `<p class="small">Gear: ${esc(gearTxt(L))}.</p>` : '';
   const stLi = x => `<li>${ilink(x[1])} <span class="small">· ${esc(x[7])}</span></li>`;
   /* ---- Legacy goal cards (legacyRuns: every run (N x mode x hero) that upgrades the most of your items, chained steps included) */
@@ -1569,7 +1590,7 @@
     if (tgCard(r.h, r.n, r.m, r.lv, r.L, r.stop, r.got.filter(g => !g.nb).flatMap(g => g.a[0]))) tags.push(TG_TAG);   // TIGHT
     if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(newTag());   // LAB WIRE: same gear level
     return { key: 'legacy|' + r.h + '|' + r.n + '|' + r.m + '|' + all.map(g => g.u.to).sort().join(','), r, h: r.h, n: r.n, m: r.m, mins: r.mins, tags,
-      ids: all.map(g => g.u.to), unit: 'upgrade', fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
+      ids: all.map(g => g.u.to), unit: 'upgrade', wh: fq => lgWhat(r, fq), fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
   const lgFocus = c => { const r = c.r, full = r.stop >= 20 + r.n, fw = !full && r.stop > 0 ? fcAt(r.n, r.m, HIDX[r.h], r.lv, r.L) : null;
     return `<ul class="pl-ul">${r.got.concat(r.ugot || []).map(g => upLine(g, r)).join('')}</ul>`
       + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
@@ -1591,7 +1612,7 @@
     if (tgCard(r.h, r.n, r.m, r.lv, r.L, r.stop, r.got.map(x => x[2]).filter(Boolean))) tags.push(TG_TAG);   // TIGHT
     if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(newTag());   // LAB WIRE: same gear level
     return { key: 'start|' + r.h + '|' + r.n + '|' + r.m + '|' + r.got.map(x => x[1]).sort().join(','), r, h: r.h, n: r.n, m: r.m, mins: r.mins, tags,
-      ids: r.got.map(x => x[1]), unit: 'Legacy line', fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
+      ids: r.got.map(x => x[1]), unit: 'Legacy line', wh: fq => stWhat(r, fq), fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
   const stFocus = c => { const r = c.r, full = r.stop >= 20 + r.n, fw = !full ? fcAt(r.n, r.m, HIDX[r.h], r.lv, r.L) : null;
     return `<ul class="pl-ul">${r.got.map(stLi).join('')}</ul>` + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
       + `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after the last boss you need. The whole run is borderline for your account.' : 'Stop after the last boss you need: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
@@ -2122,7 +2143,7 @@
       if (FO.gl === FO.need && !!FO.rf === !!FO.nrf && FO.need !== GL_MIN) { const R0 = (R.Rs || {})[FO.nrf ? 'rf' : FO.gl]; if (R0 && !R0.msg && R0.has && R0.has(h, +n, m)) { RL = listAt(goal, FO.gl, FO.rf, true, (R.SK || {})[FO.nrf ? 'rf' : FO.gl]); c = pick(RL); } }   // the list's own heavier list
       if (!c) { RL = listAt(goal, FO.gl, FO.rf, FO.gl !== GL_MIN || !!FO.rf); if (RL.msg) return ''; c = pick(RL); }
       if (!c) return mc ? focusHtml(mc, k, R.cards.length, `<p class="small pl-note">This run does not finish with this gear level.</p>`) : '';
-      if (c.ids) c.what = `<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids)}`;
+      if (c.wh) c.what = c.wh(null); else if (c.ids) c.what = `<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids)}`;
       c.tags.unshift(needTag({ gl: FO.need, rf: FO.nrf }));
       return focusHtml(c, k, R.cards.length, RL.focus(c)); }); }
   function plannerOut(goal) {
@@ -2130,7 +2151,7 @@
     if (R.msg) { FO = null; return R.msg; }
     /* what you get: the count + the first 2 names, the names the other cards do not share first (so similar cards stay tellable apart) */
     const fq = {}; R.cards.forEach(c => (c.ids || []).forEach(id => { fq[id] = (fq[id] || 0) + 1; }));
-    R.cards.forEach(c => { if (c.ids) c.what = `<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids.slice().sort((a, b) => fq[a] - fq[b]))}`; });
+    R.cards.forEach(c => { if (c.wh) c.what = c.wh(fq); else if (c.ids) c.what =`<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids.slice().sort((a, b) => fq[a] - fq[b]))}`; });
     if (FO && FO.g === goal) { const fh = focusOut(goal, R); if (fh) return fh; }
     const lost = !!(FO && FO.g === goal); FO = null;
     if (lost) R.note = (R.note ? R.note + ' ' : '') + 'The run you had open is not on the list any more.';

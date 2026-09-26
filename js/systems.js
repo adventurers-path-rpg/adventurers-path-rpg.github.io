@@ -132,9 +132,11 @@
   const CHANGES = [
     ['26 Sep 2026', [
       ['Items', [
+        'Legacy: kill steps count any unit you own (pet and summons too); solo lobby steps need player slots 2-4 empty the whole game.',
         'Item pages show where exactly: a pin map for drops from Rock Chunks, barrels, cages and single units (Dragon Ball: all 7 spots). Walled-in spots say how to reach them.',
       ]],
       ['Calculators', [
+        'Run planner cards show each upgrade as from → to with what sets the run (e.g. Frost Shield → Frigid Round Shield (Challenge, Wandering Swordsman)), and where each new Legacy item drops.',
         'All kill counts, drop farms and enhancing costs now use average luck (e.g. Cloth Helmet to 5: ~50 Wyverns, +20 Legacy stones ~15,700 Boss Souls).',
         'Run planner card rebuilt for play: one step per row with a tick box and NEXT marker, coloured GET / BUY / ENHANCE / LEGACY / FARM / GATE badges, gear, pet bag, rune and skills shown at the top of each part. Pick your Player Bonus / Beginner item: the card says whether to wear it and how it upgrades.',
         'Run planner: pet bag back in Before you start (free start gift tagged), Frodo’s chain sits where your hero can finish it, Absolute Ring after the boat.',
