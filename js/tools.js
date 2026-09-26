@@ -28,7 +28,7 @@
     const T = C.titles || [];
     const mode = S.mode || { chall: 'challenge', death: 'death' }[K.filters.md] || 'main', mi = MODES.findIndex(m => m[0] === mode);   /* first visit: the header pick */
     const row = R.find(r => r.n === Number(S.n || K.filters.n || 1)) || R[0];
-    const jk = Math.max(0, Math.floor(Number(S.jarvan || 0))), jv = jk * 5, sh = S.shadow ? 10 : 0;   /* Jarvan V pays every kill after the main quest, Shadow Monster once */
+    const jv = S.jv1 ? 5 : 0, sh = S.shadow ? 10 : 0;   /* map 1.03: Jarvan V and the Shadow Monster pay once each, after the main quest */
     const afk = Math.floor(Number(S.hours || 0) * 4) * (2 + Number(S.fow || 0));
     /* Points of one finished run on difficulty r. Your Map Level 1-4: +10 (N9 +15); every player at Map Level 5 or lower, you too, gives the lobby +2 x N */
     const pts = r => { const o = { stage: r[mode], low: S.ml === 'lo' ? (r.n === 9 ? 15 : 10) : 0, lowers: (Number(S.lowers || 0) + (S.ml === 'hi' ? 0 : 1)) * 2 * r.n, arch: (S.arch ? r.arch[mi] : 0) + (S.frost ? r.arch[mi] : 0) };
@@ -44,8 +44,7 @@
       + fld('Your Map Level', sel('c-ml', [['lo', '1 to 4'], ['5', '5'], ['hi', '6 or higher']], S.ml))
       + fld('Other players at Map Level 5 or lower', sel('c-lowers', [0, 1, 2, 3].map(x => [x, x]), S.lowers || 0))
       + (T.length ? fld('Your title', sel('c-tier', [[0, 'none'], ...T.map(t => [t.tier, t.name])], cur)) + (top ? '' : fld('Goal title', sel('c-goal', T.filter(t => t.tier > cur).map(t => [t.tier, t.name]), goal))) : '')
-      + `<div class="cl-bx"><span class="small">Killed:</span>${box('c-arch', 'Archangel')}${box('c-frost', 'Frost Lord')}${box('c-shadow', 'Shadow Monster (after the main quest)')}</div>`
-      + fld('Jarvan V kills after the main quest', `<input type="number" id="c-jarvan" min="0" max="999" step="1" value="${esc(jk)}">`)
+      + `<div class="cl-bx"><span class="small">Killed:</span>${box('c-arch', 'Archangel')}${box('c-frost', 'Frost Lord')}${box('c-shadow', 'Shadow Monster (after the main quest)')}${box('c-jv1', 'Jarvan V (after the main quest)')}</div>`
       + '<p class="small cl-note">Only the last main quest boss of your difficulty pays Points, earlier stage bosses pay nothing.</p>';
     const res = `<div class="big">${fmt(total)} <span class="cl-u">Points per run</span></div>
       <p class="small">Final boss ${fmt(stage)}${low ? ` · low Map Level +${low}` : ''}${lowers ? ` · low-level lobby bonus +${fmt(lowers)}` : ''}${arch ? ` · Archangel / Frost Lord +${fmt(arch)}` : ''}${jv ? ` · Jarvan V +${fmt(jv)}` : ''}${sh ? ` · Shadow Monster +${sh}` : ''}${afk ? ` · AFK +${fmt(afk)}` : ''}</p>`

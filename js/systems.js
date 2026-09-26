@@ -131,9 +131,18 @@
      Map update, Zones, Monsters, Heroes, Items, Quests, Legacy, Game systems, Calculators, Whole wiki. New lines merge into today's category. ---- */
   const CHANGES = [
     ['26 Sep 2026', [
+      ['Map update', [
+        'Wiki follows map 1.03. War God of the North is single-rank again: Powerful Slash Str x7, Axe Throw Str x2, Blood Sacrifice 40% Max HP, Battle Spirit up to +30% base Str and +10% spell lifesteal, War God Transformation 95 s.',
+        'Mana Mage Magic Power: +1% Skill amp per 5 base All stats. Immortal King Wraith Bind: the -40 Armor stacks again, no limit.',
+        'Death\'s Reprieve Necklace: every step works on its difficulty or higher and evolves from the Bag or either Storage. The other 14 Legacy lines are unchanged.',
+        'Jarvan V pays Points on his first kill only. Nature Guardian respawns 60 s after each death: Nature Strength and a Fist roll every kill, and its Legacy Arrow step can be retried.',
+        'Revival Cross no longer revives a dead hero (50,000 gold back). -fuhuo needs and uses a revive. -qc works for Player Red only.',
+        'New names from the map: Wooden, Copper and Steel Guard, Fortress Light Talisman, Guardian - [Scroll].',
+      ]],
       ['Items', [
         'Legacy: kill steps count any unit you own (pet and summons too); solo lobby steps need player slots 2-4 empty the whole game.',
         'Item pages show where exactly: a pin map for drops from Rock Chunks, barrels, cages and single units (Dragon Ball: all 7 spots). Walled-in spots say how to reach them.',
+        'Fixed: Silver Codex STR amp +80% is for the Paladin. The Curse Blade + Refined Sword refund stops the swords from next game, it does not take the ones you hold.',
       ]],
       ['Calculators', [
         'Run planner cards show each upgrade as from → to with what sets the run (e.g. Frost Shield → Frigid Round Shield (Challenge, Wandering Swordsman)), and where each new Legacy item drops.',
@@ -143,6 +152,7 @@
         'Run planner Souls farm: the Flame Lord (30 s respawn) now counts once your run opens the Firelands for a Legacy item, not only for gear.',
         'Run planner: bosses open from the start (Centaur Khan, Troll Boss ...) no longer say go straight there at level 1: the fight check assumes your end-of-Early level, so the card now plays the Early part first.',
         'Run planner BUY lines also name the best monster drop you could farm instead (e.g. Agile Hood · or drop: Bristleback Healer 1.3%, ~80 kills).',
+        'Points per run: Jarvan V counts once (map 1.03).',
       ]],
     ]],
     ['25 Sep 2026', [
@@ -318,5 +328,5 @@
   /* newest day open, older days folded to one line (date · count · categories); categories are small labels, not headings */
   P.changelog = () => `<h2>Changelog</h2>${CHANGES.map(([d, cats], i) => { const nn = cats.reduce((a, c) => a + c[1].length, 0);
     return `<details class="cg-day"${i ? '' : ' open'}><summary><b>${esc(d)}</b><span class="small"> · ${nn} change${nn === 1 ? '' : 's'}</span><span class="small cg-cats">: ${esc(cats.map(c => c[0]).join(', '))}</span></summary>${cats.map(([c, xs]) => `<div class="cg-cat"><span class="tag">${esc(c)}</span><ul>${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</details>`; }).join('')}`;
-  P.credits = () => `<h2>Credits</h2><ul><li>The Adventurer's Path RPG 1.02: original Chinese map Zhengcheng Zhi Lu by Suifeng Erdong, Reforged port by Gwelawyr.</li><li><b>Special thanks: Beast (draelokk)</b>, for tons of testing and feedback.</li><li>Built with Anthropic's Claude.</li></ul>`;
+  P.credits = () => `<h2>Credits</h2><ul><li>The Adventurer's Path RPG 1.03: original Chinese map Zhengcheng Zhi Lu by Suifeng Erdong, Reforged port by Gwelawyr.</li><li><b>Special thanks: Beast (draelokk)</b>, for tons of testing and feedback.</li><li>Built with Anthropic's Claude.</li></ul>`;
 })(window.AP);
