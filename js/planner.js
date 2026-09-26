@@ -703,13 +703,75 @@
     if (g && g.best) o.push(`<div class="small"><b>Gold farm</b>repeat ${gt(g.best)}${g.alt ? ` · or ${fsQL(g.alt.q)} ~${fsR(g.alt.gpm)}/min` : ''}${g.risky ? ` · <span class="warntext">risky</span> ${fsQL(g.risky.q)} ~${fsR(g.risky.gpm)}/min (${fsWhy(g.risky.x)})` : ''}</div>`);
     else if (g && g.risky) o.push(`<div class="small"><b>Gold farm</b><span class="warntext">risky (${fsWhy(g.risky.x)})</span> repeat ${gt(g.risky)}</div>`);
     return o.join(''); };
+  /* ---- FARM AHEAD (patch_page_farmahead 2026-09-26, user-approved; E:/RE/WC3/AdventurersPath/findings/public/audit_math/farm_ahead.md).
+     A craft's part or a Legacy bag stack that drops in a zone the route passes BEFORE the craft / goal line is farmed on that first pass:
+     a FARM line there + '+ your X' on the craft line. faPlan(...) -> {craft(id, w, p, nw): suffix, render}. PD.fa (acq first-pass
+     check) when present, else page data (see tools/pending/patch_page_farmahead.py). FA_NEED = the route's goal lines (set by routeHtml,
+     read once) */
+  let FA_NEED = null, FA_RC = null, FA_IT = null;
+  const faRc = id => { if (!FA_RC) { FA_RC = {}; (W.recipes || []).forEach(r => { const pt = (r.parts || []).filter(x => x && x.id).map(x => [x.id, +x.count || 1]); if (!pt.length) return;
+      [r.result].concat(r.results || []).forEach(x => { if (x && x.id && !FA_RC[x.id]) FA_RC[x.id] = pt; }); }); } return FA_RC[id] || null; };
+  const faDr = pid => { if (!FA_IT) { FA_IT = {}; (W.items || []).forEach(x => { FA_IT[x.id] = x; }); } const o = {};
+    ((FA_IT[pid] || {}).sources || []).forEach(s => { const f = s.from || {}; if (s.kind === 'drop' && f.id && s.chance != null && +s.chance > 0 && !/once per|one per player/i.test(String(s.note || '')))
+      o[f.id] = { pc: Math.max((o[f.id] || {}).pc || 0, +s.chance), nm: f.name || bname(f.id) }; }); return o; };
+  const faK85 = (n, p) => { if (n <= 0) return 0; if (p >= 0.999) return n; const lq = Math.log(1 - p), lr = Math.log(p / (1 - p));   // kills until 85 in 100 hold n
+    for (let k = n; k < 20000; k += k < 600 ? 1 : 10) { let lp = k * lq, c = Math.exp(lp); for (let j = 1; j < n; j++) { lp += Math.log((k - j + 1) / j) + lr; c += Math.exp(lp); }
+      if (1 - c >= 0.85) return k; } return 20000; };
+  const faFoe = u => !!((W.mon || {})[u] || (W.boss || {})[u]);
+  const faKills = (x, dr, pb) => { let c = 0; const o0 = String(x.do || '').split(/,? or /)[0];   // option 0 of the step (the kill-count option)
+    o0.split('+').forEach(g => { const ids = [...g.matchAll(/\{\{u:([A-Za-z0-9]{4})/g)].map(y => y[1]).filter(faFoe); if (!ids.length) return;
+      const mm = /(\d+)\s*\{\{u:/.exec(g), per = mm ? +mm[1] / ids.length : /kill\s*\{\{u:/i.test(g) ? 1 : 0;
+      ids.forEach(u => { if (dr[u]) c += per * Math.min(1, dr[u].pc / pb); }); }); return c; };
+  const faQr = (x, pid) => { const m = /Kill count:([^.]*)/.exec(String(x.reward || '')); if (!m) return 0;   // the kill-count option's reward
+    const q = new RegExp('(\\d+) \\{\\{i:' + pid + '\\}\\}').exec(m[1]); return q ? +q[1] : 0; };
+  const faPlan = (h, n, m, L, steps, stop, g, pS, pE, at) => {
+    const hi = HIDX[h], lv = eqStep(h, n, m).k, FA = ((PD.fa || {})[MK[m] + '|' + band(n)]) || null, M = {}, BS = W.boss || {}, need = FA_NEED || []; FA_NEED = null;
+    const beatS = u => { const rk = steps.findIndex((x, i) => i <= stop && faKills(x, { [u]: { pc: 100 } }, 100) >= 1);   // the route kills it / its beat row passes
+      const ba = hi == null ? -1 : bossAt(u, n, m, hi, lv); return Math.min(rk >= 0 ? +steps[rk].step : 99, ba >= 0 ? ba : 99); };
+    const at0 = (z, s0, lim) => { if (!z || z === 'z10') return -1; const on = steps.some(x => x.zone === z);
+      for (let i = 0; i <= Math.min(lim, stop); i++) { const x = steps[i]; if (+x.step < s0) continue; if (on ? x.zone === z : (ZO[x.zone] || 0) >= (ZO[z] || 99)) return i; }
+      return -1; };
+    const src = (pid, lim, o) => { const dr = faDr(pid); let best = null;   // o: {names, u, s0} -> {k, u, pc, nm}
+      if (!o.u && ((FA_IT[pid] || {}).sources || []).some(s => s.kind === 'shop')) return null;   // a part you can buy is bought (the craft line's shop)
+      Object.keys(dr).forEach(u => { if (dr[u].pc < 3) return;                                   // under 3%: never a plan (acq flag r) if (o.u ? u !== o.u: (u === 'H00M' || (o.names && !o.names.includes(dr[u].nm)))) return; if (!faFoe(u)) return;
+        let s0 = +o.s0 || 0; if (BS[u]) { const b = beatS(u); if (b >= 99) return; s0 = Math.max(s0, b); }
+        const k = at0(bzone(u), s0, lim); if (k < 0) return; if (!best || dr[u].pc > best.pc) best = { k, u, pc: dr[u].pc, nm: dr[u].nm }; });
+      return best; };
+    const reg = (s, pid, cnt, lim, fr) => { const key = s.k + '|' + pid + '|' + s.u, o = M[key] = M[key] || { k: s.k, pid, u: s.u, pc: s.pc, nm: s.nm, cnt: 0, lim, fr: [] };
+      o.cnt += cnt; o.lim = Math.max(o.lim, lim); if (!o.fr.includes(fr)) o.fr.push(fr); };
+    need.forEach(b => { const x = b.fab && NBX[b.fab]; if (!x || x[0] !== 'b' || b.at == null) return; const to = b.fab.split('>')[1]; let tx = String(b.txt || '');   // Legacy bag stacks
+      (x[1] || []).forEach(([key, cnt]) => { if (POS[key]) return; const f = ((NBI[key] || [])[0] || {})[m + '|' + band(n)]; if (!f || (f[2] !== 'm' && f[2] !== 'B') || f[3] === 'H00M') return;
+        const pid = String(key).split('*')[0], s = src(pid, b.at - 1, { u: f[3], s0: +f[4] || 0 }); if (!s) return;
+        reg(s, pid, +cnt || 1, b.at - 1, `${ilink(to)} (Legacy)`);
+        tx = tx.replace(new RegExp(iname(pid).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + (+cnt > 1 ? ' x' + cnt : '') + ' \\([^)]*\\)'), 'your ' + iname(pid) + (+cnt > 1 ? ' x' + cnt : '')); });
+      b.txt = tx; });
+    const craft = (id, w, p, nw) => { if (!w || w[0] !== 'c' || pS[p] == null) return ''; const rc = faRc(id); if (!rc) return '';
+      let cj = -1; const z = w[3], zo = ZO[z];                        // the craft line's route index (farmPlan's rule)
+      if (z) { for (let i = pS[p]; i <= pE[p]; i++) if (steps[i].zone === z) { cj = i; break; }
+        if (cj < 0 && zo != null && zo > (ZO[steps[pS[p]].zone] || 0)) { for (let i = pS[p]; i <= pE[p]; i++) if ((ZO[steps[i].zone] || 0) >= zo) { cj = i; break; } if (cj < 0) cj = pE[p]; } }
+      if (cj < 0) cj = pS[p];
+      const nm = (/\(([^()]*)\)\s*$/.exec(String(w[1] || '')) || [])[1], names = nm ? nm.split(', ') : null, kept = new Set(), fr = FA ? ((FA[id] || [])[p] || []) : null, out = [];   // PD.fa present: only its ok rows
+      for (let q = 0; q < p; q++) (g[FPS[q]] || []).forEach(x => kept.add(x));
+      rc.forEach(([pid, c]) => { if (kept.has(pid)) return; const cnt = c * (nw || 1); let s = null;
+        if (Array.isArray(fr)) { const r = fr.find(y => y[0] === pid), zo = r ? ZO[bzone(r[2])] || 0 : 0;   // PD.fa: the model's first-pass check (ok = cheaper
+          if (!r || (!+r[4] && (zo > 18 ? 2 : zo > 6 ? 1 : 0) !== p)) return; s = src(pid, cj - 1, { u: r[2], s0: +r[5] || 0 }); }   // from an earlier part); a same-part source is only placement
+        else s = src(pid, cj - 1, { names });
+        if (!s) return; reg(s, pid, cnt, cj - 1, `${ilink(id)} (${FPN[p]})`); out.push(`${ilink(pid)}${cnt > 1 ? ' x' + cnt : ''}`); });
+      return out.length ? ` · + your ${out.join(', ')}` : ''; };
+    const render = () => Object.values(M).forEach(o => { const dr = faDr(o.pid), z = steps[o.k].zone; let cr = 0, qr = 0;
+      for (let i = o.k; i <= Math.min(o.lim, stop); i++) if (steps[i].zone === z) { cr += faKills(steps[i], dr, o.pc); qr += faQr(steps[i], o.pid); }
+      const nd = Math.max(0, o.cnt - qr), kl = faK85(nd, o.pc / 100), c = Math.min(kl, Math.round(cr)), fr = o.fr.join(', ');
+      const t = nd ? `farm ${nd > 1 ? fmt(nd) + ' ' : ''}${qr ? 'more ' : ''}here for ${fr}: ${srcA(o.u, o.nm)}, ${pctF(o.pc)} drop, ${kl > 1 ? '~' + fmt(kl) + ' kills' : '1 kill'}${c >= 1 ? `, your ~${fmt(c)} quest kills count` : ''}${qr ? `, the kill-count option gives ${qr}` : ''}`
+        : `take the kill-count option here: it gives them, for ${fr}`;
+      (at[o.k] = at[o.k] || []).push(`<li>${ilink(o.pid)}${(nd || qr) > 1 ? ' x' + fmt(nd || qr) : ''} <span class="small">· ${t}</span></li>`); });
+    return { craft, render }; };
   function farmPlan(h, n, m, L, steps, stop) {                       // -> {head(li, part), step(li, i), end(li, part)} or null (no data)
     if (!FW) return null;
     const key = MK[m] + '|' + band(n), T = FW.k[key] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
     const po = [], pS = [], pE = []; let c = -1;                       // part of each step (running max, like the route), first / last step
     steps.slice(0, stop + 1).forEach((x, i) => { const o = ZO[x.zone] || 0; c = Math.max(c, o > 18 ? 2 : o > 6 ? 1 : 0); po[i] = c; if (pS[c] == null) pS[c] = i; pE[c] = i; });
     const head = {}, at = {}, end = {}, kept = {}, lvDone = {}, enh = String((((PD.enh || {})[key] || {})[h]) || '').split('|');
-    const SCP = scPlan(h, n, m, L, steps, stop); SC_LAST = SCP; SCP.place(head, at);   // GIANT SCYTHE CARRY: Early carry line + step lines
+    const SCP = scPlan(h, n, m, L, steps, stop); SC_LAST = SCP; SCP.place(head, at); const FAP = faPlan(h, n, m, L, steps, stop, g, pS, pE, at);   /* FARM AHEAD */   // GIANT SCYTHE CARRY: Early carry line + step lines
     const fire = [];                                                  // TESTER PAGE FIXES: what needs the Firelands (Frodo's Boss Hunt)
     const rwP = rwPlan(h, n, m, L, steps, stop), rwUp = rwP.i >= 0 || rwP.abs;   // MAGIC RING: the run upgrades the ring = no + levels on it
     const f = (0.8 + 0.2 * n) / (0.8 + 0.2 * ((PD.sn || {})[band(n)] || n)) * gsF(n), useEnh = true;   // BOSS SOULS: every gear level (only the free +30 stone line reads PD.enh now)
@@ -724,7 +786,7 @@
         if (!w || w[0] === 'k' || SCP.skip(id, w)) continue;   // GIANT SCYTHE CARRY: the carry lines replace the stage items' evolve lines
         if (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) fire.push(id);   // TESTER PAGE FIXES: source in (or route through) the Firelands
         if (w[6]) { spent += w[6] * nw; bsIS[p] += w[6] * nw; why.push(ilink(id)); }
-        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${whereTxt(w, nw)}${SCP.add(id, w)}</span></li>`, zo = ZO[w[3]];
+        const line = `<li>${ilink(id)}${nw > 1 ? ' x' + nw : ''} <span class="small">· ${whereTxt(w, nw)}${SCP.add(id, w)}${FAP.craft(id, w, p, nw)}</span></li>`, zo = ZO[w[3]];
         let j = -1;
         if (w[0] === 'o') { for (let i = pS[p]; i <= pE[p]; i++) if (+steps[i].step >= +w[9]) { j = i; break; } }
         else if (w[0] === 'f' && w[3]) j = steps.findIndex((x, i) => i <= stop && x.zone === w[3]);   // free: take it the first time you are there
@@ -803,6 +865,7 @@
     }
     { const lp = po[stop]; if (lp != null && end[lp]) { (bsPre[stop] = bsPre[stop] || []).push(end[lp]); delete end[lp]; } }
     Object.keys(bsE).forEach(i => { (bsPre[i] = bsPre[i] || []).push(bsLine(Object.entries(bsE[i].ups), bsE[i].c)); });   // the last part's Boss Souls line: before the final step
+    FAP.render();                                                    // FARM AHEAD: the first-pass farm lines
     const any = p => !!head[p] || Object.keys(at).some(j => po[j] === p);
     return {
       head: (li, p, gb) => { if (any(p) || gb) li.push(`<li class="pl-rp pl-gh"><b>${FPN[p]} gear</b>${any(p) ? ' <span class="small">(farm while you pass)</span>' : ''}${gb ? `<div class="pl-gb">${gb}</div>` : ''}${head[p] ? `<ul class="pl-ul">${head[p].join('')}</ul>` : ''}</li>`); },
@@ -959,7 +1022,7 @@
     need.forEach(b => { const fs = fsOf(b.id, n), sl = b.st != null ? +b.st : fs == null ? 20 + n : Math.max(0, fs - 1), i = steps.findIndex(x => +x.step >= sl);   // AUDIT minor 4: right after the step bossAt / the run's time and items stop at
       b.at = i < 0 ? steps.length - 1 : i; stop = Math.max(stop, b.at); });   // v52 (M4): the same step the run's time and items use
     need.forEach(b => { if (b.last) b.at = stop; }); need.sort((a, b) => (a.last || 0) - (b.last || 0));   // ARMOR FRAGMENT SET: town-unit kills, then the upgrade, last
-    const PQX = { seen: new Set(), n, m, h, steps, stop };            // PREREQ GATES: each step before a goal once per route
+    FA_NEED = need; const PQX = { seen: new Set(), n, m, h, steps, stop };            // PREREQ GATES: each step before a goal once per route
     TGR = tgRoute(h, n, m, L);                                      // TIGHT: chips on the boss steps
     const FPL = farmPlan(h, n, m, L, steps, stop);                  // FARM PLAN (null without PD.fw: the build line alone)
     const SCR = FPL ? SC_LAST : null; if (SCR && SCR.fl && !FPL.fire.includes('I0OR')) FPL.fire.push('I0OR');   // GIANT SCYTHE CARRY
@@ -1106,7 +1169,7 @@
     if (g.fgs) return []; if (g.nb && g.nb.fg) return [{ txt: g.nb.how || g.u.text, label: lb, st: g.nb.slot }].concat(fgNeeds(g.nb.fg));   // FARM GOALS: farm lines at the stop
     if (!g.nb) return g.a[0].map((b, j) => ({ id: b, label: lb, st: g.at[j], note: killTxt(g), pqe: j ? null : pqeOf(g) }));   // AUDIT M3: kills per chance roll // PREREQ GATES: +N stones first
     const w = unvTxt(g, r), s = g.nb.set;
-    if (!s) return [{ txt: g.nb.how || g.u.text, label: lb, st: g.nb.slot, warn: w, fire: g.nb.fire, pqn: g.nb.pqn }];   // PREREQ GATES: fire = the hunt block
+    if (!s) return [{ txt: g.nb.how || g.u.text, label: lb, st: g.nb.slot, warn: w, fire: g.nb.fire, pqn: g.nb.pqn, fab: g.u.from + '>' + g.u.to }];   // PREREQ GATES: fire = the hunt block
     const rows = [...s.rows].sort((a, b) => a.last - b.last || a.at - b.at), nm = iname(String(s.key).split('*')[0]);
     return rows.map((x, j) => ({ txt: `${x.lb} (${zname(x.z)}${x.via ? `, via ${bname(x.via)}'s portal` : ''}), ${x.note}`,
       th: `${esc(x.lb)} (${zlH(x.z)}${x.via ? `, via ${srcA(x.via, bname(x.via))}'s portal` : ''}), ${esc(x.note)}`, label: `${nm} ${j + 1}/${rows.length}`, st: x.at, last: x.last }))
