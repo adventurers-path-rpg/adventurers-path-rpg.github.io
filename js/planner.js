@@ -2408,7 +2408,7 @@
     } catch (e) { txt = ''; }
     TIPK = key; TIPV = txt ? `<p class="small pl-tip"><b>Next buy:</b> ${txt}</p>` : '';
     return TIPV; }
-  const vipTxt = () => { const V = vipLv(); return V ? ` VIP ${V} counted: +${V} Str/Agi/Int per hero level, kill and quest gold / Boss Souls x(0.8 + 0.2N + ${0.5 * V}) instead of x(0.8 + 0.2N), Points x${+(1 + 0.3 * V).toFixed(1)}, stone chances +${5 * V}%. The replays are VIP 0 players, so every run shown only gets easier for you; a full VIP-aware simulation comes on a lab night.` : ''; };
+  const vipTxt = () => { const V = 0; return V ? ` VIP ${V} counted: +${V} Str/Agi/Int per hero level, kill and quest gold / Boss Souls x(0.8 + 0.2N + ${0.5 * V}) instead of x(0.8 + 0.2N), Points x${+(1 + 0.3 * V).toFixed(1)}, stone chances +${5 * V}%. The replays are VIP 0 players, so every run shown only gets easier for you; a full VIP-aware simulation comes on a lab night.` : ''; };
   /* ---- page */
   function legacyPicker() {
     return `<div class="pl-lg">` + LINES.map(l => `<label class="pl-l"><span>${esc(l.name)} <span class="small">${esc(l.slot || '')}</span></span><select data-line="${esc(l.name)}"><option value="">-</option>`
@@ -2423,15 +2423,15 @@
       + `<div class="card pl-in"><div class="pl-top"><b>Your Legacy</b> <span class="small">${nOwn ? nOwn + (nOwn > 1 ? ' lines' : ' line') + ' set' + (S.src ? ' from your save' : '') : 'nothing set yet'}</span>`
       + `<label class="btn pl-file hlbtn">${S.src === 'save' ? 'Load another save' : 'Load save file'}<input type="file" id="pl-save" accept=".pld,.txt" multiple hidden></label>`
       + (nOwn ? `<button class="btn" id="pl-clear" type="button">Clear</button>` : '') + `</div>`
-      + (S.src === 'save' ? '' : `<div class="pl-cta small"><b>Best: load your save file.</b> Your Map Level, title, Points, VIP and every Legacy item are read from it, so every plan fits your account.</div>`)
+      + (S.src === 'save' ? '' : `<div class="pl-cta small"><b>Best: load your save file.</b> Your Map Level, title, Points and every Legacy item are read from it, so every plan fits your account.</div>`)
       + `<p class="small">Save file: Documents\\Warcraft III\\CustomMapData\\TheAdventurersPathRPG\\ (the .pld file, plus its _P0, _P1 ... files if it has them). It stays in your browser. Or pick your Legacy items by hand:</p>`
       + (S.err ? `<p class="small pl-err">${esc(S.err)}</p>` : '')
       + `<div class="pl-acc"><label class="cl-f"><span>Map Level</span><input type="number" id="pl-ml" min="1" max="999" value="${esc(S.ml || 1)}"></label>`
       + `<label class="cl-f"><span>World Points</span><input type="number" id="pl-wp" min="0" max="99999" value="${esc(S.wp || 0)}"></label>`
       + `<label class="cl-f"><span>Points</span><input type="number" id="pl-pts" min="0" max="99999999" value="${esc(S.pts || 0)}"></label>`
-      + `<label class="cl-f"><span>VIP</span><select id="pl-vip">${[0, 1, 2].concat(vipLv() === 3 ? [3] : [], [4, 10]).map(v => `<option value="${v}" ${vipLv() === v ? 'selected' : ''}>${v ? 'VIP ' + v : 'No VIP'}</option>`).join('')}</select></label>`
+      /* NO VIP UI (user 2026-09-27): no VIP dropdown on the public page; VIP from a save is still read */
       + `<label class="cl-f"><span>Title</span><select id="pl-rank">${TITLES.map(([k, n]) => `<option value="${k}" ${+S.rank === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`
-      + (S.src === 'save' ? `<span class="small">from your save · ${fmt(S.pts)} Points${vipLv() ? ' · VIP ' + vipLv() : ''}${esc(swTxt())}</span>` : '') + `</div>`
+      + (S.src === 'save' ? `<span class="small">from your save · ${fmt(S.pts)} Points${esc(swTxt())}</span>` : '') + `</div>`
       + buyTip()
       + `<details class="pl-d" ${nOwn ? '' : 'open'}><summary>Legacy items by line</summary>${legacyPicker()}</details></div>`
       + subtabs('planner', 'goal', [['start', 'First Legacy items'], ['legacy', 'Legacy upgrades'], ['points', 'Points farm']], goal)
