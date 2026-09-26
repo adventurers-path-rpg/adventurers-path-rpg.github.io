@@ -651,6 +651,58 @@
     const gl = gearOf(h, n, m, L), ids = []; FPS.forEach(st => (gl[st] || []).concat(gl[st + '_b'] || []).forEach(x => ids.push(x)));
     const R = scSum(ids); if (!R.on) return d; const kpm = +KPM[1] || 30;
     return k === 0 ? (R.cp > 1 ? 5 : 2) * 24 / kpm : k === 1 ? 1 : k === 2 ? 30 / kpm : k === 3 ? 3 / kpm : 2; };   // extra kills beyond the route only
+  /* ---- FARM SPOTS (patch_page_farmspots 2026-09-26, user: "farm the Nameless Necromancer 73 times... kills me if I don't kite";
+     "give at each stage the best place to farm Boss Souls and the best quests or spots for gold"). The old spot PD.sf = the MEDIAN hero's
+     best Boss Souls a minute, beaten with the END-of-run build (acq boss_open 'late'); the Nameless Necromancer H01U has no per-hero beat row.
+     fsSouls: bosses THIS hero beats by the part's last step (PD.beat via bossAt, on a row that opens before the part's own finished gear),
+     fast (PD.kt <= FS_KT s) and safe (not tight in PD.bt: time to die >= 1.6 x kill time), ranked by minutes for the souls needed (kills x
+     (kill + W.boss respawn_s) + FS_WALK). fsGold: repeatable gold quests: quest gold + Gold Supply Bag means + creep kill gold 3 x level x (0.8 + 0.2 N) x gsF at PD.kpm[1] x FS_HF kills a minute / the mode's slow-down (PD.pqr); boss quests (Dragon Turtle Hunt) by the souls rule */
+  const FS_KT = 30, FS_HF = 0.75, FS_WALK = 2;
+  const FS_GQ = { I016: [24, 'nftr'], I01G: [12, 'nenp'], I023: [24, 'nban'], I024: [24, 'nrog'], I029: [30, 'nsln'], I0L3: [40, 'npfl'], I0K2: [1, 'O004'] };   // W.quests.side needs: kills a clear, a target unit (level / zone)
+  const FS_GFIX = { I0L3: 117450 };
+  let FS_LAST = null;                                                 // the last farmPlan's {h, n, m, steps, pE, fsp[part]} for the part rows
+  const fsRow = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, ns = bnsOf(k), s0 = ns ? ns[0] : (PD.beat || {})[k]; if (s0 === undefined) return null;
+    if (okAt(s0[i], lv)) return { k, j: -1 };
+    for (let j = stageOf(stopOf(b, n)); j <= 2; j++) { const s = ns ? ns[1 + j] || undefined : PD.beat[k + '|' + j]; if (s !== undefined && okAt(s[i], lv)) return { k: k + '|' + j, j }; }
+    return null; };
+  const fsKt = (b, n, m, i) => { const q = ((PD.kt || {})[b + '|' + n + '|' + m] || '')[i]; return q ? B36.indexOf(q) * 10 : null; };
+  const fsBoss = (b, n, m, i, lv, p, endStep) => { const B = (W.boss || {})[b]; if (!B || !(+B.respawn_s > 0)) return null;
+    const r = fsRow(b, n, m, i, lv); if (!r) return null; const at = bossAt(b, n, m, i, lv); if (at < 0 || at > endStep) return null;
+    const kt = fsKt(b, n, m, i), tight = ((PD.bt || {})[r.k] || '').charAt(i) === '1', full = r.j >= p, rs = +B.respawn_s;
+    return { b, z: bzone(b) || '', kt, tight, full, rs, cyc: (kt == null ? 60 : Math.max(5, kt)) + rs, safe: kt != null && kt <= FS_KT && !tight && !full }; };
+  const fsZmax = (steps, e) => Math.max(0, ...steps.slice(0, e + 1).map(x => ZO[x.zone] || 0));   // the farthest zone the route reached
+  const fsSouls = (h, n, m, p, endStep, need, fireOn, zmax) => { const i = HIDX[h]; if (i == null) return null; const lv = eqStep(h, n, m).k, f = (0.8 + 0.2 * n) * gsF(n), o = [];
+    Object.keys(W.boss || {}).forEach(b => { const B = W.boss[b]; if (!(+B.souls_base > 0) || (bzone(b) === 'z10' && !fireOn) || (zmax != null && (ZO[bzone(b)] || 0) > zmax)) return;
+      const x = fsBoss(b, n, m, i, lv, p, endStep); if (!x) return;
+      x.spk = +B.souls_base * f; x.spm = x.spk * 60 / x.cyc; x.kn = need > 0 ? Math.ceil(need / x.spk) : 0; x.mn = x.kn * x.cyc / 60 + FS_WALK; o.push(x); });
+    const rk = (a, b) => need > 0 ? a.mn - b.mn : b.spm - a.spm, s = o.filter(x => x.safe).sort(rk), r = o.filter(x => !x.safe).sort(rk);
+    return { best: s[0] || r[0] || null, alt: s[0] ? s.find(x => x.z !== s[0].z) || s[1] || null : null, risky: !s.length && !!r.length }; };
+  const fsBag = id => { const mt = /Gain ([\d,]+)-([\d,]+) Gold/i.exec(String((bsItem(id) || {}).effect || '')); return mt ? (+mt[1].replace(/,/g, '') + +mt[2].replace(/,/g, '')) / 2 : 0; };
+  const fsQG = q => FS_GFIX[q.id] || (+String((/([\d,]+) gold/i.exec(String(q.reward || '')) || [])[1] || '0').replace(/,/g, '')
+    + (q.reward_items || []).reduce((a, r) => a + fsBag(r.id) * (+r.count || 1) * (r.chance == null ? 1 : +r.chance / 100), 0));
+  const fsGold = (h, n, m, p, endStep, zs) => { const i = HIDX[h]; if (i == null) return null; const lv = eqStep(h, n, m).k, o = [], Q = {};
+    const pr = PD.pqr || {}, gm = ((pr['m|' + band(n)] || [])[0] || [])[p], gx = ((pr[m + '|' + band(n)] || [])[0] || [])[p], kr = (+KPM[1] || 30) * FS_HF * (gm > 0 && gx > 0 ? gx / gm : 1);
+    (((W.quests || {}).side) || []).forEach(q => { Q[q.id] = q; });
+    Object.keys(FS_GQ).forEach(id => { const q = Q[id], [k, u] = FS_GQ[id]; if (!q || !q.repeat || (q.zone && !zs.has(q.zone))) return; const g = fsQG(q); if (!(g > 0)) return;
+      if ((W.boss || {})[u]) { const x = zs.has(bzone(u)) ? fsBoss(u, n, m, i, lv, p, endStep) : null; if (x) o.push({ q, u, x, g, gpm: g * 60 / x.cyc, safe: x.safe, z: x.z }); return; }
+      const mo = (W.mon || {})[u], z = (W.unit_zone || {})[u]; if (!mo || !z || !zs.has(z)) return;
+      o.push({ q, u, k, g, gpm: (g + k * 3 * (+mo.level || 1) * (0.8 + 0.2 * n) * gsF(n)) * kr / k, safe: true, z }); });
+    const s = o.filter(x => x.safe).sort((a, b) => b.gpm - a.gpm), r = o.filter(x => !x.safe).sort((a, b) => b.gpm - a.gpm);
+    return { best: s[0] || null, alt: s[1] || null, risky: r[0] && (!s[0] || r[0].gpm > s[0].gpm) ? r[0] : null }; };
+  const fsWhy = x => x.tight ? 'tight fight' : x.full ? "needs this part's finished gear" : x.kt == null ? 'kill time unknown' : `~${x.kt} s kills`;
+  const fsKtT = x => x.kt == null ? 'kill time ?' : `≤${x.kt} s kills`;
+  const fsR = v => fmt(v >= 1000 ? Math.round(v / 50) * 50 : Math.round(v / 10) * 10);
+  const fsQL = q => `<a href="#quests?qv=side&sq=&xo=${encodeURIComponent('quest/' + encodeURIComponent(q.id))}">${esc(String(q.name).replace(/\s*\(Boss\)$/, ''))}</a>`;
+  const fsTag = s => !s || !s.best ? ' <span class="small">(no boss you beat fast and safe yet)</span>' : s.risky ? ` <span class="small warntext">risky: ${fsWhy(s.best)}</span>` : '';
+  const fsTips = p => { const c = FS_LAST; if (!c || c.pE[p] == null) return ''; const { h, n, m, steps, pE } = c, o = [], s = c.fsp[p];
+    if (s && s.best) { const x = s.best, a = s.alt;
+      o.push(`<div class="small"><b>Souls farm</b>${s.risky ? `<span class="warntext">risky (${fsWhy(x)})</span> ` : ''}${srcA(x.b, bname(x.b))}${x.z ? ' · ' + zlH(x.z) : ''} · ~${fsR(x.spm)} souls/min <span class="small">(${fsKtT(x)}, ${x.rs} s respawn)</span>${a ? ` · or ${srcA(a.b, bname(a.b))} ~${fsR(a.spm)}/min` : ''}</div>`); }
+    const g = fsGold(h, n, m, p, +(steps[pE[p]] || {}).step || 0, new Set(steps.slice(0, pE[p] + 1).map(x => x.zone)));
+    const gt = x => x.x ? `${fsQL(x.q)} (${srcA(x.u, bname(x.u))}${x.z ? ', ' + zlH(x.z) : ''}) · ~${fsR(x.gpm)} gold/min <span class="small">(${fmt(Math.round(x.g))}-gold bag a kill, ${fsKtT(x.x)}, ${x.x.rs} s respawn)</span>`
+      : `${fsQL(x.q)}${x.z ? ' (' + zlH(x.z) + ')' : ''} · ~${fsR(x.gpm)} gold/min <span class="small">(${x.k} kills a clear, ${fmt(Math.round(x.g))} gold + kill gold)</span>`;
+    if (g && g.best) o.push(`<div class="small"><b>Gold farm</b>repeat ${gt(g.best)}${g.alt ? ` · or ${fsQL(g.alt.q)} ~${fsR(g.alt.gpm)}/min` : ''}${g.risky ? ` · <span class="warntext">risky</span> ${fsQL(g.risky.q)} ~${fsR(g.risky.gpm)}/min (${fsWhy(g.risky.x)})` : ''}</div>`);
+    else if (g && g.risky) o.push(`<div class="small"><b>Gold farm</b><span class="warntext">risky (${fsWhy(g.risky.x)})</span> repeat ${gt(g.risky)}</div>`);
+    return o.join(''); };
   function farmPlan(h, n, m, L, steps, stop) {                       // -> {head(li, part), step(li, i), end(li, part)} or null (no data)
     if (!FW) return null;
     const key = MK[m] + '|' + band(n), T = FW.k[key] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
@@ -661,7 +713,7 @@
     const fire = [];                                                  // TESTER PAGE FIXES: what needs the Firelands (Frodo's Boss Hunt)
     const rwP = rwPlan(h, n, m, L, steps, stop), rwUp = rwP.i >= 0 || rwP.abs;   // MAGIC RING: the run upgrades the ring = no + levels on it
     const f = (0.8 + 0.2 * n) / (0.8 + 0.2 * ((PD.sn || {})[band(n)] || n)) * gsF(n), useEnh = true;   // BOSS SOULS: every gear level (only the free +30 stone line reads PD.enh now)
-    let spent = 0, farmed = 0, stoneAt = ''; const bsIS = [0, 0, 0];   // BOSS SOULS: item Boss Soul prices per part // AUDIT minor 14: the run's one +30 stone (one copy of one item)
+    FS_LAST = { h, n, m, steps, pE, fsp: [] }; let spent = 0, farmed = 0, stoneAt = ''; const bsIS = [0, 0, 0];   // BOSS SOULS: item Boss Soul prices per part // AUDIT minor 14: the run's one +30 stone (one copy of one item)
     for (let p = 0; p <= 2; p++) {
       if (pS[p] == null) continue;
       const cnt = {}, why = [], up = []; (g[FPS[p]] || []).forEach(id => { cnt[id] = (cnt[id] || 0) + 1; });
@@ -689,11 +741,12 @@
         if (stone) { stoneAt = id; lvDone[id] = 30; up.push(`+30 ${ilink(id)} (free +30 stone${+(mt[3] || 1) > 1 ? ', one copy: one stone per run' : ''})`); return; }   // Map Level 90+: the stone costs no Boss Souls; tokens (+21..+25) not in the save -> +20
         lvDone[id] = lv; });   // BOSS SOULS: + levels = the Enhance lines before the bosses (paid by the route's bosses), not farmed
       const have = (((PD.sby || {})[band(n)] || [])[p] || 0) * f, short = spent - have - farmed;
-      const sf = ((PD.sf || {})[key] || [])[p], rate = sf ? sf[1] * f : 0;
+      const fsx = fsSouls(h, n, m, p, +(steps[pE[p]] || {}).step || 0, short, fire.length > 0, fsZmax(steps, pE[p])); FS_LAST.fsp[p] = fsx;   // FARM SPOTS: this hero's fast + safe spot, never the median hero's PD.sf
+      const sf0 = ((PD.sf || {})[key] || [])[p], sf = fsx && fsx.best ? [fsx.best.b, fsx.best.spm / f, fsx.best.z, fsx.best.spk / f] : null, rate = sf ? sf[1] * f : sf0 ? sf0[1] * f : 0;
       if (short >= 1 && !(rate > 0 && short / rate < 2)) {             // under 2 minutes of farming: the next bosses cover it
         const what = up.concat(why).join(', ');
         const spk = sf && +sf[3] > 0 ? sf[3] * f : 0, kn = spk ? Math.ceil(short / spk) : 0;   // PD.sf[3] = Boss Souls per kill at the band's N (older data: no kill count)
-        end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${sf && rate > 0 ? `farm ${srcA(sf[0], bname(sf[0]))}${sf[2] ? ' (' + zlH(sf[2]) + ')' : ''}: ${kn ? killF(kn) + ' for ' : '~'}${fmt(Math.round(short))} Boss Souls` : `farm ~${fmt(Math.round(short))} more Boss Souls`}${what ? ', pays for ' + what : ''}</li>`;
+        end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${sf && rate > 0 ? `farm ${srcA(sf[0], bname(sf[0]))}${sf[2] ? ' (' + zlH(sf[2]) + ')' : ''}: ${kn ? killF(kn) + ' for ' : '~'}${fmt(Math.round(short))} Boss Souls` : `farm ~${fmt(Math.round(short))} more Boss Souls`}${what ? ', pays for ' + what : ''}${fsTag(fsx)}</li>`;
         farmed += short;
         if (sf && rate > 0 && sf[2] === 'z10') fire.push('souls');     // TESTER PAGE FIXES: Boss Souls farm at the Flame Lord
       } else if (up.length) end[p] = `<li class="pl-rp"><b>Boss Souls</b> · ${up.join(', ')} <span class="small">(bosses on the way pay for it)</span></li>`;
@@ -913,7 +966,7 @@
     const li = [], TPS = {}; let cur = -1;                            // TPS: what the part lines already said (TESTER PAGE FIXES)
     steps.slice(0, stop + 1).forEach((x, i) => {
       const o = ZO[x.zone] || 0, pi = o > 18 ? 2 : o > 6 ? 1 : 0;
-      if (pi > cur) { if (FPL && cur >= 0) FPL.end(li, cur); cur = pi; const gb = buildRow(h, n, m, L, pi) + tpPart(h, n, m, L, pi, TPS);   // each part opens with its full build
+      if (pi > cur) { if (FPL && cur >= 0) FPL.end(li, cur); cur = pi; const gb = buildRow(h, n, m, L, pi) + tpPart(h, n, m, L, pi, TPS) + (FPL ? fsTips(pi) : '');   // FARM SPOTS: Souls farm / Gold farm rows // each part opens with its full build
         if (FPL) FPL.head(li, pi, gb); else if (gb) li.push(`<li class="pl-rp pl-gh"><b>${['Early', 'Mid', 'Late'][pi]} gear</b> <span class="small">(farm while you pass)</span><div class="pl-gb">${gb}</div></li>`); }
       const dT = (+S.ml || 1) > 30 ? String(x.do).replace(' and {{i:I0Y0}} (one random item, Map Level 30 or lower)', '') : x.do;   // Beginner Bonus only up to Map Level 30
       li.push(`<li class="pl-n"><span class="small">${zlH(x.zone)}</span> ·${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
