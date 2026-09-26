@@ -777,6 +777,7 @@
     return { craft, render }; };
   function farmPlan(h, n, m, L, steps, stop) {                       // -> {head(li, part), step(li, i), end(li, part)} or null (no data)
     if (!FW) return null;
+    const fNeed = (FA_NEED || []).some(b => (b.id && bzone(b.id) === 'z10') || b.fire);   // SOULS FIRE (2026-09-26): a route goal in / through the Firelands opens them too (faPlan clears FA_NEED)
     const key = MK[m] + '|' + band(n), T = FW.k[key] || {}, g = gearOf(h, n, m, L == null || L < 0 ? 3 : L);
     const po = [], pS = [], pE = []; let c = -1;                       // part of each step (running max, like the route), first / last step
     steps.slice(0, stop + 1).forEach((x, i) => { const o = ZO[x.zone] || 0; c = Math.max(c, o > 18 ? 2 : o > 6 ? 1 : 0); po[i] = c; if (pS[c] == null) pS[c] = i; pE[c] = i; });
@@ -816,7 +817,7 @@
         if (stone) { stoneAt = id; lvDone[id] = 30; up.push(`+30 ${ilink(id)} (free +30 stone${+(mt[3] || 1) > 1 ? ', one copy: one stone per run' : ''})`); return; }   // Map Level 90+: the stone costs no Boss Souls; tokens (+21..+25) not in the save -> +20
         lvDone[id] = lv; });   // BOSS SOULS: + levels = the Enhance lines before the bosses (paid by the route's bosses), not farmed
       const have = (((PD.sby || {})[band(n)] || [])[p] || 0) * f, short = spent - have - farmed;
-      const fsx = fsSouls(h, n, m, p, +(steps[pE[p]] || {}).step || 0, short, fire.length > 0, fsZmax(steps, pE[p])); FS_LAST.fsp[p] = fsx;   // FARM SPOTS: this hero's fast + safe spot, never the median hero's PD.sf
+      const fsx = fsSouls(h, n, m, p, +(steps[pE[p]] || {}).step || 0, short, fire.length > 0 || fNeed || !!SCP.fl, fsZmax(steps, pE[p]));   /* SOULS FIRE: Legacy / Scythe goals open the Firelands */ FS_LAST.fsp[p] = fsx;   // FARM SPOTS: this hero's fast + safe spot, never the median hero's PD.sf
       const sf0 = ((PD.sf || {})[key] || [])[p], sf = fsx && fsx.best ? [fsx.best.b, fsx.best.spm / f, fsx.best.z, fsx.best.spk / f] : null, rate = sf ? sf[1] * f : sf0 ? sf0[1] * f : 0;
       if (short >= 1 && !(rate > 0 && short / rate < 2)) {             // under 2 minutes of farming: the next bosses cover it
         const what = up.concat(why).join(', ');

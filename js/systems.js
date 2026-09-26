@@ -140,6 +140,7 @@
         'All kill counts, drop farms and enhancing costs now use average luck (e.g. Cloth Helmet to 5: ~50 Wyverns, +20 Legacy stones ~15,700 Boss Souls).',
         'Run planner card rebuilt for play: one step per row with a tick box and NEXT marker, coloured GET / BUY / ENHANCE / LEGACY / FARM / GATE badges, gear, pet bag, rune and skills shown at the top of each part. Pick your Player Bonus / Beginner item: the card says whether to wear it and how it upgrades.',
         'Run planner: pet bag back in Before you start (free start gift tagged), Frodo’s chain sits where your hero can finish it, Absolute Ring after the boat.',
+        'Run planner Souls farm: the Flame Lord (30 s respawn) now counts once your run opens the Firelands for a Legacy item, not only for gear.',
       ]],
     ]],
     ['25 Sep 2026', [
