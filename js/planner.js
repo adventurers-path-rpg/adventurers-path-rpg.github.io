@@ -343,8 +343,8 @@
       return ok(svAt(n, m, i, lv, x[1]), { sw: x[1], how: `Survival wave ${x[1]} on N${n}${x[2] ? ', solo lobby' : ''}` }); }
     if (k === 'd') { if (m !== 'd' || (S.ml || 1) < x[3] || x[2] > bud.pts) return null; const b = PD.deb || 'O00K', at = bossAt(b, n, 'd', i, lv);
       return ok(at, { slot: at, mins: 3, pts: x[2], how: `Death Enhancer ${x[1]}: ${fmt(x[2])} Points (you have ${fmt(+S.pts || 0)}), the item must sit in Legacy Bag slot 1` }); }   // AUDIT minor 1, minor 4 (listed where the run stops for it)
-    if (k === 'k') return x[3] ? ok(0, { bkills: x[2], how: `any boss kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} boss kills (85% luck), the run's own bosses count` })   // AUDIT B2: hero-type units only
-      : ok(0, { kills: x[2], how: `any kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} kills (85% luck)` });
+    if (k === 'k') return x[3] ? ok(0, { bkills: x[2], how: `any boss kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} boss kills on average, the run's own bosses count` })   // AUDIT B2: hero-type units only
+      : ok(0, { kills: x[2], how: `any kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} kills on average` });
     if (k === 'e') { const mn = (E2[1] || {})[band(n)] || 0; return ok(+E2[2] || 17, { mins: mn * enhR() / gsF(n), how: `+20 with Legacy stones: ~${fmt(Math.round(E2[0] * enhR()))} Boss Souls` }); }   // VIP
     if (k !== 'b' && k !== 'q') return null;
     let at = 0, mins = 0, pts = 0, wp = 0, unv = null, set = null, fire = '', pqn = ''; const how = [];   // PREREQ GATES: fire = a bag item through the Firelands
@@ -365,12 +365,12 @@
   /* run minutes with the picks without a boss: their minutes, ONE Survival arena run (the highest wave), kills the run does not give */
   /* AUDIT B2 / M3: 'any boss kill' picks (nb.bkills): the run's main-quest bosses (PD.rqb up to its stop) and its boss picks count, ~1.5 min
      per extra boss kill (a respawning boss: fight + respawn wait). Per-kill chance picks (edge alt [5] kills, [6] seconds between kills,
-     [7] 1 = 85% luck): kills x the hero's kill time (PD.kt, 60 s without a row) + the gaps */
+     [7] 1 = a chance count, average luck): kills x the hero's kill time (PD.kt, 60 s without a row) + the gaps */
   const KB_MIN = 1.5;
   const killMins = (g, n, m, i) => { const a = g.a || [], k = +a[5] || 0; if (k <= 1 || !a[0] || !a[0].length) return 0;
     const q = ((PD.kt || {})[a[0][0] + '|' + n + '|' + m] || '')[i], t = q ? B36.indexOf(q) * 10 : 60;
     return (k * t + (k - 1) * (+a[6] || 0)) / 60; };
-  const killTxt = g => { const a = g.a || [], k = +a[5] || 0; return k > 1 && a[0] && a[0].length ? (+a[7] ? `~${fmt(k)} kills (85% luck)` : `${fmt(k)} kills`) : ''; };
+  const killTxt = g => { const a = g.a || [], k = +a[5] || 0; return k > 1 && a[0] && a[0].length ? (+a[7] ? `~${fmt(k)} kills on average` : `${fmt(k)} kills`) : ''; };
   const nbMins = (got, base, n, stop, m, i) => { let add = 0, sw = 0, kills = 0, bk = 0;
     got.forEach(g => { if (n) add += killMins(g, n, m, i); const p = g.nb; if (!p) return; if (p.sw) sw = Math.max(sw, p.sw); else if (p.kills) kills = Math.max(kills, p.kills); else if (p.bkills) bk = Math.max(bk, p.bkills); else add += p.mins || 0; });
     const own = bk ? (PD.rqb || []).filter(x => +x[1] <= Math.min(stop == null ? 29 : stop, 20 + (n || 9))).length + got.filter(g => !g.nb && g.a && g.a[0] && g.a[0].length).length : 0;
@@ -443,7 +443,7 @@
                           the Prophet walk-up, Na Queen's staff
      PD.bstep already opens a boss after the step that kills its gates (planner_data fs_of). The route shows each step the main quest does
      not do, right before the goal line, once per route. Run length (never shown): each such step (kill time PD.kt, 60 s without a row,
-     + PQW walk; ticket / drop farms at 85% luck; Spirit King gold at the model's income PD.pqr = acq GPM per band x stage / the mode's
+     + PQW walk; ticket / drop farms at average luck; Spirit King gold at the model's income PD.pqr = acq GPM per band x stage / the mode's
      slow-down, scaled to N like the farm plan and by VIP; the hunt PD.pqh = acq fire_st + the scroll trip) + every goal boss the main
      quest does not kill (kill time + walk; a repeat-kill pick already counts its kills). PD.pqe[from>to] = 'item at +N or higher': the Legacy-stone step first (saves keep no enhance level). Without PD.pq the page is as before */
   const PQ = PD.pq || {}, PQE = PD.pqe || {}, PQH = PD.pqh || {}, PQR = PD.pqr || {}, PQF = new Set(PD.pqf || []), PQN = PD.pqn || {}, PQW = 2, PQA = 1.5;   // walk / arena teleport minutes
@@ -533,14 +533,14 @@
       else if (k === 't') { const K = Math.max(1, +p[4] || 1), nm = bname(p[1]);
         out.push(pqLi('Ticket', +p[3] >= 99.5 ? `kill ${srcA(p[1], nm)}${pqZ(p[1])}: it drops ${ilink(p[2])}`
           : !(W.boss || {})[p[1]] ? `kill ${srcA(p[1], nm)} x${fmt(K)}${pqZ(p[1])} (all players count): the ${fmt(K)}th drops ${ilink(p[2])}`
-          : `kill ${srcA(p[1], nm)}${pqZ(p[1])} until ${ilink(p[2])} drops (${pctF(+p[3])}, ~${fmt(K)} kills at 85% luck)`, 'use it with the arena empty')); }
+          : `kill ${srcA(p[1], nm)}${pqZ(p[1])} until ${ilink(p[2])} drops (${pctF(+p[3])}, ~${fmt(K)} kills on average)`, 'use it with the arena empty')); }
       else if (k === 'g') out.push(pqLi('Ticket', `buy ${ilink(p[1])} at the ${srcA('n019', 'Challenge Display')} (${zlH('z24')}): ${payF(+p[2], +p[3])}`, 'use it with the arena empty'));
       else if (k === 'p') out.push(pqLi('Ticket', `${ilink(p[1])} at the ${srcA('n019', 'Challenge Display')} (${zlH('z24')}): using it takes ${fmt(+p[2])} Points + ${fmt(+p[3])} Challenge Tokens`,
         `you have ${fmt(+S.pts || 0)} Points${S.src === 'save' && S.tok != null ? ' and ' + fmt(+S.tok || 0) + ' tokens' : ''}. Both go the moment you buy it, even when the arena is busy: empty the arena first. Tokens: clear the main quest in Challenge mode on N4+, N - 3 per clear (N4 1 ... N9 6), kept in your save`));
       else if (k === 'i') { if (!says('{{i:' + p[1] + '}}')) out.push(pqLi('First', `take ${ilink(p[1])} from the first ${srcA(p[2], bname(p[2]))} kill`, pqT(p[3]))); }
       else if (k === 'w') out.push(pqLi('First', pqT(p[1])));
-      else if (k === 'f') out.push(pqLi('First', `kill ${srcA(p[1], bname(p[1]))}${p[5] ? ` <span class="small">(${zlH(p[5])})</span>` : pqZ(p[1])} until ${ilink(p[2])} drops (1 in ${fmt(+p[3])}, ~${fmt(+p[4])} kills at 85% luck)`));
-      else if (k === 'd') out.push(pqLi('First', `kill ${srcA(p[1], bname(p[1]))}${pqZ(p[1])} until ${ilink(p[2])} drops (${pctF(+p[3])}, ~${fmt(+p[4])} kills at 85% luck)`));
+      else if (k === 'f') out.push(pqLi('First', `kill ${srcA(p[1], bname(p[1]))}${p[5] ? ` <span class="small">(${zlH(p[5])})</span>` : pqZ(p[1])} until ${ilink(p[2])} drops (1 in ${fmt(+p[3])}, ~${fmt(+p[4])} kills on average)`));
+      else if (k === 'd') out.push(pqLi('First', `kill ${srcA(p[1], bname(p[1]))}${pqZ(p[1])} until ${ilink(p[2])} drops (${pctF(+p[3])}, ~${fmt(+p[4])} kills on average)`));
       else if (k === 'y') out.push(pqLi('First', `kill the ${srcA(p[1], bname(p[1]))}${pqZ(p[1])}`, `on N4 its first death spawns the ${srcA(gid, bname(gid))}`,
         says('{{u:' + p[1] + '}}') ? 'Kill it only here: take the other quest option before this.' : '')); };
     if (b.id) (PQ[b.id] || []).forEach(p => one(p, b.id));
@@ -562,8 +562,8 @@
     if (!LB_NM) { LB_NM = {}; Object.keys(POS).forEach(id => { LB_NM[iname(id)] = id; }); } const id = LB_NM[m[2]]; return id ? m[1] + ' ' + nlk(id) : esc(lb); };
   const tmpl = t => esc(String(t || '')).replace(/\{\{(u|z|i):([A-Za-z0-9]{4})\}\}/g, (m, k, id) => k === 'i' ? iname(id) : k === 'z' ? zname(id) : (((W.boss || {})[id] || {}).name || (((W.mon || {})[id] || {}).name) || id));
   /* ---- FARM PLAN (2026-09-25; user: the route shows where to farm each suggested item and where to farm Boss Souls for enhancing).
-     PD.fw (scripts/planner_pack.py): t = 'where' tuples [kind, source, id, zone, drop %, gold, Boss Souls, minutes (3-in-4 luck + look-up),
-     kills (85% luck), extra, flags], k[mode|band][item] = tuple index per run stage (-1 none). kind b boss drop / m creep or placed drop /
+     PD.fw (scripts/planner_pack.py): t = 'where' tuples [kind, source, id, zone, drop %, gold, Boss Souls, minutes (average luck + look-up),
+     kills (average = 1 / drop chance), extra, flags], k[mode|band][item] = tuple index per run stage (-1 none). kind b boss drop / m creep or placed drop /
      s shop / x Special Merchant / q side quest / o main quest reward / f free / c craft / h treasure bag / e evolves / k hero kit.
      Each route part lists its NEW items (not kept from the last part; starter gear and kit items left out) under the first step of the
      part in the source's zone, or the first step past that zone (farm while you pass); a zone passed before the part = under its header.
@@ -579,8 +579,8 @@
   const srcA = (id, nm) => { const t = esc(nm || id || ''); if (!id) return t;
     return (W.boss || {})[id] ? `<a href="#boss/${id}">${t}</a>` : (W.mon || {})[id] ? `<a href="#unit/${id}">${t}</a>` : SHOPID[id] ? `<a href="#shop/${id}">${t}</a>` : t; };
   const pctF = c => (c >= 10 || c === Math.round(c) ? Math.round(c) : +c.toFixed(1)) + '%';
-  const killF = k => (k = Math.max(1, Math.round(+k || 1))) > 1 ? `~${fmt(k)} kills` : '1 kill';   // kills at 85% luck (planner_pack k85), no minutes
-  const triesF = ch => Math.max(1, Math.ceil(Math.log(0.15) / Math.log(1 - Math.min(0.99, ch / 100)) - 1e-9));   // bags / chests opened at 85% luck (AUDIT minor 13: ceil)
+  const killF = k => (k = Math.max(1, Math.round(+k || 1))) > 1 ? `~${fmt(k)} kills` : '1 kill';   // kills on average (planner_pack k85 = 1 / drop chance), no minutes
+  const triesF = ch => Math.max(1, Math.round(100 / Math.max(0.01, ch)));   // bags / chests opened on average = 1 / chance (AVERAGE LUCK, user rule 2026-09-26; was 85% luck)
   const payF = (g, s) => [g ? fmt(g) + ' gold' : '', s ? fmt(s) + ' Boss Souls' : ''].filter(Boolean).join(' + ');
   function whereTxt(w, cp) {                                         // cp = copies on this line
     const [k, nm, id, z, ch, g, sl, mn, kl, x, fl] = w, zn = z ? zname(z) : '', zt = zn && !String(nm).includes(zn) ? ` (${zlH(z)})` : '', once = /o/.test(fl || '');
@@ -597,10 +597,10 @@
     return esc(nm);
   }
   /* ---- BOSS SOULS (patch_page_souls 2026-09-25, user-approved 'spend Boss Souls before every hard boss'; findings/public/audit_math/
-     tester2_souls_spending.md). BS_T85[N] = Boss Souls to take one item +0 -> +N at 85% luck (VIP 0; 100,000 rolls of the map chances
-     80 / 60 / 50%, a Protection Stone per fail on +15..+19 like tier_calc enh_cost); bsC85 = the difference, VIP scaled like enhR */
-  const BS_T85 = [0, 20, 50, 90, 150, 230, 320, 420, 530, 660, 800, 1120, 1470, 1835, 2225, 2635, 3395, 4190, 5020, 5880, 6780];
-  const bsC85 = (a, b) => (BS_T85[b] - BS_T85[a]) * enhC(0, b) / Math.max(1, enhC(0, b, 0));
+     tester2_souls_spending.md). bsCav(a, b) = Boss Souls to take one item +a -> +b ON AVERAGE (AVERAGE LUCK, user rule 2026-09-26) = enhC, the Markov MEAN of
+     the map chances 80 / 60 / 50% (+5 pp per VIP level), a Protection Stone per fail on +15..+19 like tier_calc enh_cost (prereq_data.json
+     enhance normal|+N|prot souls_mean: +15 2,187, +20 5,587 at VIP 0); was BS_T85, the 85%-luck table (+15 2,635, +20 6,780) */
+  const bsCav = (a, b) => enhC(a, b);
   const BS_RAR = new Set(['epic', 'legendary', 'artifact', 'hart']);
   let BS_IM = null;
   const bsItem = id => { if (!BS_IM) { BS_IM = {}; (W.items || []).forEach(x => { BS_IM[x.id] = x; }); } return BS_IM[id] || null; };
@@ -628,7 +628,7 @@
     const S2 = R.s, two = R.cp > 1, fi = f => { const i = steps.findIndex((x, k) => k <= stop && f(x)); return i; };
     const put = (i, k, t) => { if (i < 0) return; (R.at[i] = R.at[i] || []).push(t); if (k != null) R['k' + k] = 1; };
     const tr = fi(x => +x.step === 1);
-    put(tr, 0, `<li>${ilink('I0OO')}${two ? ' x2' : ''} <span class="small">· take the Old Hunter's Troll Hunt (12 ${scMon('nftr', 'Forest Trolls')} + 12 ${scMon('nftt', 'Troll Marksmen')}, ${esc(zname('z03'))}): 50% per clear, ~${two ? 6 : 3} clears at 85% luck. The quest repeats, so this works even if you finished step 1 with the Troll Boss</span></li>`);
+    put(tr, 0, `<li>${ilink('I0OO')}${two ? ' x2' : ''} <span class="small">· take the Old Hunter's Troll Hunt (12 ${scMon('nftr', 'Forest Trolls')} + 12 ${scMon('nftt', 'Troll Marksmen')}, ${esc(zname('z03'))}): 50% per clear, ~${two ? 4 : 2} clears on average. The quest repeats, so this works even if you finished step 1 with the Troll Boss</span></li>`);
     if (S2 >= 1) put(fi(x => String(x.do || '').includes('{{u:nomg}}')), 1, `<li>${ilink('I0ON')} <span class="small">· kill ${scMon('nomg', 'Ogre Mages')} for this step's 15 kills with the ${ilink('I0OO')} on your hero (they count for the quest)</span></li>`);
     if (S2 >= 2) put(fi(x => x.zone === ((W.unit_zone || {}).ngrk || 'z04')), 2, `<li>${ilink('I0OP')} <span class="small">· kill 30 ${scMon('ngrk', 'Mud Golems')} here with the ${ilink('I0ON')} on your hero</span></li>`);
     const ei = S2 >= 3 ? fi(x => String(x.do || '').includes('{{u:nrog}}')) : -1;
@@ -714,9 +714,7 @@
   const faDr = pid => { if (!FA_IT) { FA_IT = {}; (W.items || []).forEach(x => { FA_IT[x.id] = x; }); } const o = {};
     ((FA_IT[pid] || {}).sources || []).forEach(s => { const f = s.from || {}; if (s.kind === 'drop' && f.id && s.chance != null && +s.chance > 0 && !/once per|one per player/i.test(String(s.note || '')))
       o[f.id] = { pc: Math.max((o[f.id] || {}).pc || 0, +s.chance), nm: f.name || bname(f.id) }; }); return o; };
-  const faK85 = (n, p) => { if (n <= 0) return 0; if (p >= 0.999) return n; const lq = Math.log(1 - p), lr = Math.log(p / (1 - p));   // kills until 85 in 100 hold n
-    for (let k = n; k < 20000; k += k < 600 ? 1 : 10) { let lp = k * lq, c = Math.exp(lp); for (let j = 1; j < n; j++) { lp += Math.log((k - j + 1) / j) + lr; c += Math.exp(lp); }
-      if (1 - c >= 0.85) return k; } return 20000; };
+  const faK85 = (n, p) => n <= 0 ? 0 : p >= 0.999 ? n : Math.max(n, Math.round(n / Math.max(p, 1e-6)));   // kills for n copies on average = n / p (AVERAGE LUCK, user rule 2026-09-26; was: until 85 in 100 hold n)
   const faFoe = u => !!((W.mon || {})[u] || (W.boss || {})[u]);
   const faKills = (x, dr, pb) => { let c = 0; const o0 = String(x.do || '').split(/,? or /)[0];   // option 0 of the step (the kill-count option)
     o0.split('+').forEach(g => { const ids = [...g.matchAll(/\{\{u:([A-Za-z0-9]{4})/g)].map(y => y[1]).filter(faFoe); if (!ids.length) return;
@@ -816,7 +814,7 @@
     /* ---- BOSS SOULS (patch_page_souls 2026-09-25): 'Enhance' lines at Gazlowe right before the Mid / Late required boss steps, every
        gear level. Replay events (PD.rhe + PD.rhT string 12 of this cell's held row: '23@O00G:I03F+9,~A5+7' = before that boss, '20:..'
        = after step 20's farm stop) or, without them, a plan from the Boss Souls income per quest step (route boss kills scaled to PD.sby
-       per part) minus the part's and the next part's item prices, 85%-luck costs, greedy by flat stats per Boss Soul. bsPre[i] = lines
+       per part) minus the part's and the next part's item prices, average costs (bsCav = the Markov mean), greedy by flat stats per Boss Soul. bsPre[i] = lines
        spliced in before route step i (FPL.step); the last part's Boss Souls line goes before the last step (never after the route) */
     const bsPre = {}, bsE = {};                                       // bsE[i] = {ups: {item: level}, c: Boss Souls}: one Enhance line per step
     const bsAddE = (i, ups, c) => { const o = bsE[i] = bsE[i] || { ups: {}, c: 0 }; ups.forEach(([id, lv]) => { o.ups[id] = lv; }); o.c += c; };
@@ -858,7 +856,7 @@
         let avail = (inc[i - 1] || 0) + fc[p] - bsIS.slice(0, p + 1).reduce((a, x) => a + x, 0) - (p < 2 ? bsIS[p + 1] : 0) - used;
         const ch = {}; let c = 0;
         while (avail > 0 && items.length) { let best = null;
-          for (const [id, w] of items) { const l = lv[id] || 0; if (l >= 20) continue; const k = bsC85(l, l + 1); if (k <= avail && (!best || w / k > best[0])) best = [w / k, id, k]; }
+          for (const [id, w] of items) { const l = lv[id] || 0; if (l >= 20) continue; const k = bsCav(l, l + 1); if (k <= avail && (!best || w / k > best[0])) best = [w / k, id, k]; }
           if (!best) break; lv[best[1]] = (lv[best[1]] || 0) + 1; ch[best[1]] = lv[best[1]]; avail -= best[2]; used += best[2]; c += best[2]; }
         if (Object.keys(ch).length) bsAddE(i, Object.entries(ch), c);
       }
@@ -1197,7 +1195,7 @@
      boss (x.bs: PD.rqb main-quest bosses up to the stop + the run's boss picks) or any kill / any boss kill. It stops at the first step that needs a farm (a repeat-kill chance,
      Wyvern 1/50), materials or Points. otProb = a Markov chain over the run's kill timeline: creep kills per quest step (PD.kr = a finishing
      replay's kills at the end of Early / Mid / the run per band|mode, planner_pack patch_pack_kills; older data: KPM[0] x the run's
-     minutes, spread evenly), bosses at their step, then the kills / boss kills a chance pick farms (85% luck count) */
+     minutes, spread evenly), bosses at their step, then the kills / boss kills a chance pick farms (average count: 1 / chance) */
   const OT_N = (a, n) => !a[1] || (a[4] === '>' ? n >= a[1] : n === a[1]);
   const otK = (x, s) => { const r = krOf(x) || (PD.kr || {})[band(x.n) + '|' + MK[x.m]];
     if (Array.isArray(r) && r.length >= 3) return s <= 12 ? r[0] * s / 12 : s <= 20 ? r[0] + (r[1] - r[0]) * (s - 12) / 8 : r[1] + (r[2] - r[1]) * Math.min(1, (s - 20) / Math.max(1, x.n));
@@ -1227,11 +1225,14 @@
     if (cq) for (let k = 0; k < x.xk; k++) hit(false, null);
     for (let k = 0; k < x.xb; k++) hit(true, null);
     return p; };
+  /* AVERAGE LUCK (user rule 2026-09-26): a chance step is 'likely' (jav) when the run's kills reach its mean: one step with 1 / chance
+     kills = a 1 - 1/e = 63% chance (was 85%) */
+  const OT_AVG = 1 - Math.exp(-1);
   const otSum = (id, x) => { const st = otWalk(id, x); if (!st.length) return null; const p = otProb(st, x), ge = [1]; let acc = 0;
     for (let j = st.length; j >= 1; j--) { acc += p[j]; ge[j] = acc; }   // ge[j] = chance of at least j steps
     let sure = 0; while (sure < st.length && st[sure].bs && ge[sure + 1] > 0.999) sure++;
-    let j85 = 0; while (j85 < st.length && ge[j85 + 1] >= 0.85) j85++;
-    return { id, st, sure, j85, pn: j85 < st.length ? ge[j85 + 1] : 0, avg: ge.slice(1).reduce((t, v) => t + v, 0), ch: st.some(y => !y.bs) }; };
+    let jav = 0; while (jav < st.length && ge[jav + 1] >= OT_AVG) jav++;
+    return { id, st, sure, jav, pn: jav < st.length ? ge[jav + 1] : 0, avg: ge.slice(1).reduce((t, v) => t + v, 0), ch: st.some(y => !y.bs) }; };
   /* Bag room for a chance item (it must sit in the Bag all run): the run's Bag (Legacy goal: bagPlan start, its kill-chance picks forced;
      other goals: your best 6 for this hero). Priority (user 2026-09-25): items of counted upgrades > strongest items > chance items */
   const otBag = (id, bag, forced, h, gk) => { if (bag.includes(id)) return { ok: 1 };
@@ -1251,7 +1252,7 @@
     else return null;
     const out = [];
     Object.values(S.own).forEach(id => { const ps = POS[id]; if (!ps) return; const o = otSum(id, x); if (!o || (lg && !o.ch)) return;   // Legacy goal: boss chains are picks
-      o.pc = pcOf(ps.line); if (o.ch ? !(o.j85 > o.pc || o.pn >= 0.05) : o.sure <= o.pc) return;
+      o.pc = pcOf(ps.line); if (o.ch ? !(o.jav > o.pc || o.pn >= 0.05) : o.sure <= o.pc) return;
       o.bag = o.ch ? otBag(id, bag, forced, h, gk) : { ok: bag.includes(id) }; o.x = x; out.push(o); });
     fgOtw(out, x, (ln, any) => { if (!lg || !ln) return false; const p = (r.got || []).filter(y => y.u.line === ln); return any ? p.length > 0 : p.some(y => y.fgs || (y.nb && y.nb.fg)); }, bag, forced, h, gk);   // FARM GOALS
     return (c._ow = out.length ? out : null); };
@@ -1260,7 +1261,7 @@
   const otLi = o => { const nm = ilink(o.id); if (o.fgOnly) return `<li>${nm} <span class="small">· farm it:</span>${fgOffHtml(o)}</li>`;   // FARM GOALS
     if (!o.ch) { const bs = o.st.slice(0, o.sure).map(y => srcA(y.last, bname(y.last)));
       return `<li>${nm} → ${o.st.slice(0, o.sure).map(y => ilink(y.to)).join(' → ')} <span class="small">· ${andJ(bs)} on your route${o.bag.ok ? '' : ` · swap it into the Bag for ${bs.length > 1 ? 'those kills' : 'that kill'}`}</span></li>`; }
-    const k = o.j85, t = [];
+    const k = o.jav, t = [];
     if (k > 0) t.push(`${k} step${k > 1 ? 's' : ''} likely (to ${ilink(o.st[k - 1].to)}${o.pc ? ', the upgrade above included' : ''})`);
     if (o.pn >= 0.05) t.push(`${k ? 'a ' + otOrd(k + 1) : 'a step'} ~${otPct(o.pn)}`);
     const s = t.join(', ') + ` · avg ${o.avg.toFixed(1)}`;
@@ -1268,7 +1269,7 @@
   const otwHtml = c => { const L = otwOf(c); return L ? `<div class="small pl-otw"><b>Also on the way</b> <span class="small">(only Legacy items in the Legacy Bag evolve)</span><ul class="pl-ul">${L.map(otLi).join('')}</ul></div>` : ''; };
   /* one card line: the chance items that fit in the run's Bag and the sure boss chains (never ranked) */
   const otwCard = c => { const L = (otwOf(c) || []).filter(o => !o.fgOnly && (!o.ch || o.bag.ok)); if (!L.length) return '';
-    return `<div class="pl-cf">+ bonus: ${L.map(o => { const k = (o.ch ? o.j85 : o.sure) - o.pc; return nlk(o.id) + esc(k > 0 ? ` +${k}${o.ch ? ' likely' : ''}` : ` ${otPct(o.pn)} for +1`); }).join(', ')}</div>`; };
+    return `<div class="pl-cf">+ bonus: ${L.map(o => { const k = (o.ch ? o.jav : o.sure) - o.pc; return nlk(o.id) + esc(k > 0 ? ` +${k}${o.ch ? ' likely' : ''}` : ` ${otPct(o.pn)} for +1`); }).join(', ')}</div>`; };
   /* route lines (Points / First Legacy): each sure boss step at its boss */
   const otNeeds = c => (otwOf(c) || []).filter(o => !o.ch).flatMap(o => o.st.slice(0, o.sure).map((y, j) => ({ id: y.last, label: 'On the way', st: o.x.bs.get(y.last),
     note: `${iname(j ? o.st[j - 1].to : o.id)} → ${iname(y.to)}${o.bag.ok ? '' : ', swap it into the Legacy Bag first'}` }))).concat(fgOptNeeds(c));   // FARM GOALS: optional farm at the stop
@@ -1418,20 +1419,20 @@
   const krOf = x => { const r = ((PD.krh || {})[x.n + '|' + x.m] || {})[x.h]; return Array.isArray(r) && r.length >= 6 ? r : null; };   // the hero's own kills per part
   /* FARM GOALS (user-approved 'Yes, as farm goals'; findings/public/audit_math/side_evolutions.md). An owned Legacy item whose next steps
      roll per kill while it sits in the Legacy Bag can be farmed on. fgRoute = the run's own kills (otCtx: creeps per quest step, the route's bosses, the replay's
-     other boss kills), fgPlan = the farm after it in chain order (grind creeps, boss kills, the unit), each part until 85 players in
-     100 of those who got the steps before it are through (the page's '85% luck' per count: step 3 = ~28 boss kills, step 4 = ~94
-     Wyverns; the route's own kills count first). A whole 4-step goal at 85% for all of it together would need ~2x the kills.
+     other boss kills), fgPlan = the farm after it in chain order (grind creeps, boss kills, the unit), each part = the sum of
+     its steps' mean kills (1 / chance each; AVERAGE LUCK, user rule 2026-09-26) x the share of players the route's own kills left
+     before each step (step 3 = ~15 boss kills, step 4 = ~50 Wyverns; was 85% luck per part: ~28 / ~94).
      fgTime = this hero's spots: grinding KPM[1] kills a minute; boss kills at the respawning boss with the shortest cycle the hero beats by
      the stop (PD.kt kill time + W.boss respawn_s; the Boss Souls farm PD.sf: kills a minute = souls a minute / souls a kill, only a spot
      with this hero's beat row unless no checked spot is open; else KB_MIN
      a kill on the route's bosses; never a Firelands boss: it needs Frodo's hunt; the spot is never named, any boss counts); unit kills at the
      unit's zone (PD.kt kill time + the edge's seconds between kills; a zone opening after the stop moves the stop); + FG_WALK a spot */
-  const FG_WALK = 2, FG_LUCK = 0.85;
+  const FG_WALK = 2;
   const fgSteps = (id, n, m, i) => { const st = []; let cur = id;
     for (let g = 0; g < 12; g++) { let nx = null;
       for (const [to, text, alts] of (PD.edges[cur] || [])) { for (const a of alts) { if (!OT_N(a, n) || (a[2] && a[2] !== m) || !hasBit(a[3], i)) continue;
           if (!a[0].length) { const k = NBX[cur + '>' + to]; if (k && k[0] === 'k' && +k[1] > 0) nx = { from: cur, to, text, q: +k[1], ty: k[3] ? 'b' : 'a' }; }
-          else if (a[0].length === 1 && +a[5] > 1 && +a[7]) nx = { from: cur, to, text, q: 1 - Math.pow(1 - FG_LUCK, 1 / +a[5]), ty: 'u', u: a[0][0], gap: +a[6] || 0 };
+          else if (a[0].length === 1 && +a[5] > 1 && +a[7]) nx = { from: cur, to, text, q: PD.luck === 'avg' ? 1 / +a[5] : 1 - Math.pow(0.15, 1 / +a[5]), ty: 'u', u: a[0][0], gap: +a[6] || 0 };
           if (nx) break; }
         if (nx) break; }
       if (!nx) break; st.push(nx); cur = nx.to; }
@@ -1448,13 +1449,13 @@
   const fgPlan = (st, p0, t) => { const S2 = st.slice(0, t), ph = [];
     S2.forEach((y, j) => { const k = y.ty === 'u' ? 'u:' + y.u : y.ty, l = ph[ph.length - 1];
       if (l && l.k === k) { l.end = j + 1; l.q = Math.min(l.q, y.q); return; }
-      ph.push({ k, ty: y.ty, uid: y.u || null, gap: y.gap || 0, end: j + 1, q: y.q, n: 0 }); });
-    const tail = (p, c) => { let s = 0; for (let j = c; j < p.length; j++) s += p[j]; return s; };
-    const p = Float64Array.from(p0); let prev = 1;
-    for (const f of ph) { const ch = Math.max(1, Math.round(Math.log(1 - FG_LUCK) / Math.log(1 - f.q) / 40)), goal = FG_LUCK * prev; let g = 0;
-      while (tail(p, f.end) < goal - 1e-9 && g++ < 4000) { fgHit(p, S2, f.ty, f.uid, ch); f.n += ch; }
-      if (tail(p, f.end) < goal - 1e-9) return null; prev = tail(p, f.end); }
-    return { ph: ph.map(f => ({ ty: f.ty, uid: f.uid, gap: f.gap, n: f.n })), P: tail(p, t) }; };
+      ph.push({ k, ty: y.ty, uid: y.u || null, gap: y.gap || 0, start: j, end: j + 1, q: y.q, n: 0 }); });
+    /* AVERAGE LUCK (user rule 2026-09-26): a part's kills = the sum over its steps of 1 / chance x the share of players still at or
+       before that step after the route's own kills (p0); was: kills until 85 in 100 of those before it are through */
+    let cum = 0; const need = [];
+    for (let j = 0; j < S2.length; j++) { cum += p0[j] || 0; need[j] = Math.min(1, cum); }
+    for (const f of ph) { let s = 0; for (let j = f.start; j < f.end; j++) { if (!(S2[j].q > 0)) return null; s += need[j] / S2[j].q; } f.n = Math.round(s); }
+    return { ph: ph.map(f => ({ ty: f.ty, uid: f.uid, gap: f.gap, n: f.n })), P: 1 }; };
   const fgKt = (b, n, m, i) => { const q = ((PD.kt || {})[b + '|' + n + '|' + m] || '')[i]; return q ? B36.indexOf(q) * 10 : null; };
   const fgOpen = (b, n, m, i, lv) => (PD.beat || {})[b + '|' + n + '|' + m] !== undefined ? bossAt(b, n, m, i, lv) : Math.max(0, fsOf(b, n) || 0);
   const fgBoss = (n, m, i, lv, stop) => { const o = [{ b: '', cyc: KB_MIN * 60, x: 0 }], seen = new Set();   // '' = the route's bosses again
@@ -1526,7 +1527,7 @@
   const fgOtw = (out, x, skip, bag, forced, h, gk) => {
     for (let j = out.length - 1; j >= 0; j--) if (skip((POS[out[j].id] || {}).line, 0)) out.splice(j, 1);
     Object.values(S.own).forEach(id => { const ps = POS[id]; if (!ps || skip(ps.line, 1)) return; const o0 = out.find(o => o.id === id); if (o0 && !o0.ch) return;
-      const fg = fgOf(id, x, o0 ? o0.j85 + 1 : 1); if (!fg.length) return;
+      const fg = fgOf(id, x, o0 ? o0.jav + 1 : 1); if (!fg.length) return;
       if (o0) o0.fg = fg; else out.push({ id, fgOnly: 1, ch: 1, st: [], fg, x, bag: otBag(id, bag, forced, h, gk) }); }); };
   const fgOffHtml = o => !o.fg || !o.fg.length ? '' : `<div class="small">${o.fgOnly ? '' : 'Farm it on: '}${o.fg.map(f => `to ${ilink(f.to)}: ${fgTxt(f, 1)}${f.stop2 > o.x.stop ? ` (play on to quest step ${f.stop2} first)` : ''}`).join(' · ')}${o.bag && !o.bag.ok ? ' · keep it in the Legacy Bag while you farm' : ''}</div>`;
   const fgOptNeeds = c => (otwOf(c) || []).filter(o => o.fg && o.fg.length).map(o => { const f = o.fg[o.fg.length - 1]; if (f.stop2 > o.x.stop) return null;
@@ -2100,7 +2101,7 @@
     const cards = fin.concat(ux); cards.forEach(c => c.tags.unshift(needTag(c)));
     return Object.assign({}, base, { cards, Rs, SK });
   }
-  const GHINT = 'Gear level = how much you farm. Rare drops = also chase low-chance drops you can farm again and again (85% luck counts).';
+  const GHINT = 'Gear level = how much you farm. Rare drops = also chase low-chance drops you can farm again and again (average luck counts).';
   const gearSw = () => { const rfOn = !!(PD.bbf || PD.rpf);
     return `<div class="pl-ctl pl-gsw"><span class="pl-fl">Gear</span>` + GLV.map(j => { const off = j < FO.need, on = j === FO.gl;
       return `<button type="button" class="pl-chip${on ? ' on' : ''}" data-fg="${j}" aria-pressed="${on ? 'true' : 'false'}"${off ? ` aria-disabled="true" title="won't finish" style="opacity:.4;cursor:not-allowed"` : ''}>${esc(GLN[j])}</button>`; }).join('')
@@ -2213,7 +2214,7 @@
       + `<details class="pl-d" ${nOwn ? '' : 'open'}><summary>Legacy items by line</summary>${legacyPicker()}</details></div>`
       + subtabs('planner', 'goal', [['start', 'First Legacy items'], ['legacy', 'Legacy upgrades'], ['points', 'Points farm']], goal)
       + `<div class="pl-out">${plannerOut(goal)}</div>`
-      + `<details class="pl-d pl-how small"><summary>How runs are ranked</summary><p class="small">Your account plays like a normal ${esc(accTxt())} (your bonuses, title and Legacy weighed by what each hero needs).${vipTxt()} Every run is a full replay of a normal player (walking, reading, creeps, farming, every boss; a death resets the fight) with your Map Level bonuses, title and Legacy (at +0: enhancing resets every run). Gear: ${SHOW_JUST_ENOUGH ? 'each run is ranked with the lightest gear that finishes it' : 'each run is ranked with a bit more gear than the bare minimum'} (more when its tag says so); pick yours inside the run card. Kill counts = 85% luck. Only heroes your Map Level and World Points unlock.</p></details>`;
+      + `<details class="pl-d pl-how small"><summary>How runs are ranked</summary><p class="small">Your account plays like a normal ${esc(accTxt())} (your bonuses, title and Legacy weighed by what each hero needs).${vipTxt()} Every run is a full replay of a normal player (walking, reading, creeps, farming, every boss; a death resets the fight) with your Map Level bonuses, title and Legacy (at +0: enhancing resets every run). Gear: ${SHOW_JUST_ENOUGH ? 'each run is ranked with the lightest gear that finishes it' : 'each run is ranked with a bit more gear than the bare minimum'} (more when its tag says so); pick yours inside the run card. Kill counts = average luck. Only heroes your Map Level and World Points unlock.</p></details>`;
   };
   const plBack = () => { FO = null; K.route(); window.scrollTo(0, FOY); };
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && FO && document.body.dataset.page === 'planner' && document.querySelector('.pl-focus')) plBack(); });

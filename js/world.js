@@ -574,16 +574,14 @@ window.AP = (function () {
      in one bag with' step = trigger CC: 0.01 s after ANY unit picks up an item it checks THAT unit's 6 slots for the step item and each
      material stack (charges >= count). The Legacy Bag drops materials, so it happens on the hero or the pet; two steps keep the item in the
      Bag and only the materials on the unit (W.leg_mat[from>to].at = 'bag'). Materials stack in one slot (trigger Die_Jia).
-     Each material: up to 2 sources, best first = fewest minutes for the count: creeps = kills at 85% luck / (min(30 a minute, how many
+     Each material: up to 2 sources, best first = fewest minutes for the count: creeps = kills on average / (min(30 a minute, how many
      stand on the map, each respawns 60 s after death) x sqrt(weakest candidate's HP / its HP)); a non-respawning creep adds a run per
      map-full; bosses = kills x respawn; shops first, a recipe next, quests / chests / Points last; a boss in a 'Danger' zone only when
      nothing else drops it. No minutes on the page (user rule): kill counts only. */
   const LMAT = W.leg_mat || {}, MSP = W.mon_spawn || {}, KPM1 = +(((W.plan || {}).kpm || [])[1]) || 30, MFK = {};
   const LMF = {}; Object.keys(LMAT).forEach(k => { const f = k.split('>')[0]; (LMF[f] = LMF[f] || []).push(k); });
-  const mfK85 = (c, p) => { const key = c + '|' + p; if (key in MFK) return MFK[key]; let r = Infinity;   /* fewest kills with an 85% chance of c drops */
-    if (p >= 1) r = c; else if (p > 0) { const d = new Float64Array(c); d[0] = 1;
-      for (let k = 1; k <= 200000; k++) { let s = 0; for (let j = c - 1; j >= 0; j--) { d[j] = d[j] * (1 - p) + (j ? d[j - 1] * p : 0); s += d[j]; } if (k >= c && 1 - s >= 0.85) { r = k; break; } } }
-    return (MFK[key] = r); };
+  const mfK85 = (c, p) => { const key = c + '|' + p; if (key in MFK) return MFK[key];   /* kills for c drops on average = c / p (AVERAGE LUCK, user rule 2026-09-26; was the fewest kills with an 85% chance) */
+    return (MFK[key] = p >= 1 ? c : p > 0 ? Math.max(c, Math.round(c / p)) : Infinity); };
   const mfDanger = id => { const nm = (BOSS[id] || MON[id] || {}).name, z = Z[zoneOf(id)]; return !!nm && !!z && (z.what || []).some(t => /^Danger:/.test(t) && t.includes(nm)); };
   const mfSrc = (id, cnt) => { const i = item[id]; if (!i) return [];
     const L = [], cre = [], g = lgOf(id);
@@ -613,7 +611,7 @@ window.AP = (function () {
   /* the list: one row per material (count + linked name | best source, 'or' the next); phone: the sources go under the name */
   const mfList = mats => { const R = mats.map(([id, c]) => [id, c, mfSrc(id, c)]); if (!R.length) return '';
     const farm = R.some(r => r[2].some(x => x.fm));
-    return `<div class="mf"><div class="mf-h">${farm ? 'Where to farm' : 'Where to get'}${farm ? ' <span class="small">· kills for the count at 85% luck, solo</span>' : ''}</div>`
+    return `<div class="mf"><div class="mf-h">${farm ? 'Where to farm' : 'Where to get'}${farm ? ' <span class="small">· kills for the count on average, solo</span>' : ''}</div>`
       + R.map(([id, c, S]) => `<div class="mf-r"><div class="mf-m">${c > 1 ? fmt(c) + 'x ' : ''}${ilink(id)}</div><div class="mf-s">${S.length ? S.map((x, j) => (j ? (S.all ? '<i>and</i> ' : '<i>or</i> ') : '') + x.h).join('<br>') : '<span class="small">see its page</span>'}</div></div>`).join('') + `</div>`; };
   if (!document.getElementById('mf-css')) document.head.insertAdjacentHTML('beforeend', '<style id="mf-css">.mf{margin:8px 0 2px;padding-top:6px;border-top:1px solid var(--rule)}.mf-h{font-weight:600;margin-bottom:2px}'
     + '.mf-r{display:grid;grid-template-columns:minmax(130px,30%) 1fr;gap:2px 10px;padding:4px 0;border-bottom:1px dashed var(--rule)}.mf-r:last-child{border-bottom:0}.mf-m{font-weight:600}'
@@ -877,7 +875,7 @@ window.AP = (function () {
   const llNext = (l, i) => { const s = l.steps[i], nx = l.steps[i + 1];
     const mats = mfOf(s.id);   // WHERE TO FARM: material names linked + a folded list
     return `<span class="ll-nx">${s.to && (!nx || nx.id !== s.to.id) ? `→ ${ref(s.to)}: ` : ''}${(mats.length ? mfLink(s.next || '', mats) : esc(s.next || '')).split(' OR ').join('<br><i>or</i> ')}</span>`
-      + (mats.length ? `<details class="mf-d"><summary>${mats.some(([x]) => mfSrc(x, 1).some(y => y.fm)) ? `Where to farm ${mats.length > 1 ? 'them' : 'it'} <span class="small">· kills at 85% luck</span>` : `Where to get ${mats.length > 1 ? 'them' : 'it'}`}</summary>${mfList(mats)}</details>` : ''); };
+      + (mats.length ? `<details class="mf-d"><summary>${mats.some(([x]) => mfSrc(x, 1).some(y => y.fm)) ? `Where to farm ${mats.length > 1 ? 'them' : 'it'} <span class="small">· kills on average</span>` : `Where to get ${mats.length > 1 ? 'them' : 'it'}`}</summary>${mfList(mats)}</details>` : ''); };
   const llTable = (l, idx, hl, me) => `<div class="tbl compact ll-t"><table><tr><th class="num">#</th><th>Item</th><th>Stats</th><th>Next step</th></tr>${idx.map(i => `<tr${i === me ? ' class="ll-me"' : ''}><td class="num">${fmt(i + 1)}</td><td>${ref(l.steps[i])}</td><td class="small">${llStats(l, i, hl)}</td><td class="small">${llNext(l, i)}</td></tr>`).join('')}</table></div>`;
   const llFold = root => root.querySelectorAll('.ll-nx').forEach(e => { const b = e.nextElementSibling; if (b && b.classList.contains('ll-more')) return; if (e.scrollHeight > e.clientHeight + 2) e.insertAdjacentHTML('afterend', '<button type="button" class="ll-more">more</button>'); });
   out.addEventListener('click', e => { const b = e.target.closest('button.ll-more'); if (!b) return; const on = b.previousElementSibling.classList.toggle('full'); b.textContent = on ? 'less' : 'more'; });

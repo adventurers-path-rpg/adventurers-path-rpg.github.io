@@ -135,6 +135,7 @@
         'Item pages show where exactly: a pin map for drops from Rock Chunks, barrels, cages and single units (Dragon Ball: all 7 spots). Walled-in spots say how to reach them.',
       ]],
       ['Calculators', [
+        'All kill counts, drop farms and enhancing costs now use average luck (e.g. Cloth Helmet to 5: ~50 Wyverns, +20 Legacy stones ~15,700 Boss Souls).',
         'Run planner card rebuilt for play: one step per row with a tick box and NEXT marker, coloured GET / BUY / ENHANCE / LEGACY / FARM / GATE badges, gear, pet bag, rune and skills shown at the top of each part. Pick your Player Bonus / Beginner item: the card says whether to wear it and how it upgrades.',
         'Run planner: pet bag back in Before you start (free start gift tagged), Frodo’s chain sits where your hero can finish it, Absolute Ring after the boat.',
       ]],
@@ -178,7 +179,7 @@
       ]],
       ['Legacy', [
         'Every Legacy item leads with how to start its line, what unlocks it, what\'s next and who can do the next step.',
-        '+20 steps say where the stones are (Holy Light Fortress, about 25,000 Boss Souls, 7,900 with Protection Stones).',
+        '+20 steps say where the stones are (Holy Light Fortress, about 15,700 Boss Souls, 6,500 with Protection Stones).',
         'Divine Arrow and Divine Armor Seal lines plan end to end on N7-9.',
         'Fixed: stats on 1,163 steps (+1,000 read as +1), Ashen Reaper sent backwards, Cloth Helmet 3 to 4 needs boss kills.',
       ]],
