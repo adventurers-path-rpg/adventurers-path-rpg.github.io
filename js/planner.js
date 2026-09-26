@@ -290,7 +290,10 @@
     const x = L >= 0 ? row[L] : null; return typeof x === 'string' && x !== '' && x.split(',').includes(b); };
   const bossAt0 = (b, n, m, i, lv) => { const s = bossAt00(b, n, m, i, lv); return s >= 0 && abLost(b, n, m, i, lv, s) ? -1 : s; };
   const bossAt00 = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, ns = bnsOf(k), s0 = ns ? ns[0] : (PD.beat || {})[k]; if (s0 === undefined) return -1;   // PREREQ GATES: bossAt = this + the hunt
-    const st0 = stopOf(b, n); if (okAt(s0[i], lv)) return st0;
+    /* STEP 0 FIX (2026-09-26, tester: 'kill Centaur Khan N7 right away?'): the opening row is fought at the stage's END hero level
+       (tier_calc hero_lv: Early = the level at step 12) with half its gear; a boss open from step 0 is not 'go straight there' at
+       level 1: it passes from the end of that stage (the full stage build only adds). Lab night: planner_data rows by the real level */
+    const st0 = stopOf(b, n); if (okAt(s0[i], lv)) return st0 > 0 ? st0 : stEnd(stageOf(st0), n);
     for (let j = stageOf(st0); j <= 2; j++) { const s = ns ? ns[1 + j] || undefined : PD.beat[k + '|' + j]; if (s !== undefined && okAt(s[i], lv)) return Math.max(st0, stEnd(j, n)); }
     return -1; };
   /* where the route lists a boss fought after step st: the step it opens at, or the stage end it was pushed to */
