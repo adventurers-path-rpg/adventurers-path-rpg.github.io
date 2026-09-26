@@ -46,7 +46,12 @@
     /* VIP: the Points Merchant's VIP buys are saved as WANJIAVIP1/2/3/9 = '1' (no type prefix); level as trigger W1 Vip */
     const vb = k => get('WANJIAVIP' + k) === '1', v1 = vb(1), v2 = vb(2), v3 = vb(3), v9 = vb(9);
     const vip = v1 && v2 && v3 && v9 ? 10 : v1 && v2 && v3 ? 4 : v3 ? 3 : v2 ? 2 : v1 ? 1 : 0;
-    return { own, vip, tok: get('Itzlp') == null ? null : parseInt(get('Itzlp'), 10) || 0, pts: parseInt(get('IJF') || '0', 10) || 0, ml: mlv ? 1 + Math.floor(parseFloat(mlv) || 0) : 1, rank: parseInt(get('IJW') || '0', 10) || 0, wp: parseInt(get('ISHIJIE') || '0', 10) || 0, n: Object.keys(own).length,
+    /* ACCOUNT SWORDS (patch_page_acct_swords 2026-09-26): Points Merchant start items (flags '1', no type prefix) and the hero special
+       effects (I0UJ sets 6 'S' + Korean keys at once: any one of them = owned) */
+    const fl = k => get(k) === '1', swF = { qd1: fl('DINGZHIQD1'), qd2: fl('DINGZHIQD2'), zy: fl('ZHENYINJAN'), cc: fl('DINGZHICC1'),
+      dem: fl('DINGZHIAA1') ? (fl('DINGZHIAA2') ? (fl('DINGZHIAA3') ? 3 : 2) : 1) : 0, sto: fl('DINGZHIBB1') ? (fl('DINGZHIBB2') ? (fl('DINGZHIBB3') ? 3 : 2) : 1) : 0 };
+    const hfx = ['S\uc870\ub828\uc0ac\uc804\uc6a9', 'S\uc131\uae30\uc0ac\uc804\uc6a9', 'S\uc0ac\ud48d\uc804\uc6a9', 'S\ud3ed\ud48d\uc815\ub839\uc804\uc6a9', 'S\ub2ec\uc0ac\uc81c\uc804\uc6a9', 'S\uc81c\uc6b0\uc2a4\uc804\uc6a9'].some(fl);
+    return { own, vip, sw: swF, hfx, tok: get('Itzlp') == null ? null : parseInt(get('Itzlp'), 10) || 0, pts: parseInt(get('IJF') || '0', 10) || 0, ml: mlv ? 1 + Math.floor(parseFloat(mlv) || 0) : 1, rank: parseInt(get('IJW') || '0', 10) || 0, wp: parseInt(get('ISHIJIE') || '0', 10) || 0, n: Object.keys(own).length,
              valid: /^DMO25/.test(body), saved: get('IJF') !== null || mlv !== null };
   }
   /* the Legacy level a hero of main stat p plays at: the deepest level whose items you match (same line, as deep or deeper) on at least half */
@@ -81,10 +86,12 @@
     const ph = PTSH.find(x => (pts || 0) >= x[0]); if (ph) for (const k in ph[1]) a[k] = (a[k] || 0) + ph[1][k];
     MILES.forEach(([lv, d]) => { if (ml >= lv) for (const k in d) a[k] = (a[k] || 0) + d[k]; });
     if (ml <= 15) a.flat_all_stats += 40; else if (ml <= 30) a.stat_amp_pct += 20; else if (ml <= 45) { a.flat_all_stats += 250; a.stat_amp_pct += 25; } else { a.flat_all_stats += 500; a.stat_amp_pct += 50; }
+    if (ml > 30) a.stat_amp_pct += 20;   // MAP 1.04 v5.6: Bonuses Mantle (Player Bonus, Map Level 31+): +20% Str/Agi/Int amp (its N x N x 10 flat part is in the model)
     const rk = RANKR.filter(r => ml >= r[0]).pop(); if (rk) { a.flat_all_stats += rk[1]; a.stat_amp_pct += rk[2]; }
     if (rank >= 9) a.stat_amp_pct += 15;
     return a; };
-  /* VIP (patch_planner_vip 2026-09-25; findings/public/audit_math/vip_system.md): the Points Merchant's VIP item buys the next step (15k ->
+  /* MAP 1.04: VIP can no longer be bought (the Next buy tip never offers it); VIP owned from a save keeps every effect below.
+     VIP (patch_planner_vip 2026-09-25; findings/public/audit_math/vip_system.md): the Points Merchant's VIP item bought the next step (15k ->
      VIP 1, 30k -> VIP 2, 45k -> VIP 4, 800k -> VIP 10), saved as flags and used from the next game. VIP L: +L Str/Agi/Int per hero level-up, kill / quest gold and Boss Souls x(0.8 + 0.2 N + 0.5 L) instead of x(0.8 + 0.2 N), Points x(1 + 0.3 L)
      rounded down on the stage boss, Jarvan V, Shadow Monster, Archangel / Frost Lord; stone chances
      +5 L points. The replays (PD.rp) are VIP 0 players: VIP moves only your account step (stats) and the Points / Boss Souls numbers.
@@ -126,6 +133,22 @@
     units(v, ref).forEach((x, j) => { const g = Math.max(0, +w[j] || 0), su = hasU ? Math.min(g, Math.max(0, +w[NP + j] || 0)) : 0; o += (g - su) * x; u += su * x; });
     return o + (hasU ? Math.min(u, Math.max(0, +w[2 * NP] || 0)) : u); };
   const addTo = (v, x) => { for (const t in x) v[t] = (v[t] || 0) + x[t]; return v; };
+  /* ---- ACCOUNT SWORDS (patch_page_acct_swords 2026-09-26; findings/public/audit_math/account_power_coverage.md, map 1.03): the Points
+     Merchant start items of your save, given at every game start, stats = W.items st. Mithril Holy Sword + Windseeker's Blessed Sword always count; of Refined Sword / Curse Blade / Demonic Sword / Storm
+     Sword (item level 8) only 2 at a time: the best 2 by this hero's weights. Like vipX they only move your account step */
+  const SWDEM = ['', 'I0UP', 'I0UN', 'I0Z6'], SWSTO = ['', 'I0UQ', 'I0UO', 'I0Z5'];
+  let SWIT = null;
+  const swSt = id => { if (!SWIT) { SWIT = {}; (W.items || []).forEach(x => { SWIT[x.id] = x; }); } const o = {};
+    for (const [k, v] of Object.entries(((SWIT[id] || {}).st) || {})) { if (typeof v === 'number' && MAPX[k]) o[MAPX[k]] = (o[MAPX[k]] || 0) + v; }
+    return o; };
+  const swIds = sw => { const c = [], a = []; sw = sw || {};
+    if (sw.qd1) c.push('I2CS'); if (sw.qd2) c.push('I2D1'); if (+sw.dem > 0) c.push(SWDEM[Math.min(3, +sw.dem)]); if (+sw.sto > 0) c.push(SWSTO[Math.min(3, +sw.sto)]);
+    if (sw.zy) a.push('ajen'); if (sw.cc) a.push('I0V6'); return { c, a }; };
+  const swX = (p, w) => { const { c, a } = swIds(S.sw); if (!c.length && !a.length) return {};
+    const best = c.map(id => [w && NP ? powOf(swSt(id), w.slice(0, NP), null) : 0, id]).sort((x, y) => y[0] - x[0]).slice(0, 2).map(x => x[1]);
+    return a.concat(best).reduce((v, id) => addTo(v, swSt(id)), {}); };
+  const swTxt = () => { const { c, a } = swIds(S.sw), nm = c.concat(a).map(iname);
+    return (nm.length ? ' · start items: ' + nm.join(', ') + (c.length > 2 ? ' (best 2 of the level-8 swords counted)' : '') : '') + (S.hfx ? ' · hero special effects owned (not in the replays yet)' : ''); };
   /* LEGACY BAG (patch_legacy_bag 2026-09-25; findings/public/audit_math/legacy_bag_rules.md, extract_102/war3map.j L = line): the Bag (F2,
      H00Q) holds 6 Legacy items, one per slot type. Only Bag items
      give stats, to the hero; the two
@@ -143,15 +166,25 @@
   /* one Legacy run's Bag: kill-chance upgrades (nbx 'k') ride in the Bag all run; every other Bag upgrade in step order: its item outside the
      best 6 of that moment = a swap before the fight (sw[from>to] = {x, y: the item it pushes out, back: y returns after, weak, kind}); nbx
      'b' / 'e' = done on the hero or pet (hand); an upgrade's new item counts from the next fight on. e = the weakest Bag's eqStep */
+  /* MAP 1.03 NECKLACE (patch_page_map103 2026-09-26): Death's Reprieve Necklace steps evolve from the Bag or either Storage on their N or higher: no Bag swap, no Bag
+     clash. PD.anyst = their 'from>to' keys (new data); older data: every boss step of the Necklace line (1.03 is the map now).
+     otAny = the first k On-the-way steps are all such steps; ANYF = items whose next step is one (a new drop: Bag or a storage first) */
+  /* MAP 1.04 (pending_104/patch_104_page.py): every kill / chance / quest step evolves from the Bag or either Storage; only Points exchanges, 'Put it in one bag with'
+     crafts and the +20 stone step stay Bag / hand. PD.anyst_map === '1.04': PD.anyst is that full list (planner_data); older data
+     (1.03, Necklace only): every edge whose text is none of those kinds */
+  const ANYST = new Set(PD.anyst_map === '1.04' && Array.isArray(PD.anyst) ? PD.anyst
+    : Object.entries(PD.edges || {}).flatMap(([x, es]) => (es || []).filter(q => !/Points Exchange|in one bag with|with Legacy stones/i.test(String(q[1] || ''))).map(q => x + '>' + q[0])));
+  const ANYF = new Set([...ANYST].map(k => k.split('>')[0]));
+  const otAny = (id, st, k) => k > 0 && st.slice(0, k).every((y, j) => ANYST.has((j ? st[j - 1].to : id) + '>' + y.to));
   const bagPlan = (h, n, m, all) => { const gk = band(n) + '|' + MK[m], kd = g => g.u.nb ? g.u.nb[0] : 'B';
-    const kIds = all.filter(g => kd(g) === 'k').map(g => g.u.from), D0 = pickBag(h, gk, S.own, kIds);
+    const kIds = all.filter(g => kd(g) === 'k' && !ANYST.has(g.u.from + '>' + g.u.to)).map(g => g.u.from), D0 = pickBag(h, gk, S.own, kIds);   // MAP 1.04: a chance item in any storage rolls too
     const out = { start: D0, k: kIds, sw: {}, e: null }, es = [kIds.length ? eqStep(h, n, m, D0) : eqStep(h, n, m)];
     let own = Object.assign({}, S.own);
     all.filter(g => kd(g) !== 'k').map(g => [g, Math.max(0, ...g.at)]).sort((a, b) => a[1] - b[1]).forEach(([g]) => {
       const x = g.u.from, k = kd(g), key = x + '>' + g.u.to, D = pickBag(h, gk, own, kIds), own2 = Object.assign({}, own);
       const tl = (POS[g.u.to] || {}).line; if (tl) { if (tl !== g.u.line) delete own2[g.u.line]; own2[tl] = g.u.to; }
       if (k === 'b' || k === 'e') out.sw[key] = { hand: k, x, toBag: pickBag(h, gk, own2, kIds).includes(g.u.to) };
-      else { const F = D.includes(x) ? D : pickBag(h, gk, own, kIds.concat([x])), ef = eqStep(h, n, m, F); es.push(ef);
+      else { const F = D.includes(x) || ANYST.has(key) ? D : pickBag(h, gk, own, kIds.concat([x])), ef = eqStep(h, n, m, F); es.push(ef);   // MAP 1.03 NECKLACE: from any storage
         if (F !== D) { const y = D.find(id => !F.includes(id)) || '', ed = eqStep(h, n, m, D);
           out.sw[key] = { x, y, kind: k, back: !!y && pickBag(h, gk, own2, kIds).includes(y), weak: ef.s < ed.s - 1e-9 }; } }
       own = own2; });
@@ -172,14 +205,14 @@
   let EQS = '', EQC = {}; const EQM = new Map();   // VIP: a few account states cached (the next-buy tip tries 2-3)
   const LADC = {};                                                   // LEGACY BAG: the ladder never depends on your account
   const eqStep = (h, n, m, bag) => {                                     // {s: exact step, k: floor(s) for replays, f: fraction}
-    const sig = (+S.ml || 1) + '|' + (+S.rank || 0) + '|' + (+S.pts || 0) + '|' + vipLv() + '|' + JSON.stringify(S.own);
+    const sig = (+S.ml || 1) + '|' + (+S.rank || 0) + '|' + (+S.pts || 0) + '|' + vipLv() + '|' + JSON.stringify(S.own) + '|' + JSON.stringify(S.sw || {});   // ACCOUNT SWORDS
     if (sig !== EQS) { EQS = sig; EQC = EQM.get(sig) || {}; EQM.delete(sig); EQM.set(sig, EQC); if (EQM.size > 8) EQM.delete(EQM.keys().next().value); for (const x in FCUT) if (x.endsWith('y')) delete FCUT[x]; }
     const gk = band(n) + '|' + MK[m], key = h + '|' + gk + (bag ? '|' + bag.slice().sort().join(',') : ''); if (EQC[key]) return EQC[key];
     const p = (HERO[h] || {}).main_stat || 'STR', w = swRow(h, gk), pl = PD.pl || [];
     let r;
     if (!w || !PRB.length || !pl.length) { const k = stepOf(p); r = { s: k, k, f: 0 }; }   // data without stat weights: the old ladder rule
     else {
-      const ref = (PD.probe_ref || {})[gk] || {}, you = powOf(addTo(ownVec(p, w, bag), vipX(gk)), w, ref);   // VIP: + L Str/Agi/Int per hero level
+      const ref = (PD.probe_ref || {})[gk] || {}, you = powOf(addTo(addTo(ownVec(p, w, bag), vipX(gk)), swX(p, w)), w, ref);   // ACCOUNT SWORDS: + your start swords // VIP: + L Str/Agi/Int per hero level
       const ps = LADC[h + '|' + gk] || (LADC[h + '|' + gk] = (() => { let top = -Infinity; return pl.map((x, k) => (top = Math.max(top, powOf(stepVec(p, k), w, ref)))); })());
       let k = 0; ps.forEach((v, j) => { if (you >= v) k = j; });
       const f = k < ps.length - 1 && you > ps[k] ? Math.min(0.999, (you - ps[k]) / Math.max(1e-9, ps[k + 1] - ps[k])) : 0;
@@ -346,8 +379,9 @@
       return ok(svAt(n, m, i, lv, x[1]), { sw: x[1], how: `Survival wave ${x[1]} on N${n}${x[2] ? ', solo lobby' : ''}` }); }
     if (k === 'd') { if (m !== 'd' || (S.ml || 1) < x[3] || x[2] > bud.pts) return null; const b = PD.deb || 'O00K', at = bossAt(b, n, 'd', i, lv);
       return ok(at, { slot: at, mins: 3, pts: x[2], how: `Death Enhancer ${x[1]}: ${fmt(x[2])} Points (you have ${fmt(+S.pts || 0)}), the item must sit in Legacy Bag slot 1` }); }   // AUDIT minor 1, minor 4 (listed where the run stops for it)
-    if (k === 'k') return x[3] ? ok(0, { bkills: x[2], how: `any boss kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} boss kills on average, the run's own bosses count` })   // AUDIT B2: hero-type units only
-      : ok(0, { kills: x[2], how: `any kill on N${a[1] || n}+ with it in your Legacy Bag: ~${fmt(x[2])} kills on average` });
+    const inB = ANYST.has(u.from + '>' + u.to) ? 'the Bag or a storage' : 'your Legacy Bag';   // MAP 1.04: chance steps roll in any storage
+    if (k === 'k') return x[3] ? ok(0, { bkills: x[2], how: `any boss kill on N${a[1] || n}+ with it in ${inB}: ~${fmt(x[2])} boss kills on average, the run's own bosses count` })   // AUDIT B2: hero-type units only
+      : ok(0, { kills: x[2], how: `any kill on N${a[1] || n}+ with it in ${inB}: ~${fmt(x[2])} kills on average` });
     if (k === 'e') { const mn = (E2[1] || {})[band(n)] || 0; return ok(+E2[2] || 17, { mins: mn * enhR() / gsF(n), how: `+20 with Legacy stones: ~${fmt(Math.round(E2[0] * enhR()))} Boss Souls` }); }   // VIP
     if (k !== 'b' && k !== 'q') return null;
     let at = 0, mins = 0, pts = 0, wp = 0, unv = null, set = null, fire = '', pqn = ''; const how = [];   // PREREQ GATES: fire = a bag item through the Firelands
@@ -623,7 +657,7 @@
   const bsW = (id, q) => { const it = bsItem(id); if (!it || !BS_RAR.has(it.rar) || !(+it.level >= 5) || it.legacy) return 0; const s = it.st || {};
     return 0.1 * ((+s[q] || 0) + (+s.all_stats || 0) + 0.15 * ['str', 'agi', 'int'].filter(k => k !== q).reduce((a, k) => a + (+s[k] || 0), 0) + 0.5 * (+s.ad || 0) + (+s.hp || 0) / 30 + 1.5 * (+s.armor || 0)); };
   /* ---- GIANT SCYTHE CARRY (patch_page_scythe 2026-09-25, user-approved; findings/public/audit_math/carry_evolve_items.md items 9-12).
-     Map 1.02: Troll Hunt 50% Giant Scythe per clear, repeats by itself, its own task apart from the Troll Boss option. Evolutions while the HERO carries it, kills by any unit you own: 15 Ogre Mage, 30 Mud Golem, 15 Rebel - Elite Warrior, the Flame Lord. Guard line eats an unevolved Giant Scythe. scNeed(id) = {s: highest scythe stage the item needs (W.recipes parts + W.evo reverse edges), g: needs a Giant Scythe
+     Map 1.03 (L = 1.02 script lines): Troll Hunt 50% Giant Scythe per clear, repeats by itself, its own task apart from the Troll Boss option. Evolutions while the HERO carries it, kills by any unit you own: 15 Ogre Mage, 30 Mud Golem, 15 Rebel - Elite Warrior, the Flame Lord. Guard line eats an unevolved Giant Scythe. scNeed(id) = {s: highest scythe stage the item needs (W.recipes parts + W.evo reverse edges), g: needs a Giant Scythe
      for a Guard}; scPlan = the route lines; scFitMin = tpFit minutes (extra kills only) */
   const SC_ST = ['I0OO', 'I0ON', 'I0OP', 'I0OQ', 'I0OR'], SC_M = new Map(); let SC_LAST = null;
   const scNeed = (id, seen) => { if (SC_M.has(id)) return SC_M.get(id); const j = SC_ST.indexOf(id); if (j >= 0) return { s: j, g: false };
@@ -929,17 +963,18 @@
      no re-simulation). Per run part under its gear line: pet bag, rune, universal skills (tpPart); once per route: the hero page's skill
      priority line (tpSkill, heroes.js K.hxOrder); Frodo's hidden Boss Hunt at step 7 when the route needs the Firelands (tpHunt); the gear
      the replay really held (tpKeep: PD.rh skipped items, PD.unr unreachable placed drops) or, without replay data, a 'may not fit' note
-     (tpFit). Map 1.02: Player Bonus, Beginner Bonus, Boss Hunt, books from hero level 35 / 100. */
+     (tpFit). Map 1.03 (L = 1.02 script lines): Player Bonus, Beginner Bonus, Boss Hunt, books from hero level 35 / 100. */
   const TP_RANKID = ['I0XJ', 'I0XK', 'I0XL', 'I0XM', 'I0XN', 'I0XO', 'I0XP', 'I0XQ', 'I0XR', 'I0XS', 'I0XT', 'I0XU', 'I0XV', 'I0XW', 'I0XX', 'I20U'];
-  const TP_GIFTS = ['I022', 'I08L', 'I09I', 'I0DZ'].concat(TP_RANKID);
+  const TP_GIFTS = ['I022', 'I08L', 'I09I', 'I0DZ', 'I1IC'].concat(TP_RANKID);   // MAP 1.04 v5.6: + Bonuses Mantle
   /* your free pet items: the Player Bonus gift by Map Level, the Ranking Reward (Map Level 30+, RANKR rows), Bug Hunter at Map Level 110+ */
   const tpGifts = ml => { const o = [ml <= 15 ? 'I022' : ml <= 30 ? 'I08L' : ml <= 45 ? 'I09I' : 'I0DZ'], rk = RANKR.filter(r => ml >= r[0]).length;
+    if (ml > 30) o.push('I1IC');   // MAP 1.04 v5.6: Bonuses Mantle, Player Bonus claim at Map Level 31+, every player
     if (rk) o.push(TP_RANKID[rk - 1]); if (ml >= 110 && !o.includes('I08L')) o.push('I08L'); return o; };
-  /* PETBAG (patch_page_petbag 2026-09-26): where a free pet item comes from (the 'free' tag's hover). Map 1.02 Player Bonus 
+  /* PETBAG (patch_page_petbag 2026-09-26): where a free pet item comes from (the 'free' tag's hover). Map 1.03 (L = 1.02 lines) Player Bonus 
      (one gift by Map Level, once per game), Map Level 110 reward */
   const tpGiftWhy = (id, ml) => TP_RANKID.includes(id) ? 'Ranking Reward' : id === 'I022' ? 'Player Bonus at the start (Map Level 15 or lower)'
     : id === 'I08L' ? (ml > 30 ? 'Map Level 110 reward' : 'Player Bonus at the start (Map Level 16-30)') : id === 'I09I' ? 'Player Bonus at the start (Map Level 31-45)'
-    : id === 'I0DZ' ? 'Player Bonus at the start (Map Level 46+)' : 'free at the start';
+    : id === 'I0DZ' ? 'Player Bonus at the start (Map Level 46+)' : id === 'I1IC' ? 'Player Bonus at the start (Map Level 31+, every player)' : 'free at the start';
   const tpBeg = n => n <= 1 ? 'Level-1 artifact' : n <= 5 ? `Level-${n} item` : n <= 7 ? 'Level-6 item' : 'Level-7 item';   // Beginner Bonus by N
   /* PD.rh[N|m][hero][account step][gear level] = what that replay held: x = per part [[skipped item, copies held]], p = pet bag per part,
      r = [rune, level], b = books (planner_pack TESTER). Not for the rare-drop farmer rows */
@@ -1007,6 +1042,8 @@
       out.push(`<b>Universal skill</b> ${t}`); });
     return out.map(x => `<div class="small">${x}</div>`).join(''); };
   const tpSkill = (h, n, m) => { const H = HERO[h]; if (!H || typeof K.hxOrder !== 'function') return '';
+    { const fx = new Set((W.skill_fixed || {})[h] || []), sk = (H.skills || []).filter(x => x.key && Array.isArray(x.req) && x.req.length && !fx.has(x.key));   // MAP 1.03 ONE RANK: every skill maxes at 1 (War God of the North in 1.03)
+      if (sk.length && sk.every(x => x.req.length === 1)) return `<p class="small"><b>Skill priority</b> · <span>one rank each: ${sk.slice().sort((a, b) => a.req[0] - b.req[0]).map(x => `${esc(x.key)} Lv ${x.req[0]}`).join(', ')}</span></p>`; }
     const x = K.hxOrder(H, band(n) + '|' + MK[m]); return x ? `<p class="small">${x.replace('</b><span>', '</b> · <span>')}</p>` : ''; };
   /* Frodo's hidden Boss Hunt at route step 7: the full block when the route needs the Firelands, else one optional line */
   const TP_HUNT = ['O000', 'H007', 'H008', 'H009', 'H00A', 'O001', 'H00B'];
@@ -1066,22 +1103,22 @@
     li.push(`<li class="pl-rp pl-stop"><b>Stop here</b> <span class="small">(${stop + 1 >= steps.length ? 'run finished' : 'the rest of the run gives you nothing you planned'})</span></li>`);
     return `<h4 class="pl-rt">Route <span class="small">${stop + 1} quest step${stop ? 's' : ''}</span></h4>${tpSkill(h, n, m)}<ol class="pl-steps">${li.join('')}</ol>`;   // AUDIT minor 3: main-quest steps only
   }
-  /* ---- Jarvan V farm (v52, map 1.02): after the main quest every Jarvan V kill pays 5 Points (no cap, no N / mode scaling), G.S.D pays 0,
-     both come back 10 s after BOTH are dead, ~8 s walk apart. PD.jv[band|mode][hero index] = per account step 4 chars: Jarvan V and G.S.D
-     kill seconds x 2 (base 36, 'zz' = the hero cannot kill him or dies; planner_data.py, late build, fixed unit stats on every N) */
-  const SESS = 180, AFKH = 8, JVP = 5, JV_GAP = 8 + 10;   // session minutes, AFK Points per hour, Points per Jarvan kill, walk + revive (s)
+  /* ---- Jarvan V (MAP 1.03 JARVAN, patch_page_map103 2026-09-26): disables itself on his first death: 5 x VIP
+     Points on the FIRST kill after the main quest only (1.02 paid every kill; the v52 'Jarvan V farm' is gone). New data: PD.jv = {},
+     PD.jv1 = 1. Older data (PD.jv rows: per account step 4 chars, Jarvan V and G.S.D kill seconds x 2, base 36, 'zz' = cannot) is read
+     first-kill-only too: its rows only say whether this hero kills him. The one kill is an optional extra, like the Shadow Monster */
+  const SESS = 180, AFKH = 8, JVP = 5;   // session minutes, AFK Points per hour, Points for the first Jarvan V kill
   const jvT = (h, n, m, k) => { const s = (((PD.jv || {})[band(n) + '|' + MK[m]]) || [])[HIDX[h]]; if (!s || k < 0 || s.length < 4 * (k + 1)) return null;
     const d = j => { const c = s.substr(4 * k + 2 * j, 2); return c === 'zz' ? null : (B36.indexOf(c[0]) * 36 + B36.indexOf(c[1])) / 2; };
     const tj = d(0), tg = d(1); return tj == null || tg == null ? null : tj + tg; };
-  /* Points per hour of the Jarvan V farm for this hero and account (between two ladder steps: blended like the run times); null = cannot */
-  const jvRate = (h, n, m, e) => { const t = jvT(h, n, m, e.k); if (t == null) return null; const t2 = e.f ? jvT(h, n, m, e.k + 1) : null;
-    return 3600 / ((t2 == null ? t : t + e.f * (t2 - t)) + JV_GAP) * jvPer(); };
+  const jvRate = () => null;   // MAP 1.03 JARVAN: no Jarvan V farm (sessPts never gets a farm rate)
+  const jvCan = (h, n, m, e) => !Object.keys(PD.jv || {}).length || jvT(h, n, m, e.k) != null;   // old data: this hero kills him; new data: offered to every hero (optional)
   const jvPer = () => vipPts(JVP);   // VIP: 5 x (1 + 0.3 L) rounded down
-  /* Points of a 3-hour session: the run (stage boss + AFK), then the Jarvan V farm for the rest; a longer run = its own rate x 3 h */
+  /* Points of a 3-hour session: the run (stage boss + AFK), AFK Points for the rest; a longer run = its own rate x 3 h (jv: always null in 1.03) */
   const sessPts = (pay, mins, jv) => mins >= SESS ? (pay + mins / 60 * AFKH) * SESS / mins : pay + SESS / 60 * AFKH + (jv ? jv * (SESS - mins) / 60 : 0);
   /* Legacy goals: Points you can pick up on the side when the run finishes the main quest (never changes their ranking) */
   const sideTxt = r => { if (!r.fin) return ''; const i = HIDX[r.h], e = eqStep(r.h, r.n, r.m), jv = jvRate(r.h, r.n, r.m, e), x = [];
-    if (jv) x.push(`farm Jarvan V after the quest: ${jvPer()} Points per kill (back 10 s after he and G.S.D both die)`);
+    if (jvCan(r.h, r.n, r.m, e)) x.push(`Jarvan V +${jvPer()} Points (first kill after the quest)`);   // MAP 1.03 JARVAN: once
     if (bossAt('O007', r.n, r.m, i, e.k) >= 0 && !(r.got || []).concat(r.ugot || []).some(g => Array.isArray(g) ? g[2] === 'O007' : !!(g.a && g.a[0] && g.a[0].includes('O007')))) x.push('Shadow Monster +' + vipPts(10) + ' Points');   // AUDIT minor 5: killed for a pick before the quest ends = no Points, never respawns
     return x.length ? `<p class="small">+ side: ${x.join(' · ')}</p>` : ''; };
   /* ---- Legacy goal: every run (N x mode x hero) that upgrades the most of your items (ON THE WAY: same slot type allowed). v53 conflicts: an upgrade a run
@@ -1104,7 +1141,7 @@
            bagPlan writes the swap between the fights). Two picks clash only when they need the Bag at the same moment: the same item line, a
            kill-chance pick of that slot type (it rides in the Bag all run), the same boss kill, the same arena / trade / quest step. Combines
            and +20 stones (nbx b / e) happen on the hero or pet and never clash. slots = picks keyed from>to */
-        const kdU = u => u.nb ? u.nb[0] : 'B', inBag = k => k !== 'b' && k !== 'e';
+        const kdU = u => ANYST.has(u.from + '>' + u.to) ? 'a' : u.nb ? u.nb[0] : 'B', inBag = k => k !== 'b' && k !== 'e' && k !== 'a';   // MAP 1.03 NECKLACE: 'a' = any storage, never needs the Bag
         const hard = (u, ch) => Object.values(slots).some(p => p.u.slot === u.slot && ((p.u.line === u.line && !ch) || (inBag(kdU(u)) && inBag(kdU(p.u)) && (kdU(p.u) === 'k' || kdU(u) === 'k'))));
         const clash = (u, a, at, ch) => hard(u, ch) || Object.values(slots).some(p => p.u.slot === u.slot && p.u.line !== u.line && inBag(kdU(u)) && inBag(kdU(p.u))
           && ((((p.a || [])[0]) || []).some(b => (a[0] || []).includes(b)) || (kdU(u) !== 'B' && kdU(p.u) === kdU(u) && Math.max(0, ...p.at) === at)));
@@ -1279,7 +1316,7 @@
     const out = [];
     Object.values(S.own).forEach(id => { const ps = POS[id]; if (!ps) return; const o = otSum(id, x); if (!o || (lg && !o.ch)) return;   // Legacy goal: boss chains are picks
       o.pc = pcOf(ps.line); if (o.ch ? !(o.jav > o.pc || o.pn >= 0.05) : o.sure <= o.pc) return;
-      o.bag = o.ch ? otBag(id, bag, forced, h, gk) : { ok: bag.includes(id) }; o.x = x; out.push(o); });
+      o.bag = o.ch ? (otAny(id, o.st, 1) ? { ok: 1, any: 1 } : otBag(id, bag, forced, h, gk)) : { ok: bag.includes(id) || otAny(id, o.st, o.sure) }; o.x = x; out.push(o); });   // MAP 1.04: chance steps from any storage // MAP 1.03 NECKLACE
     fgOtw(out, x, (ln, any) => { if (!lg || !ln) return false; const p = (r.got || []).filter(y => y.u.line === ln); return any ? p.length > 0 : p.some(y => y.fgs || (y.nb && y.nb.fg)); }, bag, forced, h, gk);   // FARM GOALS
     return (c._ow = out.length ? out : null); };
   const otPct = v => (v >= 0.995 ? 99 : Math.max(1, Math.round(v * 100))) + '%';
@@ -1291,8 +1328,8 @@
     if (k > 0) t.push(`${k} step${k > 1 ? 's' : ''} likely (to ${ilink(o.st[k - 1].to)}${o.pc ? ', the upgrade above included' : ''})`);
     if (o.pn >= 0.05) t.push(`${k ? 'a ' + otOrd(k + 1) : 'a step'} ~${otPct(o.pn)}`);
     const s = t.join(', ') + ` · avg ${o.avg.toFixed(1)}`;
-    return `<li>${nm} <span class="small">· ${o.bag.ok ? `${s} · keep it in the Legacy Bag all run` : `left out: ${o.bag.t}. In the Bag instead: ${s}`}</span>${fgOffHtml(o)}</li>`; };   // FARM GOALS: farm-on offers
-  const otwHtml = c => { const L = otwOf(c); return L ? `<div class="small pl-otw"><b>Also on the way</b> <span class="small">(only Legacy items in the Legacy Bag evolve)</span><ul class="pl-ul">${L.map(otLi).join('')}</ul></div>` : ''; };
+    return `<li>${nm} <span class="small">· ${o.bag.ok ? `${s} · keep it in ${o.bag.any ? 'the Bag or a storage' : 'the Legacy Bag'} all run` : `left out: ${o.bag.t}. In the Bag instead: ${s}`}</span>${fgOffHtml(o)}</li>`; };   // FARM GOALS: farm-on offers
+  const otwHtml = c => { const L = otwOf(c); return L ? `<div class="small pl-otw"><b>Also on the way</b> <span class="small">(Legacy items evolve in the Bag or either storage)</span><ul class="pl-ul">${L.map(otLi).join('')}</ul></div>` : ''; };
   /* one card line: the chance items that fit in the run's Bag and the sure boss chains (never ranked) */
   const otwCard = c => { const L = (otwOf(c) || []).filter(o => !o.fgOnly && (!o.ch || o.bag.ok)); if (!L.length) return '';
     return `<div class="pl-cf">+ bonus: ${L.map(o => { const k = (o.ch ? o.jav : o.sure) - o.pc; return nlk(o.id) + esc(k > 0 ? ` +${k}${o.ch ? ' likely' : ''}` : ` ${otPct(o.pn)} for +1`); }).join(', ')}</div>`; };
@@ -1352,6 +1389,7 @@
   const chPostL = r => { r._pkl = null; const L = pkOf(r); r.pk = L.length + L.reduce((t, w) => t + w.st.length, 0); };
   const chPost = r => r.at ? chPostS(r) : chPostL(r);
   const chBag = (id, bag, h, gk, L) => { const nm = L || iname, sl = (POS[id] || {}).slot, same = bag.find(y => (POS[y] || {}).slot === sl);   // L = ilink: html
+    if (ANYF.has(id)) return 'put it in the Bag or a storage before the kill';   // MAP 1.03 NECKLACE: any storage works, a new drop must get there
     if (same) return `swap it into the Bag for ${nm(same)} before the kill`;
     if (bag.length < 6) return 'Bag it before the kill';
     const wk = bag.slice().sort((a, b) => bagVal(h, gk, a) - bagVal(h, gk, b))[0]; return `swap it into the Bag for ${nm(wk)} before the kill`; };
@@ -1376,7 +1414,7 @@
      <boss> (route step)); the steps you cannot do on this run are ONE greyed 'Next' line (the step closest to this N), never in 'Also' */
   const chYg = o => { const L = o.L.filter(w => w.st.length); if (!L.length) return '';
     return `<div class="pl-chg">${L.map(w => { const pl = Math.max(0, ...w.st.map(y => y.s)) - o.stop;
-      return w.st.map((y, j) => { const bag = !j && !o.bag.includes(w.id) ? chBag(w.id, o.bag, o.h, o.gk, ilink) : '', swap = /^swap/.test(bag) ? ' · ' + bag : '';
+      return w.st.map((y, j) => { const bag = !j && !o.bag.includes(w.id) ? chBag(w.id, o.bag, o.h, o.gk, ilink) : '', swap = /^(swap|put it in the Bag or)/.test(bag) ? ' · ' + bag : '';
         return `<div class="pl-yc" data-id="${esc(w.id)}" data-f="${esc(y.from)}" data-t="${esc(y.to)}">${ilink(y.from)} → ${ilink(y.to)} <span class="small">· kill ${andJ(y.bs.map(b => K.ulink(b, bname(b))))}<span class="pl-ys"></span>${swap}${j === w.st.length - 1 && pl > 0 ? ` (play on ${pl} step${pl > 1 ? 's' : ''})` : ''}</span></div>`; }).join(''); }).join('')}</div>`; };
   const chNx = (w, n) => { const y = w.why; if (!y || !y.to || !y.from) return null; const hd = `${ilink(y.from)} → ${ilink(y.to)}`;
     if (y.k === 'n') return { s: Math.abs((y.n || n) - n) - (y.n > n ? 0.5 : 0), h: `${hd} needs ${y.bs && y.bs.length ? andJ(y.bs.map(b => K.ulink(b, bname(b)))) + ' on ' : ''}N${y.n || n}${y.p ? '+' : ''}${y.m ? ' ' + MN[y.m] : ''}` };
@@ -1544,7 +1582,7 @@
         if (!best || sc > best.sc || (sc === best.sc && tot < best.tot)) best = { o, ss, LL, sc, tot }; });
       if (!best) { a2 = a2.map(y => y.u === g.u ? g : y); continue; }   // no farm plan: the old kill count stays
       const o = best.o; s2 = best.ss; L2 = best.LL; far += o.fm; n2 += o.t - 1;
-      a2 = a2.map(y => y.u === g.u ? Object.assign({}, y, { nb: Object.assign({}, y.nb, { fg: o, fgt: 'farm to ' + iname(o.to) + ': ' + fgTxt(o), fgh: 'farm to ' + ilink(o.to) + ': ' + fgTxt(o, 1), how: g.u.text + ', keep it in your Legacy Bag all run' }) }) : y);
+      a2 = a2.map(y => y.u === g.u ? Object.assign({}, y, { nb: Object.assign({}, y.nb, { fg: o, fgt: 'farm to ' + iname(o.to) + ': ' + fgTxt(o), fgh: 'farm to ' + ilink(o.to) + ': ' + fgTxt(o, 1), how: g.u.text + (ANYST.has(g.u.from + '>' + g.u.to) ? ', keep it in the Bag or a storage all run' : ', keep it in your Legacy Bag all run') }) }) : y);
       for (let j = 1; j < o.t; j++) { const y = o.st[j]; add.push({ u: { line: g.u.line, slot: g.u.slot, from: y.from, to: y.to, text: y.text, alts: [], nb: null, ch: 1 }, a: [[]], at: [s2], fgs: 1 }); } }
     const nm = base(s2, L2) + far;
     r.got = a2.filter(y => r.got.some(z => z.u === y.u)).concat(add); r.stop = s2; r.L = L2; r.mins = nm; };
@@ -1554,7 +1592,7 @@
     for (let j = out.length - 1; j >= 0; j--) if (skip((POS[out[j].id] || {}).line, 0)) out.splice(j, 1);
     Object.values(S.own).forEach(id => { const ps = POS[id]; if (!ps || skip(ps.line, 1)) return; const o0 = out.find(o => o.id === id); if (o0 && !o0.ch) return;
       const fg = fgOf(id, x, o0 ? o0.jav + 1 : 1); if (!fg.length) return;
-      if (o0) o0.fg = fg; else out.push({ id, fgOnly: 1, ch: 1, st: [], fg, x, bag: otBag(id, bag, forced, h, gk) }); }); };
+      if (o0) o0.fg = fg; else out.push({ id, fgOnly: 1, ch: 1, st: [], fg, x, bag: ANYF.has(id) ? { ok: 1, any: 1 } : otBag(id, bag, forced, h, gk) }); }); };   // MAP 1.04
   const fgOffHtml = o => !o.fg || !o.fg.length ? '' : `<div class="small">${o.fgOnly ? '' : 'Farm it on: '}${o.fg.map(f => `to ${ilink(f.to)}: ${fgTxt(f, 1)}${f.stop2 > o.x.stop ? ` (play on to quest step ${f.stop2} first)` : ''}`).join(' · ')}${o.bag && !o.bag.ok ? ' · keep it in the Legacy Bag while you farm' : ''}</div>`;
   const fgOptNeeds = c => (otwOf(c) || []).filter(o => o.fg && o.fg.length).map(o => { const f = o.fg[o.fg.length - 1]; if (f.stop2 > o.x.stop) return null;
     return { txt: `${iname(o.id)} → ${iname(f.to)}: ${fgTxt(f)}`, th: `${ilink(o.id)} → ${ilink(f.to)}: ${fgTxt(f, 1)}`, label: 'Optional farm', st: o.x.stop, last: 8 }; }).filter(Boolean);
@@ -1676,23 +1714,21 @@
       extra: (pts.length ? `<div class="card"><b>Buy with Points</b> <span class="small">(you have ${fmt(S.pts || 0)})</span><ul class="pl-ul">${pts.map(({ x, cost }) => `<li>${ilink(x[1])} <span class="small">· ${esc(x[7])}${(S.pts || 0) >= cost ? ' · you can afford it' : ''}</span></li>`).join('')}</ul></div>` : '')
         + (slow.length ? `<details class="pl-d"><summary>Long farms (${slow.length})</summary><ul class="pl-ul">${slow.map(stLi).join('')}</ul></details>` : '') };
   }
-  /* ---- Points goal (v52): every run you finish = finish it (stage boss + AFK Points), then farm Jarvan V for the rest of a 3-hour
-     session. Ranked by the Points of that session (a run over 3 h: its own rate x 3 h, no farm). Optional extras, not ranked: Shadow
-     Monster 10 once (killed after the main quest), the first Archangel / Frost Lord kill (N^2 x 0.15 x mode + 10, W.calc.points arch) */
+  /* ---- Points goal (v52; MAP 1.03 JARVAN: no Jarvan V farm): every run you finish = finish it (stage boss + AFK Points), AFK Points for the
+     rest of a 3-hour session. Ranked by the Points of that session (a run over 3 h: its own rate x 3 h). Optional extras, not ranked: Shadow
+     Monster 10 and Jarvan V 5 once each (killed after the main quest), the first Archangel / Frost Lord kill (N^2 x 0.15 x mode + 10, W.calc.points arch) */
   /* AUDIT minor 6: the main-quest reward adds +10 (+15 on N9) below Map Level 5 and +2 x N when your Map Level
      is 5 or lower */
   const lowPts = n => ((S.ml || 1) < 5 ? (n === 9 ? 15 : 10) : 0) + ((S.ml || 1) <= 5 ? 2 * n : 0);
   const ptCard = r => { const b = r.best, i = HIDX[b.h], tags = [];
-    if (b.jv) tags.push(tagH('Jarvan V farm', 'acc', 'Farm Jarvan V after the main quest for Points.'));
     if (tgCard(b.h, r.n, r.m, b.k, b.L, 20 + r.n, [])) tags.push(TG_TAG);   // TIGHT
     if (paceOk(r.n, r.m, i, b.k, b.L)) tags.push(newTag());   // LAB WIRE: same gear level, whole run
     return { key: 'points|' + b.h + '|' + r.n + '|' + r.m, r, h: b.h, n: r.n, m: r.m, mins: b.mins, tags, fc: fcAt(r.n, r.m, i, b.k, b.L),
       what: `<b>${fmt(r.pay)}</b> Point${r.pay === 1 ? '' : 's'} stage boss${r.low ? ` <span class="small">+${fmt(r.low)} low Map Level bonus</span>` : ''}` }; };
-  const ptFocus = c => { const r = c.r, b = r.best, jvMost = b.jv && b.mins < SESS && b.jv * (SESS - b.mins) / 60 > b.sess / 2;   // the Jarvan V farm is over half of the ranked Points: say why a short run wins
+  const ptFocus = c => { const r = c.r, b = r.best;   // MAP 1.03 JARVAN: no Jarvan V farm lines (his one kill is in 'Optional')
     return (r.low ? `<p class="small">+${fmt(r.low)} Points for Map Level 5 or lower.</p>` : '')
-      + `<p class="small">${b.jv && b.mins < SESS ? `Finish the run (stage boss + AFK Points), then farm Jarvan V.${jvMost ? ' Jarvan V pays most of the Points, so shorter runs rank higher.' : ''}` : `Finish the run (stage boss + AFK Points).${b.jv ? '' : ' This hero cannot farm Jarvan V.'}`}</p>`
+      + `<p class="small">Finish the run (stage boss + AFK Points).</p>`
       + (b.ex.length ? `<p class="small">Optional: ${b.ex.map(x => `${x[0]} +${x[2]} (${x[3]})`).join(', ')}.</p>` : '')
-      + `<p class="small">Jarvan V: ${jvPer()} Points per kill after the main quest (1.02, confirmed in game), back 10 s after he and G.S.D both die. Likely fixed in a later map patch.</p>`
       + (r.who.length > 1 ? `<p class="small">Also works with: ${r.who.slice(1).map(heroLink).join(', ')}</p>` : '')
       + gearP(b.L) + tgSet(b.k) + routeHtml(b.h, r.n, r.m, otNeeds(c), true, b.L); };   // ON THE WAY
   function pointsList() {
@@ -1703,8 +1739,8 @@
       const pay = vipPay(n, m, Number(pr[MCALC[m]]) || 0), arch = vipArch(n, m, Number((pr.arch || [])[MI[m]]) || 0), fin = [], low = lowPts(n);   // VIP
       PD.heroes.forEach((h, i) => { if (!unlocked(h) || (f.h && h !== f.h) || (LSKIP && LSKIP(h, n, m))) return; const e = eqStep(h, n, m), c = cellOf(n, m, i, e.k); if (!c || c.jl < 0) return;
         const L = lvlFor(c, 20 + n), mins = finT(c, L, n, m, i, e); if (!mins) return;
-        const jv = jvRate(h, n, m, e), ex = [['Shadow Monster', 'O007', vipPts(10), 'after the main quest'], ['Archangel', 'H02D', arch, 'first kill'], ['Frost Lord', 'O01Q', arch, 'first kill']]
-          .filter(x => x[2] && bossAt(x[1], n, m, i, e.k) >= 0);
+        const jv = jvRate(h, n, m, e), ex = [['Shadow Monster', 'O007', vipPts(10), 'after the main quest'], ['Jarvan V', 'Hlgr', jvPer(), 'first kill after the main quest'], ['Archangel', 'H02D', arch, 'first kill'], ['Frost Lord', 'O01Q', arch, 'first kill']]
+          .filter(x => x[2] && (x[1] === 'Hlgr' ? jvCan(h, n, m, e) : bossAt(x[1], n, m, i, e.k) >= 0));   // MAP 1.03 JARVAN: one kill, optional
         fin.push({ h, k: e.k, L, mins, per: (pay + low + mins / 60 * AFKH) / (mins / 60), jv, sess: sessPts(pay + low, mins, jv), ex }); });
       if (!fin.length) continue;
       fin.sort((a, b) => b.sess - a.sess || b.per - a.per);
@@ -1755,8 +1791,8 @@
     ns.forEach(nd => { if (nd.parentElement && nd.parentElement.closest('a, summary')) return; const v = nd.nodeValue, re = DCL_LK.re; re.lastIndex = 0;
       let m, last = 0, h = ''; while ((m = re.exec(v))) { h += esc(v.slice(last, m.index)) + DCL_LK.map.get(m[0]); last = m.index + m[0].length; }
       if (!last) return; h += esc(v.slice(last)); const t = document.createElement('template'); t.innerHTML = h; nd.parentNode.replaceChild(t.content, nd); }); };
-  /* one tag at most: warnings first; 'needs: A bit more' (every run's floor) and 'Jarvan V farm' (every Points run) say nothing */
-  const dclTags = tags => { const pr = t0 => { const t = String(t0).replace(/ (?:title|data-tip)="[^"]*"/g, ''); return /needs: A bit more/.test(t) || /Jarvan V farm/i.test(t) ? -1 : /rare drops|needs: /.test(t) ? 0 : /tight/i.test(t) ? 1
+  /* one tag at most: warnings first; 'needs: A bit more' (every run's floor) says nothing (MAP 1.03 JARVAN: no 'Jarvan V farm' tag) */
+  const dclTags = tags => { const pr = t0 => { const t = String(t0).replace(/ (?:title|data-tip)="[^"]*"/g, ''); return /needs: A bit more/.test(t) ? -1 : /rare drops|needs: /.test(t) ? 0 : /tight/i.test(t) ? 1
       : /Beginner-friendly/i.test(t) ? 2 : /no quest steps/i.test(t) ? 3 : /Full clear OK/i.test(t) ? 4 : 5; };
     return (tags || []).filter(t => pr(t) >= 0).sort((a, b) => pr(a) - pr(b)).slice(0, 1); };
   /* ---- CLARITY (patch_page_clarity 2026-09-26, user: "the compacted card is a downgrade: hidden info, crammed lines, lost structure").
@@ -1924,24 +1960,23 @@
       if (e.matches('div.pl-nx')) { nxE = e; e.remove(); return; }
       if (e.matches('.pl-dcb')) { [...e.children].forEach(x => bon.push(x.innerHTML)); e.remove(); return; }
       if (e.matches('div.pl-otw')) { const items = [...e.querySelectorAll(':scope > ul > li')];
-        items.forEach(li => { DCL.tn(li, / · Bag it before the kill$/, ''); DCL.tn(li, /, step \d+(?= · |$)/, ''); DCL.tn(li, / · avg [\d.]+/, ''); DCL.tn(li, / · keep it in the Legacy Bag all run/, ' (keep it in the Bag)');
+        items.forEach(li => { DCL.tn(li, / · Bag it before the kill$/, ''); DCL.tn(li, /, step \d+(?= · |$)/, ''); DCL.tn(li, / · avg [\d.]+/, ''); DCL.tn(li, / · keep it in the Legacy Bag all run/, ' (keep it in the Bag)'); DCL.tn(li, / · keep it in the Bag or a storage all run/, ' (keep it in the Bag or a storage)');
           li.querySelectorAll('span, div').forEach(x => { if (li.contains(x) && /^Farm it on:/.test(T(x)) && !x.closest('.pl-q')) x.outerHTML = DCL.q(x.innerHTML.replace(/^\s*Farm it on:\s*/, ''), 'farm'); });
           bon.push(li.innerHTML); });
         e.querySelectorAll(':scope > span.small').forEach(x => { if (/^-save keeps only/.test(T(x))) pre.push('<b>Before -save</b> move new Legacy into the Bag or a storage (-save keeps only those)');
           else if (T(x) && !/^\(only Legacy items/.test(T(x))) after.push(x.outerHTML); });
         e.remove(); return; }
       if (e.matches('p.pl-otw') && /^Next steps are on other N:/.test(t)) { bon.push('<b>Next</b> on other N: ' + esc(t.replace(/^Next steps are on other N:\s*/, ''))); e.remove(); return; }
-      if (e.matches('ul.pl-ul')) { goalUl = e; e.querySelectorAll(':scope > li').forEach(li => { DCL.tn(li, /, keep it in your Legacy Bag all run/, '');
+      if (e.matches('ul.pl-ul')) { goalUl = e; e.querySelectorAll(':scope > li').forEach(li => { DCL.tn(li, /, keep it in (?:your Legacy Bag|the Bag or a storage) all run/, '');
           li.querySelectorAll(':scope > span.small').forEach(x => { const mm = /^([\s\S]*?) · (farm to [\s\S]*)$/.exec(x.innerHTML); if (mm) x.innerHTML = mm[1] + ' ' + DCL.q(mm[2], 'farm'); }); }); return; }
       if ((m = /^Can also finish the whole run\.(?: The whole run: (\d+)\/10 test runs finished\.)?$/.exec(t))) { fin = m[1] ? `full run: ${m[1]}/10 test runs finished` : 'Full clear OK'; e.remove(); return; }
       if (e.matches('p') && /^Gear: /.test(t)) { e.remove(); return; }   // the gear switch shows it
       if (/^No quest steps needed/.test(t) && fw) { fw.querySelectorAll('.tag').forEach(x => { if (/no quest steps/i.test(T(x))) x.remove(); }); return; }
       if (/^\+\d+ Points for Map Level \d+ or lower\.$/.test(t) && fw && /low Map Level bonus/.test(T(fw))) { const tg = fw.querySelector('.tag'), d = DCL.box(DCL.q(esc(t))).firstChild; if (tg) fw.insertBefore(d, tg); else fw.appendChild(d); e.remove(); return; }
-      if (/^\+ side: /.test(t)) { const x = e.innerHTML.replace(/^\s*\+ side:\s*/, '').replace(/^farm Jarvan V after the quest: /, 'Jarvan V after the quest, ');   // CHAINFIX: html kept
-        const mm = /^([\s\S]*?) \((back 10 s[^)]*)\)([\s\S]*)$/.exec(x); bon.push('<b>Side farm</b> ' + (mm ? mm[1] + DCL.q(mm[2]) + mm[3] : x)); e.remove(); return; }
+      if (/^\+ side: /.test(t)) { const x = e.innerHTML.replace(/^\s*\+ side:\s*/, '');   // CHAINFIX: html kept; MAP 1.03 JARVAN: one-time kills, no farm
+        bon.push('<b>Side Points</b> ' + x); e.remove(); return; }
       if (/^Also works with: /.test(t)) { aw = e.innerHTML; e.remove(); return; }
       if (/^Finish the run \(stage boss/.test(t)) { top.fin = e.innerHTML; e.remove(); return; }
-      if (/^Jarvan V: \d+ Points per kill/.test(t)) { top.jv = t; top.jvH = e.innerHTML; e.remove(); return; }
       if (/^Skill priority/.test(t)) { pre.unshift(e.innerHTML.replace(/<b>Skill priority<\/b>\s*·\s*/, '<b>Skills</b> ')); e.remove(); return; }
     });
     /* header: what you get + the finish line + one tag */
@@ -1958,12 +1993,11 @@
     pre.filter(x => /^<b>Skills/.test(x)).forEach(x => b0.push(['Skills', x.replace(/^<b>Skills<\/b>\s*/, '')]));
     (ol ? [...ol.querySelectorAll('li.pl-sec .pl-gr[data-row="carry"]')] : []).forEach(x => { const v = x.querySelector('.pl-gv'); if (v) b0.push(['Carry', v.innerHTML]); x.remove(); });
     if (ol) ol.querySelectorAll('.pl-sg').forEach(g => { if (!g.children.length) g.remove(); });
-    if (top.fin || top.jv) { const mm = top.jv ? /^Jarvan V: (\d+ Points per kill)/.exec(top.jv) : null;
-      b0.push(['After the run', 'farm Jarvan V' + (mm ? ', ' + mm[1] : '') + DCL.q([top.fin || '', top.jvH || ''].filter(Boolean).join('<br>'))]); }
+    /* MAP 1.03 JARVAN: no 'After the run' row (it was the Jarvan V farm); the finish line (top.fin) is dropped as before */
     pre.filter(x => !/^<b>Skills/.test(x)).forEach(x => { const m = /^<b>([^<]+)<\/b>\s*([\s\S]*)$/.exec(x); b0.push(m ? [m[1], m[2]] : ['', x]); });
     const bys = b0.length ? `<div class="pl-bys pl-byc"><b class="pl-bt">Before you start</b><div class="pl-byg">${b0.map(([l, h]) => `<div class="pl-byr"><span class="pl-byl">${esc(l)}</span><div class="pl-byv">${h}</div></div>`).join('')}</div></div>` : '';
     const awH = aw ? `<div class="pl-aw">${aw}</div>` : '';
-    const bonH = bon.length ? `<div class="pl-bon pl-also"><b class="pl-bt">Also</b>${DCL.q('Extras you can grab on the way. Only Legacy items in the Legacy Bag evolve. The route says when.')}<ul class="pl-ul">${bon.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>`
+    const bonH = bon.length ? `<div class="pl-bon pl-also"><b class="pl-bt">Also</b>${DCL.q('Extras you can grab on the way. Legacy items evolve in the Bag or either storage.')}<ul class="pl-ul">${bon.slice(0, 3).map(x => `<li>${x}</li>`).join('')}</ul>`
       + (bon.length > 3 ? `<details class="pl-more"><summary>show all (${bon.length})</summary><ul class="pl-ul">${bon.slice(3).map(x => `<li>${x}</li>`).join('')}</ul></details>` : '') + `</div>` : '';
     if (goalUl) { goalUl.classList.add('pl-goal', 'pl-yg'); goalUl.insertAdjacentHTML('beforebegin', '<div class="pl-gl"><b class="pl-bt">You get</b></div>');   // CHAINFIX: chains under their goal line
       chg.forEach(x => { const li = [...goalUl.children].find(l => l.querySelector(`a[href="#item/${encodeURIComponent(x.dataset.id)}"]`)); if (li) li.appendChild(x); else { const nl = document.createElement('li'); nl.appendChild(x); goalUl.appendChild(nl); } }); }
@@ -2122,7 +2156,7 @@
   const LSTC = new Map();
   const listAt0 = (goal, gl, rf, deep, skip) => withG({ gl, rf }, () => { const cn = CARDN, sk = LSKIP; if (deep) CARDN = 60; LSKIP = skip || null;
     try { return LISTF[goal](); } finally { CARDN = cn; LSKIP = sk; } });
-  const listAt = (goal, gl, rf, deep, skip) => { const k = JSON.stringify([goal, +gl || 0, !!rf, !!deep, !!skip, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, CF()]);
+  const listAt = (goal, gl, rf, deep, skip) => { const k = JSON.stringify([goal, +gl || 0, !!rf, !!deep, !!skip, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), CF()]);   // ACCOUNT SWORDS
     let R = LSTC.get(k); if (!R) { R = listAt0(goal, gl, rf, deep, skip); LSTC.set(k, R); if (LSTC.size > 24) LSTC.delete(LSTC.keys().next().value); }
     return R.msg ? R : Object.assign({}, R, { cards: (R.cards || []).map(c => Object.assign({}, c, { tags: (c.tags || []).slice() })),
       find: R.find ? (h, n, m) => { const c = R.find(h, n, m); return c ? Object.assign({}, c, { tags: (c.tags || []).slice() }) : c; } : R.find }); };
@@ -2204,12 +2238,16 @@
   let TIPK = '', TIPV = '';
   function buyTip() {
     const V = vipLv(), P = +S.pts || 0, ml = +S.ml || 1, rk = +S.rank || 0;
-    const key = [V, P, ml, rk, +S.wp || 0, +G.gl || 0, G.rf ? 1 : 0, JSON.stringify(S.own)].join('|'); if (key === TIPK) return TIPV;
+    const key = [V, P, ml, rk, +S.wp || 0, +G.gl || 0, G.rf ? 1 : 0, JSON.stringify(S.own), JSON.stringify(S.sw || {})].join('|'); if (key === TIPK) return TIPV;
     let txt = '';
     try {
       const vs = VIPSTEP.find(x => x[0] === V), tl = ((W.calc || {}).titles || []).find(t => +t.tier === rk + 1), opts = [];
-      if (vs) opts.push({ nm: `VIP ${vs[1]}`, cost: vs[2], set: { vip: vs[1] }, gate: 0, vip: 1 });
+      /* MAP 1.04 (pending_104/patch_104_page.py): VIP is no longer sold (n017 Sellitems without I0G5, the buy block gone): never offered; owned VIP still counts (vs unused) */
       if (tl) opts.push({ nm: `the ${tl.name} title`, cost: +tl.points || 0, set: { rank: rk + 1 }, gate: TGATE[rk + 1] || 0 });
+      const sw0 = S.sw || {}, swt = 'a start item every game';   // ACCOUNT SWORDS: the Points Merchant's next sword step
+      if (!sw0.qd1) opts.push({ nm: 'Refined Sword + Curse Blade', cost: 6000, set: { sw: Object.assign({}, sw0, { qd1: true, qd2: true }) }, gate: 0, swt });
+      if (!sw0.zy) opts.push({ nm: "Mithril Holy Sword + Windseeker's Blessed Sword", cost: 15000, set: { sw: Object.assign({}, sw0, { zy: true, cc: true }) }, gate: 0, swt });
+      [['dem', 'Soul-Dominating Demonic Sword'], ['sto', 'Storm Sword']].forEach(([k, nm]) => { const l = +sw0[k] || 0; if (l < 3) opts.push({ nm: `${nm} Lv ${l + 1}`, cost: l < 2 ? 50000 : 300000, set: { sw: Object.assign({}, sw0, { [k]: l + 1 }) }, gate: 0, swt }); });
       const base = topSess(), bml = mlEq();
       opts.forEach(o => { o.ok = P >= o.cost && ml >= o.gate; if (!o.ok) return;
         const r = withS(Object.assign({ pts: P - o.cost }, o.set), () => [topSess(), mlEq()]);
@@ -2220,9 +2258,9 @@
       const payAll = opts.filter(o => o.ok && o.gain >= 1).sort((a, b) => a.cost / a.gain - b.cost / b.gain), pay = payAll.filter(o => o.cost / o.gain <= PAYMAX), slow = payAll.filter(o => o.cost / o.gain > PAYMAX);
       const stat = opts.filter(o => o.ok && !(o.gain >= 1) && o.gain > -1 && o.ml > bml);
       if (pay.length) { const o = pay[0];
-        txt = `${o.nm} (${fmt(o.cost)} Points): +${fmt(Math.round(o.gain))} Points per 3-hour session, pays back in ~${fmt(Math.ceil(o.cost / o.gain))} session${Math.ceil(o.cost / o.gain) > 1 ? 's' : ''}${mlT(o)}${o.vip ? '. VIP starts next game: buy, -save, rehost' : ''}.${warn(o)}`; }
+        txt = `${o.nm} (${fmt(o.cost)} Points): +${fmt(Math.round(o.gain))} Points per 3-hour session, pays back in ~${fmt(Math.ceil(o.cost / o.gain))} session${Math.ceil(o.cost / o.gain) > 1 ? 's' : ''}${mlT(o)}${o.vip ? '. VIP starts next game: buy, -save, rehost' : o.swt ? '. It comes from the next game: buy, -save, rehost' : ''}.${warn(o)}`; }
       else if (stat.length) { const o = stat[0];
-        txt = `${o.nm} (${fmt(o.cost)} Points): ${o.vip ? `+${o.set.vip} Str/Agi/Int per hero level` : '+60 Str/Agi/Int'}${mlT(o)}; no extra Points per session.${warn(o)}`; }
+        txt = `${o.nm} (${fmt(o.cost)} Points): ${o.vip ? `+${o.set.vip} Str/Agi/Int per hero level` : o.swt || '+60 Str/Agi/Int'}${mlT(o)}; no extra Points per session.${warn(o)}`; }
       else if (slow.length) { const o = slow[0];
         txt = `keep your Points for now: the best buy, ${o.nm} (${fmt(o.cost)} Points), takes ~${fmt(Math.ceil(o.cost / o.gain))} sessions of 3 hours to pay back.${warn(o)}`; }
       else { const lost = opts.find(o => o.ok && o.lose);
@@ -2256,7 +2294,7 @@
       + `<label class="cl-f"><span>Points</span><input type="number" id="pl-pts" min="0" max="99999999" value="${esc(S.pts || 0)}"></label>`
       + `<label class="cl-f"><span>VIP</span><select id="pl-vip">${[0, 1, 2].concat(vipLv() === 3 ? [3] : [], [4, 10]).map(v => `<option value="${v}" ${vipLv() === v ? 'selected' : ''}>${v ? 'VIP ' + v : 'No VIP'}</option>`).join('')}</select></label>`
       + `<label class="cl-f"><span>Title</span><select id="pl-rank">${TITLES.map(([k, n]) => `<option value="${k}" ${+S.rank === k ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>`
-      + (S.src === 'save' ? `<span class="small">from your save · ${fmt(S.pts)} Points${vipLv() ? ' · VIP ' + vipLv() : ''}</span>` : '') + `</div>`
+      + (S.src === 'save' ? `<span class="small">from your save · ${fmt(S.pts)} Points${vipLv() ? ' · VIP ' + vipLv() : ''}${esc(swTxt())}</span>` : '') + `</div>`
       + buyTip()
       + `<details class="pl-d" ${nOwn ? '' : 'open'}><summary>Legacy items by line</summary>${legacyPicker()}</details></div>`
       + subtabs('planner', 'goal', [['start', 'First Legacy items'], ['legacy', 'Legacy upgrades'], ['points', 'Points farm']], goal)
@@ -2275,7 +2313,7 @@
     if (fi) fi.addEventListener('change', e => { const fs = [...e.target.files]; if (!fs.length) return;
       Promise.all(fs.map(f => f.text().then(text => ({ name: f.name, text })))).then(files => { const r = readSave(files);
         if (!r.valid) { S.err = 'That is not an Adventurer’s Path save. Pick P..._SaveChar_TheAdventurersPathRPG.pld (and its _P0, _P1 ... files if it has them).'; K.route(); return; }
-        S.own = r.own; S.pts = r.pts; S.ml = r.ml; S.rank = r.rank; S.wp = r.wp; S.vip = r.vip || 0; S.src = 'save'; S.tok = r.tok; S.bp = {}; bpSave();   // PREREQ GATES: Challenge Tokens (save key Itzlp)
+        S.own = r.own; S.pts = r.pts; S.ml = r.ml; S.rank = r.rank; S.wp = r.wp; S.vip = r.vip || 0; S.src = 'save'; S.tok = r.tok; S.sw = r.sw || {}; S.hfx = !!r.hfx; S.bp = {}; bpSave();   // ACCOUNT SWORDS // PREREQ GATES: Challenge Tokens (save key Itzlp)
         S.err = r.n ? '' : r.saved ? 'Save loaded: no Legacy items in your Legacy Bag or storages yet.' : 'Save loaded, but it is still empty (new account): the game writes Legacy, Points and Map Level when you type -save in game.';
         save(); K.route(); }); });
     const mi = out.querySelector('#pl-ml'); if (mi) mi.addEventListener('change', () => { S.ml = Math.max(1, parseInt(mi.value, 10) || 1); save(); K.route(); });

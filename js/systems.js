@@ -130,6 +130,22 @@
   /* ---- changelog: one entry per DAY (date only), newest first; every category once per day, in this order:
      Map update, Zones, Monsters, Heroes, Items, Quests, Legacy, Game systems, Calculators, Whole wiki. New lines merge into today's category. ---- */
   const CHANGES = [
+    ['27 Sep 2026', [
+      ['Map update', [
+        'Wiki follows map 1.04. Every Legacy line now evolves from the Bag or either Storage, on its difficulty or higher (mode and hero rules unchanged). The new item lands in the same bag.',
+        'One kill moves each Legacy item one step, and two lines on the same boss both move.',
+        'Skeleton Belt, Gray Axe and Survival Gloves 1 now drop on every difficulty.',
+        'Adult Black Dragon now shows up on N4+ and the Jungle Guardian Spirit on N5+, so Grimoire and 3rd-Generation Legacy Arrow steps work on higher N too.',
+        'Bonuses Mantle is now a Player Bonus gift at Map Level 31+ for every player: +20% All stats amp, +10 x N x N All stats, works from the pet.',
+        'VIP is no longer sold. VIP you already own still works.',
+        'The Curse Blade + Refined Sword refund takes both swords back. -qc now really clears ground loot (Player Red only).',
+      ]],
+      ['Calculators', [
+        'Run planner: no Bag swaps for Legacy upgrades any more, chance items can sit in a Storage, and N+ steps count on every higher difficulty.',
+        'Next buy no longer offers VIP. VIP from your save still counts.',
+        'Run planner: the Bonuses Mantle sits in your pet bag from Map Level 31.',
+      ]],
+    ]],
     ['26 Sep 2026', [
       ['Map update', [
         'Wiki follows map 1.03. War God of the North is single-rank again: Powerful Slash Str x7, Axe Throw Str x2, Blood Sacrifice 40% Max HP, Battle Spirit up to +30% base Str and +10% spell lifesteal, War God Transformation 95 s.',
@@ -328,5 +344,5 @@
   /* newest day open, older days folded to one line (date · count · categories); categories are small labels, not headings */
   P.changelog = () => `<h2>Changelog</h2>${CHANGES.map(([d, cats], i) => { const nn = cats.reduce((a, c) => a + c[1].length, 0);
     return `<details class="cg-day"${i ? '' : ' open'}><summary><b>${esc(d)}</b><span class="small"> · ${nn} change${nn === 1 ? '' : 's'}</span><span class="small cg-cats">: ${esc(cats.map(c => c[0]).join(', '))}</span></summary>${cats.map(([c, xs]) => `<div class="cg-cat"><span class="tag">${esc(c)}</span><ul>${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</details>`; }).join('')}`;
-  P.credits = () => `<h2>Credits</h2><ul><li>The Adventurer's Path RPG 1.03: original Chinese map Zhengcheng Zhi Lu by Suifeng Erdong, Reforged port by Gwelawyr.</li><li><b>Special thanks: Beast (draelokk)</b>, for tons of testing and feedback.</li><li>Built with Anthropic's Claude.</li></ul>`;
+  P.credits = () => `<h2>Credits</h2><ul><li>The Adventurer's Path RPG 1.04: original Chinese map Zhengcheng Zhi Lu by Suifeng Erdong, Reforged port by Gwelawyr.</li><li><b>Special thanks: Beast (draelokk)</b>, for tons of testing and feedback.</li><li>Built with Anthropic's Claude.</li></ul>`;
 })(window.AP);
