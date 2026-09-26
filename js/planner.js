@@ -19,7 +19,8 @@
   let S = { own: {}, goal: '', pts: 0, ml: 1, rank: 0, wp: 0, vip: 0, src: '' };
   try { const x = JSON.parse(localStorage.getItem(LS) || 'null'); if (x && x.own) S = Object.assign(S, x); } catch (e) {}
   const save = () => { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) {} };
-  if (!S.bp || typeof S.bp !== 'object') S.bp = {};                   // BONUS PICK (patch_page_bonuspick 2026-09-26): your picked start gifts
+  S.bp = (() => { try { return JSON.parse(sessionStorage.getItem('ap_bp') || '{}') || {}; } catch (e) { return {}; } })();   // user 2026-09-26: random each game -> this tab only, reset on a new save
+  const bpSave = () => { try { sessionStorage.setItem('ap_bp', JSON.stringify(S.bp || {})); } catch (e) {} };                   // BONUS PICK (patch_page_bonuspick 2026-09-26): your picked start gifts
   /* save file (checks/save_format_102.json): a Preload script, lines call BlzSetAbilityTooltip(<n>, "-<190-char chunk>", 0); strip the '-' and
      join the chunks in file order -> "DMO25;" + key#value; pairs (escapes %25 %23 %3B %5C %22). A big save = main file "DMO25M|pages|len|hash"
      + _P0.._Pn.pld pages. IBC1..18 = Legacy Bag (1-6) + Legacy Storage 1-2 (7-18) as int32 item rawcodes (enhance level is not saved),
@@ -1926,8 +1927,8 @@
         out.querySelectorAll('details.pl-bpk[open]').forEach(o => { if (o !== d) o.open = false; });
         if (l && !l.childElementCount) l.innerHTML = bpOpts(d); const fi = d.querySelector('.pl-bpf'); if (fi) fi.focus(); });
       const fi = d.querySelector('.pl-bpf'); if (fi) fi.addEventListener('input', () => { const q = fi.value.trim().toLowerCase(); d.querySelectorAll('.pl-bpo').forEach(b => { b.hidden = !!q && !b.dataset.q.includes(q); }); });
-      d.addEventListener('click', e => { const b = e.target.closest('.pl-bpo'); if (!b) return; S.bp = Object.assign({}, S.bp || {}, { [d.dataset.bk]: b.dataset.id }); save(); K.route(); }); });
-    out.querySelectorAll('.pl-bpx').forEach(b => b.addEventListener('click', () => { const o = Object.assign({}, S.bp || {}); delete o[b.dataset.bk]; S.bp = o; save(); K.route(); }));
+      d.addEventListener('click', e => { const b = e.target.closest('.pl-bpo'); if (!b) return; S.bp = Object.assign({}, S.bp || {}, { [d.dataset.bk]: b.dataset.id }); bpSave(); save(); K.route(); }); });
+    out.querySelectorAll('.pl-bpx').forEach(b => b.addEventListener('click', () => { const o = Object.assign({}, S.bp || {}); delete o[b.dataset.bk]; S.bp = o; bpSave(); save(); K.route(); }));
   });
   if (DCL_ON) document.addEventListener('click', e => { if (e.target.closest && e.target.closest('details.pl-bpk')) return;   // a tap outside closes an open picker
     document.querySelectorAll('details.pl-bpk[open]').forEach(o => { o.open = false; }); });
@@ -2110,7 +2111,7 @@
     if (fi) fi.addEventListener('change', e => { const fs = [...e.target.files]; if (!fs.length) return;
       Promise.all(fs.map(f => f.text().then(text => ({ name: f.name, text })))).then(files => { const r = readSave(files);
         if (!r.valid) { S.err = 'That is not an Adventurer’s Path save. Pick P..._SaveChar_TheAdventurersPathRPG.pld (and its _P0, _P1 ... files if it has them).'; K.route(); return; }
-        S.own = r.own; S.pts = r.pts; S.ml = r.ml; S.rank = r.rank; S.wp = r.wp; S.vip = r.vip || 0; S.src = 'save'; S.tok = r.tok;   // PREREQ GATES: Challenge Tokens (save key Itzlp)
+        S.own = r.own; S.pts = r.pts; S.ml = r.ml; S.rank = r.rank; S.wp = r.wp; S.vip = r.vip || 0; S.src = 'save'; S.tok = r.tok; S.bp = {}; bpSave();   // PREREQ GATES: Challenge Tokens (save key Itzlp)
         S.err = r.n ? '' : r.saved ? 'Save loaded: no Legacy items in your Legacy Bag or storages yet.' : 'Save loaded, but it is still empty (new account): the game writes Legacy, Points and Map Level when you type -save in game.';
         save(); K.route(); }); });
     const mi = out.querySelector('#pl-ml'); if (mi) mi.addEventListener('change', () => { S.ml = Math.max(1, parseInt(mi.value, 10) || 1); save(); K.route(); });
@@ -2119,7 +2120,7 @@
     const vi = out.querySelector('#pl-vip'); if (vi) vi.addEventListener('change', () => { S.vip = parseInt(vi.value, 10) || 0; save(); K.route(); });
     const ri = out.querySelector('#pl-rank'); if (ri) ri.addEventListener('change', () => { S.rank = parseInt(ri.value, 10) || 0; save(); K.route(); });
     const rf = out.querySelector('#pl-rf'); if (rf) rf.addEventListener('change', () => { S.rf = rf.checked; for (const x in FCUT) delete FCUT[x]; save(); K.route(); });
-    const cb = out.querySelector('#pl-clear'); if (cb) cb.addEventListener('click', () => { S.own = {}; S.src = ''; save(); K.route(); });
+    const cb = out.querySelector('#pl-clear'); if (cb) cb.addEventListener('click', () => { S.own = {}; S.src = ''; S.bp = {}; bpSave(); save(); K.route(); });
     out.querySelectorAll('select[data-line]').forEach(sel => sel.addEventListener('change', () => { if (sel.value) S.own[sel.dataset.line] = sel.value; else delete S.own[sel.dataset.line]; S.src = ''; save(); K.route(); }));
     /* CARDS UI: chips (gear level, filters), hero search, cards, back */
     out.querySelectorAll('.pl-chip[data-cf]').forEach(b => b.addEventListener('click', () => { const k = b.dataset.cf, v = b.dataset.v, f = CF();
