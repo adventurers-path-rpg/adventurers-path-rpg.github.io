@@ -10,6 +10,11 @@
 (function (K) {
   const { W, P, esc, hooks, INDEX } = K; const M = W.map; if (!M) return;
   const { minX, minY, maxX, maxY } = M.world, IW = M.img.w, IH = M.img.h, PTS = M.pts;
+  /* ---- PLACED DROPS (patch_page_placed 2026-09-26): W.placed = [{n, k, x, y, z, w, o, nt, wl, it:[[item, %]]}] (build.py). The spots join
+     the landmarks as kind 'drop' (Map tab layer, off by default); plFor(item) = indexes of the spots that drop it, for the item page pins */
+  const PL = W.placed || [], INM = {}; (W.items || []).forEach(i => { INM[i.id] = i.name; });
+  if (!PTS.some(p => p.k === 'drop')) PL.forEach((q, j) => PTS.push({ k: 'drop', n: q.n, x: q.x, y: q.y, zone: q.z, pl: j }));
+  const plFor = id => PL.map((q, j) => (q.it || []).some(x => x[0] === id) ? j : -1).filter(j => j >= 0);
   const px = x => (x - minX) / (maxX - minX) * IW, py = y => (maxY - y) / (maxY - minY) * IH;
   const ZB = {}; for (const z of M.zones) ZB[z.id] = z;
   /* UX pass 2: SHN = shop names (a shop merged into a neighbour's marker is found by its name), ZO = which zone name wins when two collide:
@@ -19,10 +24,10 @@
   (W.zones || []).forEach(z => { ZO[z.id] = ((z.shops || []).some(x => SHN[x]) ? 0 : z.optional ? 200 : 100) + (+z.order || 0); });
   const DK = '#0b0f14';   /* marker colours are fixed, not theme colours: they sit on the terrain picture, which is the same in both themes */
   const KINDS = { boss: ['Bosses', '#ff5a52'], portal: ['Portals', '#c490ff'], door: ['Paths', '#3fe0c5'], gate: ['Gates', '#ffae2b'], stone: ['Teleport Stones', '#62c9ff'],
-                  circle: ['Energy Circles', '#86e27a'], quest: ['Quest givers', '#ffd83a'], npc: ['Shops and NPCs', '#eef1f0'], dock: ['Boats', '#e3a86a'] };
-  const KL = { boss: 'Boss', portal: 'Portal', exit: 'Arrival', door: 'Path', gate: 'Gate', stone: 'Teleport Stone', circle: 'Energy Circle', quest: 'Quest giver', npc: 'Shop / NPC', dock: 'Boat' };
+                  circle: ['Energy Circles', '#86e27a'], quest: ['Quest givers', '#ffd83a'], npc: ['Shops and NPCs', '#eef1f0'], dock: ['Boats', '#e3a86a'], drop: ['Placed drops', '#ffcf4a'] };
+  const KL = { boss: 'Boss', portal: 'Portal', exit: 'Arrival', door: 'Path', gate: 'Gate', stone: 'Teleport Stone', circle: 'Energy Circle', quest: 'Quest giver', npc: 'Shop / NPC', dock: 'Boat', drop: 'Placed drop' };
   const LAY = k => k === 'exit' ? 'portal' : KINDS[k] ? k : 'npc';
-  const MINOR = new Set(['npc', 'quest', 'circle', 'dock']), PRI = { boss: 0, portal: 1, exit: 1, door: 2, gate: 2, stone: 3, dock: 4 };
+  const MINOR = new Set(['npc', 'quest', 'circle', 'dock', 'drop']), PRI = { boss: 0, portal: 1, exit: 1, door: 2, gate: 2, stone: 3, dock: 4 };
   const LINK = { portal: 'p', door: 'w', quest: 'i', npc: 'i' };
   const zc = z => ZB[z] ? [px(ZB[z].c[0]), py(ZB[z].c[1])] : null;
   const f1 = v => (+v).toFixed(1);
@@ -40,6 +45,7 @@
     if (p.k === 'circle') return `<circle r="4.6" fill="none" ${o} stroke-width="4.4"/><circle r="4.6" fill="none" stroke="${c}" stroke-width="2.3"/>`;
     if (p.k === 'quest') return `<circle r="5.8" fill="${c}" ${o} stroke-width="1.4"/><path d="M0 -3v3.2M0 2.3v.6" ${o} stroke-width="1.9" stroke-linecap="round"/>`;
     if (p.k === 'dock') return `<path d="M-6.2 -1h12.4l-2.8 5.4h-6.8zM-.5 -1.2v-5.6l4.4 3.8z" fill="${c}" ${o} stroke-width="1.2" stroke-linejoin="round"/>`;
+    if (p.k === 'drop') return `<rect x="-4.8" y="-3.8" width="9.6" height="7.6" rx="1.5" fill="${c}" ${o} stroke-width="1.4"/><path d="M-4.8 -.7h9.6M0 -3.8v7.6" ${o} stroke-width="1.1"/>`;   // PLACED DROPS: a chest
     return `<circle r="3.3" fill="${c}" ${o} stroke-width="1.3"/>`; };
   /* one marker; cls: L-<layer> for map markers, sel / end / zm / me for the highlight copies drawn on top */
   const mk = (p, i, cls, lab, lx) => { const x = f1(px(p.x)), y = f1(py(p.y)), ring = /\b(sel|end|me)\b/.test(cls);
@@ -50,7 +56,8 @@
   function svg(o) {
     o = o || {}; let vb = o.focus && ZB[o.focus] ? zbox(o.focus, 1.6) : [0, 0, IW, IH]; const hl = new Set(o.hl || []);
     const SP = (o.spots || []).filter(q => q && isFinite(q[0]) && isFinite(q[1]));
-    if (SP.length && o.mark == null) { const xs = SP.map(q => px(q[0])), ys = SP.map(q => py(q[1])); let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const PN = (o.pins || []).filter(q => q && isFinite(q.x) && isFinite(q.y)), FR = SP.length ? SP : PN.map(q => [q.x, q.y]);   // PLACED DROPS pins frame the view like spawn spots
+    if (FR.length && o.mark == null) { const xs = FR.map(q => px(q[0])), ys = FR.map(q => py(q[1])); let x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
       const w = Math.max(x1 - x0 + 130, 260), h = Math.max(y1 - y0 + 90, w / 1.6), W_ = Math.max(w, h * 1.6); vb = [(x0 + x1) / 2 - W_ / 2, (y0 + y1) / 2 - W_ / 1.6 / 2, W_, W_ / 1.6]; }   // frame the spawn spots
     if (o.focus && o.mark != null && PTS[o.mark]) { const p = PTS[o.mark], w = Math.max(vb[2] * 0.85, 230), h = w / 1.6; vb = [px(p.x) - w / 2, py(p.y) - h / 2, w, h]; }   // zoom in on the target
     const zhi = z => { if (!ZB[z]) return ''; const b = ZB[z].b, x0 = f1(px(b[0])), x1 = f1(px(b[2])), y0 = f1(py(b[3])), y1 = f1(py(b[1]));
@@ -62,9 +69,9 @@
     /* the target (o.mark) is drawn last so no marker covers it, and named after what the card is about (o.markName: one arena boss, a merged shop) */
     const one = (p, i) => mk(p, i, `L-${LAY(p.k)}${MINOR.has(p.k) ? ' mn' : ''}${hl.has(i) ? ' hl' : ''}${o.mark === i ? ' me' : ''}`, o.mark === i ? lab(p, o.markName) : hl.has(i) ? lab(p) : '');
     const mks = PTS.map((p, i) => p.twin != null || i === o.mark ? '' : one(p, i)).join('') + (o.mark != null && PTS[o.mark] ? one(PTS[o.mark], o.mark) : '');
-    return `<div class="mp-box${o.mini ? ' mini' : ''}"${o.focus ? ` data-focus="${o.focus}"` : ''}${o.sel ? ` data-sel="${esc(o.sel)}"` : ''}>`
+    return `<div class="mp-box${o.mini ? ' mini' : ''}"${o.pinKey ? ` data-pins="${esc(o.pinKey)}"` : ''}${o.focus ? ` data-focus="${o.focus}"` : ''}${o.sel ? ` data-sel="${esc(o.sel)}"` : ''}>`
       + `<svg class="mp-svg" viewBox="${vb.map(f1).join(' ')}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Map${o.focus ? ' of ' + esc(ZB[o.focus].name) : ''}"><image href="${M.img.src}" x="0" y="0" width="${IW}" height="${IH}" preserveAspectRatio="none"/>${o.focus ? zhi(o.focus) : ''}${SP.map(q => `<circle class="mp-spot" cx="${f1(px(q[0]))}" cy="${f1(py(q[1]))}" r="${Math.min(14, 6 + (q[2] || 1) / 4)}"/>`).join('')}`
-      + `<g class="mp-zls">${zl}</g><g class="mp-lines">${ln}</g><g class="mp-marks">${mks}</g><g class="mp-top"></g></svg>`
+      + `<g class="mp-zls">${zl}</g><g class="mp-lines">${ln}</g><g class="mp-marks">${mks}</g>${PN.length ? `<g class="mp-pins">${PN.map((q, k) => { const x = f1(px(q.x)), y = f1(py(q.y)); return `<g class="mp-mk mp-pin${q.wl ? ' wl' : ''}" data-pin="${k}" data-x="${x}" data-y="${y}" transform="translate(${x},${y})"><title>${esc((k + 1) + ' · ' + q.n)}</title><g class="sh"><circle r="8.6"/><text y="3.7">${k + 1}</text></g></g>`; }).join('')}</g>` : ''}<g class="mp-top"></g></svg>`
       + `<div class="mp-btn"><button type="button" data-z="1.6" title="Zoom in" aria-label="Zoom in">+</button><button type="button" data-z="0.625" title="Zoom out" aria-label="Zoom out">−</button><button type="button" data-z="0" title="Reset view" aria-label="Reset view">⟲</button></div>`
       + (o.mini ? (o.focus ? `<a class="mp-full" href="#map/${o.mark != null && PTS[o.mark] ? 'p' + o.mark : o.focus}">Full map</a>` : '') : '<div class="mp-hint">Tap a marker or a zone name</div>') + '<div class="mp-panel" hidden></div></div>';
   }
@@ -81,7 +88,16 @@
   /* bosses and shops reuse the site's quick-look card (same numbers as everywhere else), zone links inside it stay on the map */
   const inMap = h => h.replace(/<a href="#zones\/(z\d+)">/g, '<a href="#zones/$1" class="mp-z" data-z="$1">');
   const peek = (pg, id) => { try { return id && K.peekCard ? inMap(K.peekCard(pg, id) || '').replace(/<div class="mp-slot[^"]*"[^>]*><\/div>/g, '') : ''; } catch (e) { return ''; } };   // no mini map inside the map's own panel
+  /* PLACED DROPS: one spot's card (map panel): what it drops, where, rules, the zone page */
+  const plInfo = (j, num) => { const q = PL[j]; if (!q) return '';
+    const it = (q.it || []).map(([id, ch]) => `<a href="#item/${encodeURIComponent(id)}">${esc(INM[id] || id)}</a>${ch != null && ch < 100 ? ` <span class="small">${ch}%</span>` : ''}`).join(', ');
+    return head(esc((num ? num + ' · ' : '') + q.n), [q.k === 'u' ? 'Unit' : 'Breakable', ZB[q.z] ? esc(ZB[q.z].name) : ''].filter(Boolean).join(' · '))
+      + `<div class="small">${esc(cap(q.w))}</div><div>Drops ${it}</div>`
+      + `<div class="small">${[q.o ? 'Once per game' : '', q.nt ? cap(q.nt) : ''].filter(Boolean).map(esc).join('. ')}</div>`
+      + (q.wl ? `<div class="small pl-wl">${esc(q.wl)}</div>` : '')
+      + (ZB[q.z] ? `<div class="mp-open"><a href="#zones/${q.z}" class="pk-go">Zone page →</a></div>` : ''); };
   function info(p) {
+    if (p.k === 'drop') return plInfo(p.pl);
     const qs = ((W.quests || {}).side || []).filter(q => q.npc && q.npc.id === p.id), card = p.k === 'boss' ? peek('boss', p.id) : p.k === 'quest' || p.k === 'npc' ? peek('shop', p.id) : '';
     let x = '';   // what this tab adds: where it leads, what it needs, what leads here
     if (p.k === 'boss' && (p.ids || p.xn)) { const all = (p.ids || []).filter(b => W.boss[b]).map(b => K.link('boss', b, W.boss[b].name)), xn = (p.xn || []).map(v => v === 'Jarvan V' ? 'Impostor Jarvan V' : v).map(esc);
@@ -118,7 +134,7 @@
   }
 
   /* ---------- pan / zoom / tap, wired once per map box ---------- */
-  const OFF = new Set(['npc']);
+  const OFF = new Set(['npc', 'drop']);   // PLACED DROPS layer off until picked
   let reduce = false; try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { /* old browser */ }
   const FS = () => window.innerWidth < 600 ? 11 : 12.5;   // zone label size on screen, px
   /* a layer switched off never hides a card's own target or the markers it names (shop pages and shop cards ring an NPC; the Shops layer is off) */
@@ -187,7 +203,7 @@
       const arrow = (p, name) => { const a = ang(p) * Math.PI / 180, c = Math.cos(a), d = Math.sin(a), e = (r, q) => `${f1(r * c - q * d)} ${f1(r * d + q * c)}`;
         top.insertAdjacentHTML('beforeend', `<g class="mp-mk mp-arw" data-x="${f1(px(p.x))}" data-y="${f1(py(p.y))}"><path class="mp-ahc" d="M${e(11, 0)}L${e(40, 0)}"/><path class="mp-ah" d="M${e(11, 0)}L${e(40, 0)}"/><path class="mp-ahh" d="M${e(47, 0)}L${e(37, 5.5)}L${e(37, -5.5)}Z"/>`
           + `<text class="mp-ml" x="${f1(55 * c)}" y="${f1(55 * d + 3.6 + (d > 0.5 ? 6 : d < -0.5 ? -4 : 0))}" text-anchor="${c < -0.35 ? 'end' : c > 0.35 ? 'start' : 'middle'}">${esc(name)}</text></g>`); };
-      const clear = keep => { s.classList.remove('iso'); top.innerHTML = ''; s.querySelectorAll('.mp-marks .on').forEach(g => g.classList.remove('on'));
+      const clear = keep => { s.classList.remove('iso'); top.innerHTML = ''; s.querySelectorAll('.mp-marks .on, .mp-pins .on').forEach(g => g.classList.remove('on')); { const w_ = box.closest('.pl-where'); if (w_) w_.querySelectorAll('li.on').forEach(r => r.classList.remove('on')); }
         s.querySelectorAll('.mp-zl.hz').forEach(t => { if (t.dataset.z !== box.dataset.focus) { t.classList.remove('hz'); delete t.dataset.p; } }); if (!keep) { panel.hidden = true; panel.innerHTML = ''; if (padB) { padB = 0; go(vb); } } lastU = 0; paint(); };
       const fz = mini && ZB[box.dataset.focus] ? ZB[box.dataset.focus].name + ' ' : '', labF = q => fz && q.zone === box.dataset.focus && q.n.startsWith(fz) ? cap(q.n.slice(fz.length)) : q.n;
       const openPanel = html => { panel.innerHTML = html; panel.hidden = false; panel.scrollTop = 0; box.classList.add('used'); };
@@ -220,7 +236,17 @@
         const fs = FS() * u; for (const t of s.querySelectorAll('.mp-zl:not(.cull)')) { const w = t.textContent.length * fs * 0.32 + 4 * u, x = +t.getAttribute('x') + +(t.getAttribute('dx') || 0), y = +t.getAttribute('y') - fs * 0.9;
           if (Math.abs(mx - x) < w && Math.abs(my - y) < fs * 0.75) return ['z', t.dataset.z]; }
         return best && bd < (touch ? 22 : 12) * u ? ['p', +best.dataset.i] : null; };   // near a marker, within a finger's reach
-      const tap = (cx, cy, touch) => { const h = hitAt(cx, cy, touch); if (!h) clear(); else if (h[0] === 'p') pick(h[1]); else pickZone(h[1]); };
+      /* PLACED DROPS: a numbered pin (item page map) wins a tap near it; box._pin(k) = the list rows' way in */
+      const PINS = box.dataset.pins ? plFor(box.dataset.pins) : [];
+      const pinAt = (cx, cy, touch) => { const [mx, my] = pt(cx, cy), u = upx(); let b = null, bd = 1e9;
+        s.querySelectorAll('.mp-pins .mp-pin').forEach(g => { const d = Math.hypot(g.dataset.x - mx, g.dataset.y - my); if (d < bd) { bd = d; b = g; } });
+        return b && bd < (touch ? 20 : 11) * u ? +b.dataset.pin : -1; };
+      const pinPick = k => { const g = s.querySelector(`.mp-pins .mp-pin[data-pin="${k}"]`), j = PINS[k]; if (!g || j == null) return; clear(1);
+        g.classList.add('on'); hz(PL[j].z, 2); const w = box.closest('.pl-where'); if (w) w.querySelectorAll('li[data-pin]').forEach(r => r.classList.toggle('on', +r.dataset.pin === k));
+        openPanel(plInfo(j, k + 1)); lastU = 0; paint(); show([[+g.dataset.x, +g.dataset.y]], 'pan'); };
+      box._pin = pinPick;
+      const tap = (cx, cy, touch) => { const k = PINS.length ? pinAt(cx, cy, touch) : -1; if (k >= 0) return pinPick(k);
+        const h = hitAt(cx, cy, touch); if (!h) clear(); else if (h[0] === 'p') pick(h[1]); else pickZone(h[1]); };
       panel.addEventListener('click', e => { const a = e.target.closest('a'); if (!a) return;
         if (a.classList.contains('mpx')) { e.preventDefault(); clear(); }
         else if (a.classList.contains('mp-z')) { e.preventDefault(); pickZone(a.dataset.z); }
@@ -270,6 +296,20 @@
     const m = '<h4>Map</h4>' + miniHtml(id); const i = h.indexOf('<b>How to get there:</b>'); const j = i >= 0 ? h.indexOf('</p>', i) + 4 : -1; return j > 3 ? h.slice(0, j) + m + h.slice(j) : h + m; };
   const B0 = P.boss; P.boss = id => { const h = B0(id), bi = bossAt(id); if (bi < 0 || !ZB[PTS[bi].zone] || h.includes('mp-slot') || h.includes('mp-box')) return h;
     const m = '<h4>Map</h4>' + miniHtml(PTS[bi].zone, { boss: id }); const i = h.indexOf('<h4>'); return i >= 0 ? h.slice(0, i) + m + h.slice(i) : h + m; };
-  hooks.push((page, out) => { slots(out); wire(out); wireLegend(out); });
+  /* ---- PLACED DROPS: item page 'Where exactly' = pins map + numbered list (a row opens its pin; more than 6 rows fold) ---- */
+  const plRow = (j, k, id) => { const q = PL[j], ch = ((q.it || []).find(x => x[0] === id) || [])[1];
+    const tail = [ch != null ? ch + '%' : '', q.o ? 'once per game' : '', q.nt].filter(Boolean).map(esc).join(', ');
+    return `<li data-pin="${k}"${q.wl ? ' class="wl"' : ''}><button type="button" class="pl-n" aria-label="Show spot ${k + 1} on the map">${k + 1}</button><span><b>${esc(q.n)}</b> · `
+      + `${ZB[q.z] ? `<a href="#zones/${q.z}">${esc(ZB[q.z].name)}</a>, ` : ''}${esc(q.w)}${tail ? ` <span class="small">· ${tail}</span>` : ''}${q.wl ? `<span class="small pl-wl">${esc(q.wl)}</span>` : ''}</span></li>`; };
+  const plHtml = id => { const L = plFor(id); if (!L.length) return ''; const zs = [...new Set(L.map(j => PL[j].z))], f = zs.length === 1 && ZB[zs[0]] ? zs[0] : '';
+    const rows = `<ol class="pl-list">${L.map((j, k) => plRow(j, k, id)).join('')}</ol>`;
+    return `<div class="pl-where"><h4>Where exactly</h4>${svg({ focus: f, hl: f ? near(f) : [], mini: 1, pins: L.map(j => PL[j]), pinKey: id })}`
+      + (L.length > 6 ? `<details class="pl-more"><summary>${L.length} spots</summary>${rows}</details>` : rows) + '</div>'; };
+  const I0 = P.item; P.item = id => { const h = I0(id), b = plHtml(id); if (!b || h.includes('pl-where')) return h;
+    for (const t of ['<h4>Made from</h4>', '<h4>Used in</h4>']) { const i = h.indexOf(t); if (i >= 0) return h.slice(0, i) + b + h.slice(i); } return h + b; };
+  const plWire = root => root.querySelectorAll('.pl-where:not([data-w])').forEach(w => { w.dataset.w = '1';
+    w.addEventListener('click', e => { const li = e.target.closest('li[data-pin]'); if (!li || e.target.closest('a')) return; const box = w.querySelector('.mp-box'); if (box && box._pin) box._pin(+li.dataset.pin); }); });
+  K.placedFor = plFor;
+  hooks.push((page, out) => { slots(out); wire(out); wireLegend(out); plWire(out); });
   if (K.xhooks) K.xhooks.push((pg, id, el) => slots(el));
 })(AP);

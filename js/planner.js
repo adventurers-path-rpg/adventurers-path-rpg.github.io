@@ -508,13 +508,15 @@
     if (!X.hunt) { const why = [], add = t => { if (t && !why.includes(t)) why.push(t); };
       need.forEach(b => { if (b.id && bzone(b.id) === 'z10') add(esc(bname(b.id))); else if (b.fire) add(ilink(String(b.fire).split('*')[0])); });
       ((FPL && FPL.fire) || []).forEach(id => add(id === 'souls' ? 'the Boss Souls farm at the Flame Lord' : ilink(id)));
-      const hi = HIDX[X.h], c = why.length && hi != null ? pqChain(X.n, X.m, hi, eqStep(X.h, X.n, X.m).k, true) : -1;
+      const hi = HIDX[X.h], c = hi != null ? pqChain(X.n, X.m, hi, eqStep(X.h, X.n, X.m).k, true) : -1;   // FRODO PLACE (patch_page_frodo_place 2026-09-26): optional chain too
       const k = c < 0 ? -1 : X.steps.findIndex(y => +y.step >= c);
       const on = b => X.steps.findIndex(y => +y.step < c && String(y.do || '').includes('{{u:' + b + '}}')), notes = [];
       PQHB.forEach(b => { const j = on(b); if (j < 0) return; const sn = +X.steps[j].step; if (sn < 7) notes.push(`Your step ${sn} ${esc(bname(b))} kill does not count.`); });
-      X.hunt = { why, at: c < 0 ? -1 : k < 0 ? X.steps.length - 1 : k, notes }; }
+      X.hunt = { why, at: c < 0 ? -1 : k < 0 ? X.steps.length - 1 : k, notes, hd: hi != null }; }
     const H = X.hunt;
-    if (!H.why.length) { if (+x.step === 7) li.push(`<li class="pl-rp"><span class="small">Optional: Frodo's quest chain gives every player a ${ilink('I03L')}. Nothing on this run needs it.</span>${pqChainHtml('', [])}</li>`); return; }
+    if (!H.why.length) { const rw = !!(FPL && FPL.rw && H.at >= 0 && FPL.rw.i >= H.at);   // FRODO PLACE: at the step the hero finishes it (no hero data: step 7), no line if he cannot
+      if (H.hd ? i === H.at : +x.step === 7) li.push(`<li class="pl-rp"><span class="small">Optional: Frodo's quest chain gives every player a ${ilink('I03L')}. Nothing on this run needs it.${rw ? '<span> · Magic Ring: worth it after the boat (Absolute Ring)</span>' : ''}</span>${pqChainHtml('', H.notes, rw)}</li>`);
+      if (rw && i === FPL.rw.i) li.push(`<li class="pl-rb pl-n"><b>Absolute Ring</b> · ${rwTxt()}</li>`); return; }   // FRODO PLACE: the run gives the Magic Ring = the ring line
     if (H.at < 0) { if (+x.step === 7) tpHunt(li, X.steps, X.stop, need, FPL); return; }   // no hero data: the old block
     if (i === H.at) li.push(`<li class="pl-rb pl-n"><b>Frodo's quest chain</b> · opens the Firelands, needed for ${andJ(H.why)}${pqChainHtml(andJ(H.why), H.notes, !!(FPL && FPL.rw && FPL.rw.i >= H.at))}</li>`);
     if (FPL && FPL.rw && FPL.rw.i >= H.at && i === FPL.rw.i) li.push(`<li class="pl-rb pl-n"><b>Absolute Ring</b> · ${rwTxt()}</li>`); };   // MAGIC RING: right after the chain (N4+) / in Late (N1-3)
@@ -766,7 +768,7 @@
       const at = s => { const j = steps.findIndex(x => +x.step >= s); return j < 0 ? steps.length - 1 : j; };
       const po = []; let cm = -1; steps.forEach((x, j) => { const o = ZO[x.zone] || 0; cm = Math.max(cm, o > 18 ? 2 : o > 6 ? 1 : 0); po[j] = cm; });
       const fs = fsOf(RW_B, n), pi = po.findIndex(p => p >= p0);
-      if (pi >= 0) { const i = Math.max(at(c), at(fs == null ? 0 : Math.max(0, fs - 1)), at(s1), pi); if (i <= stop) r.i = i; } }
+      if (pi >= 0) { const i = Math.max(at(c), at(fs == null ? 0 : Math.max(0, fs - 1)), at(s1), pi, BOATSTEP != null ? at(+BOATSTEP) : 0); if (i <= stop) r.i = i; } }   // FRODO PLACE: never before the boat
     RWC.set(ck, r); return r; };
   const rwMin = (h, n, m, L, stopStep) => { const steps = (((W.qguide || {}).steps) || []).filter(x => +x.step <= 20 + n); let si = -1;
     steps.forEach((x, j) => { if (+x.step <= stopStep) si = j; }); if (si < 0) return 0;
@@ -785,6 +787,11 @@
   /* your free pet items: the Player Bonus gift by Map Level, the Ranking Reward (Map Level 30+, RANKR rows), Bug Hunter at Map Level 110+ */
   const tpGifts = ml => { const o = [ml <= 15 ? 'I022' : ml <= 30 ? 'I08L' : ml <= 45 ? 'I09I' : 'I0DZ'], rk = RANKR.filter(r => ml >= r[0]).length;
     if (rk) o.push(TP_RANKID[rk - 1]); if (ml >= 110 && !o.includes('I08L')) o.push('I08L'); return o; };
+  /* PETBAG (patch_page_petbag 2026-09-26): where a free pet item comes from (the 'free' tag's hover). Map 1.02 Player Bonus 
+     (one gift by Map Level, once per game), Map Level 110 reward */
+  const tpGiftWhy = (id, ml) => TP_RANKID.includes(id) ? 'Ranking Reward' : id === 'I022' ? 'Player Bonus at the start (Map Level 15 or lower)'
+    : id === 'I08L' ? (ml > 30 ? 'Map Level 110 reward' : 'Player Bonus at the start (Map Level 16-30)') : id === 'I09I' ? 'Player Bonus at the start (Map Level 31-45)'
+    : id === 'I0DZ' ? 'Player Bonus at the start (Map Level 46+)' : 'free at the start';
   const tpBeg = n => n <= 1 ? 'Level-1 artifact' : n <= 5 ? `Level-${n} item` : n <= 7 ? 'Level-6 item' : 'Level-7 item';   // Beginner Bonus by N
   /* PD.rh[N|m][hero][account step][gear level] = what that replay held: x = per part [[skipped item, copies held]], p = pet bag per part,
      r = [rune, level], b = books (planner_pack TESTER). Not for the rare-drop farmer rows */
@@ -827,12 +834,19 @@
     else { const li = L == null || L < 0 ? null : tpLi(h, n, m, L, p), row = li != null ? ((((PD.bbp || {})[bk] || {})[h] || [])[li] || null) : null;
       picks = row ? (row[p] || []).slice() : (((((W.best_items || {})[h] || {})[gk] || {})[st + '_pet']) || []).map(x => x[0]);
       ((PD.pgf || {})[bk] || TP_GIFTS).forEach(g => { const j = picks.indexOf(g); if (j >= 0) picks.splice(j, 1); }); }   // the reference account's free items out
-    const all = gifts.concat(picks).slice(0, 6), c = {}; all.forEach(x => { c[x] = (c[x] || 0) + 1; });
-    let pet = Object.keys(c).map(x => ilink(x) + (c[x] > 1 ? ' x' + c[x] : '') + (gifts.includes(x) ? ' <span class="small">free</span>' : '')).join(', ');
-    if (all.length < 6 && !r) pet += ` <span class="small">· ${6 - all.length} free slot${6 - all.length > 1 ? 's' : ''}: ${ilink('I022')} (7,600 gold each) when gold is spare</span>`;
-    const ex = p === 0 ? [ml >= 23 ? 'one random Level-7 item (Player Bonus, Map Level 23+)' : '', ml <= 30 ? `one random ${tpBeg(n)} (Beginner Bonus)` : ''].filter(Boolean) : [];
-    if (pet !== TPS.pet || ex.length) out.push(`<b>Pet bag</b> ${pet}${ex.length ? ` <span class="small">· also free at the start: ${andJ(ex)}</span>` : ''}`);
-    TPS.pet = pet;
+    /* PETBAG: the free gifts first (tag 'free', where from on hover), then the build's own items; a later part names only what changes */
+    const all = gifts.concat(picks).slice(0, 6), pc = {}; all.slice(gifts.length).forEach(x => { pc[x] = (pc[x] || 0) + 1; });
+    const pl = o => Object.keys(o).map(x => ilink(x) + (o[x] > 1 ? ' x' + o[x] : '')).join(', '), key = Object.keys(pc).sort().map(x => x + pc[x]).join(',');
+    let pet = '';
+    if (TPS.pk == null) { pet = gifts.map(x => `${ilink(x)} <span class="tag ok" title="${esc(tpGiftWhy(x, ml))}">free</span>`).join(', ') + (Object.keys(pc).length ? ' + ' + pl(pc) : '');
+      if (all.length < 6 && !r) pet += ` <span class="small">+ ${6 - all.length} slot${6 - all.length > 1 ? 's' : ''}: ${ilink('I022')} (7,600 gold each) when gold is spare</span>`; }
+    else if (key !== TPS.pk) { const P = TPS.pc || {}, ad = {}, rm = {};
+      Object.keys(pc).forEach(x => { const d = pc[x] - (P[x] || 0); if (d > 0) ad[x] = d; }); Object.keys(P).forEach(x => { const d = P[x] - (pc[x] || 0); if (d > 0) rm[x] = d; });
+      const na = Object.keys(ad).length, nr = Object.keys(rm).length;
+      pet = (na ? 'add ' + pl(ad) : '') + (nr ? (na ? ` <span class="small">in place of ${pl(rm)}</span>` : 'take out ' + pl(rm)) : ''); }
+    TPS.pk = key; TPS.pc = pc;
+    const ex = p === 0 ? [ml >= 23 ? 'one random Level-7 item (Player Bonus, solo, Map Level 23+)' : '', ml <= 30 ? `one random ${tpBeg(n)} (Beginner Bonus)` : ''].filter(Boolean) : [];
+    if (pet || ex.length) out.push(`<b>Pet bag</b> ${pet}${ex.length ? ` <span class="small pl-pfx">· also free at the start: ${andJ(ex)}</span>` : ''}`);
     const ad = (((((W.addons || {})[h] || {})[gk]) || {})[st]) || [], rn = ad[0];
     if (rn && rn !== TPS.rune) { TPS.rune = rn; const s2 = tpSrc(rn);
       out.push(`<b>Rune</b> ${ilink(rn)}${s2 ? ` <span class="small">(${s2})</span>` : ''}${r && r.r && !r.r[0] ? ' <span class="small">· the replayed run never got a rune: a bonus if it drops</span>' : ''}`); }
@@ -1673,6 +1687,16 @@
       b0.push('<b>Gear</b> ' + gsw.outerHTML + DCL.q(ht)); gsw.remove(); }
     if (bag) { const c = bag.cloneNode(true), bb = c.querySelector(':scope > b'); if (bb) bb.remove(); DCL.tn(c, /\(needed for its upgrade\)/g, '(keep it there all run)');
       b0.push('<b>Legacy Bag</b> ' + c.innerHTML.trim()); bag.remove(); }
+    /* PETBAG (patch_page_petbag 2026-09-26, user: "the bag items are not showing, especially the free Energy Gem"): the pet bag leaves the
+       gear rows' tap for one line here: the start bag, then '· Mid gear: add...' when a later part changes it; the extra start gifts behind '?' */
+    { const pbl = ol ? [...ol.querySelectorAll('.pl-gb div.small')].filter(d => T(d.querySelector(':scope > b')) === 'Pet bag') : []; let ph = '', tip = '';
+      pbl.forEach((d, j) => { const g = d.closest('li.pl-gh'), gl = g ? T(g.querySelector(':scope > b')) : '', dt = d.closest('details.pl-gx'), x = d.querySelector('.pl-pfx');
+        if (x) { tip = x.innerHTML.replace(/^\s*·\s*also/, 'Also'); x.remove(); }
+        const cp = d.cloneNode(true); cp.querySelector(':scope > b').remove(); const body = cp.innerHTML.trim();
+        if (body) ph += j && ph ? ` <span class="small">· ${esc(gl || 'later')}:</span> ${body}` : body; d.remove();
+        if (dt) { const rest = [...dt.querySelectorAll(':scope > div.small')]; if (!rest.length) dt.remove();
+          else dt.querySelector(':scope > summary').textContent = '+ ' + [...new Set(rest.map(y => T(y.querySelector('b')).toLowerCase().replace('universal skill', 'skill')).filter(Boolean))].join(', '); } });
+      if (ph) b0.push('<b>Pet bag</b> ' + ph + DCL.q(tip)); }
     b0.push(...pre.filter(x => /^<b>Skills/.test(x)));
     if (s) b0.push(`<b>Boss Souls</b> ~${fmt(sr)} for the enhances on the way (at Gazlowe)`);
     if (top.fin || top.jv) { const mm = top.jv ? /^Jarvan V: (\d+ Points per kill)/.exec(top.jv) : null;

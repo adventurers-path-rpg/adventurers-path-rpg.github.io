@@ -130,6 +130,14 @@
   /* ---- changelog: one entry per DAY (date only), newest first; every category once per day, in this order:
      Map update, Zones, Monsters, Heroes, Items, Quests, Legacy, Game systems, Calculators, Whole wiki. New lines merge into today's category. ---- */
   const CHANGES = [
+    ['26 Sep 2026', [
+      ['Items', [
+        'Item pages show where exactly: a pin map for drops from Rock Chunks, barrels, cages and single units (Dragon Ball: all 7 spots). Walled-in spots say how to reach them.',
+      ]],
+      ['Calculators', [
+        'Run planner: pet bag back in Before you start (free start gift tagged), Frodo’s chain sits where your hero can finish it, Absolute Ring after the boat.',
+      ]],
+    ]],
     ['25 Sep 2026', [
       ['Zones', [
         'Zones tab = the route of your run at your difficulty: Early, Mid, Late, After the main quest. One small card per zone, only main-route zones numbered.',
