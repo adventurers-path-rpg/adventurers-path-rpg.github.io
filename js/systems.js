@@ -148,6 +148,9 @@
         'Run planner: every item, boss, quest and zone in the step hints is now a link, and your picked bonus item shows up in the route itself (gear row, skipped pickups, swaps).',
         'Run planner: no Bag swaps for Legacy upgrades any more, chance items can sit in a Storage, and N+ steps count on every higher difficulty.',
         'Run planner: the Bonuses Mantle sits in your pet bag from Map Level 31.',
+        'Run planner and Tier list: new numbers on map 1.04. Survival counts the hardest boss of each part, extra tankiness pays off less the more you have, and timed buffs count at their real uptime.',
+        'Run planner: gear now changes at clear stops (after Frodo’s chain, after the boat, a new shop, before a hard boss) instead of only at Early, Mid and Late.',
+        'Run planner and hero pages: a Skill upgrades row shows which universal book changes one of your skills.',
       ]],
     ]],
     ['26 Sep 2026', [

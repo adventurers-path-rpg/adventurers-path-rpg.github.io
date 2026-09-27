@@ -349,10 +349,7 @@
     const x = L >= 0 ? row[L] : null; return typeof x === 'string' && x !== '' && x.split(',').includes(b); };
   const bossAt0 = (b, n, m, i, lv) => { const s = bossAt00(b, n, m, i, lv); return s >= 0 && abLost(b, n, m, i, lv, s) ? -1 : s; };
   const bossAt00 = (b, n, m, i, lv) => { const k = b + '|' + n + '|' + m, R = rowsOf(k, i), s0 = R ? R.r[0] : undefined, X = R ? R.x : i; if (s0 === undefined) return -1;   // SAVE ROWS // PREREQ GATES: bossAt = this + the hunt
-    /* STEP 0 FIX (2026-09-26, tester: 'kill Centaur Khan N7 right away?'): the opening row is fought at the stage's END hero level
-       (tier_calc hero_lv: Early = the level at step 12) with half its gear; a boss open from step 0 is not 'go straight there' at
-       level 1: it passes from the end of that stage (the full stage build only adds). Lab night: planner_data rows by the real level */
-    const st0 = stopOf(b, n); if (okAt(s0[X], lv)) return st0 > 0 ? st0 : stEnd(stageOf(st0), n);
+    const st0 = stopOf(b, n); if (okAt(s0[X], lv)) return st0;
     for (let j = stageOf(st0); j <= 2; j++) { const s = R.r[1 + j] || undefined; if (s !== undefined && okAt(s[X], lv)) return Math.max(st0, stEnd(j, n)); }
     return -1; };
   /* where the route lists a boss fought after step st: the step it opens at, or the stage end it was pushed to */
@@ -848,7 +845,7 @@
     if (g && g.best) o.push(`<div class="small"><b>Gold farm</b>repeat ${gt(g.best)}${g.alt ? ` · or ${fsQL(g.alt.q)} ~${fsR(gv(g.alt))}/min` : ''}${g.risky ? ` · <span class="warntext">risky</span> ${fsQL(g.risky.q)} ~${fsR(gv(g.risky))}/min (${fsWhy(g.risky.x)})` : ''}${vs()}</div>`);   // VIP FARM CALC
     else if (g && g.risky) o.push(`<div class="small"><b>Gold farm</b><span class="warntext">risky (${fsWhy(g.risky.x)})</span> repeat ${gt(g.risky)}${vs()}</div>`);
     return o.join(''); };
-  /* ---- FARM AHEAD (patch_page_farmahead 2026-09-26, user-approved; E:/RE/WC3/AdventurersPath/findings/public/audit_math/farm_ahead.md).
+  /* ---- FARM AHEAD (patch_page_farmahead 2026-09-26, user-approved; farm_ahead.md).
      A craft's part or a Legacy bag stack that drops in a zone the route passes BEFORE the craft / goal line is farmed on that first pass:
      a FARM line there + '+ your X' on the craft line. faPlan(...) -> {craft(id, w, p, nw): suffix, render}. PD.fa (acq first-pass
      check) when present, else page data (see tools/pending/patch_page_farmahead.py). FA_NEED = the route's goal lines (set by routeHtml,
@@ -952,6 +949,7 @@
         }
         if (id === RW_A && w[0] === 'c') { if (rwP.i >= 0) continue; (j < 0 ? (head[p] = head[p] || []) : (at[j] = at[j] || [])).push(`<li>${ilink(id)} <span class="small">· ${rwTxt()}</span></li>`); continue; }   // MAGIC RING: the route's 'Absolute Ring' line
         if (FZI >= 0 && (w[3] === 'z10' || /F/.test(w[10] || '') || (w[0] === 'c' && tpFireI().has(id))) && (j < 0 ? pS[p] : j) <= FZI) { FCL.push(line); continue; }   // FRODO ZONE: never before the chain
+        if (GS_RT && GS_RT.put(id, p, line)) continue;                  // GEAR STOPS: the item's line goes to the stop that brings it
         (j < 0 ? (head[p] = head[p] || []) : (at[j] = at[j] || [])).push(line);
       }
       if (useEnh) (enh[p] || '').split(',').forEach(e => { const mt = /^(\w{4})\+(\d+)(?:x(\d+))?$/.exec(e); if (!mt || !cnt[mt[1]] || (rwUp && mt[1] === RW_R)) return;
@@ -1026,7 +1024,7 @@
     return {
       head: (li, p, gb) => { if (any(p) || gb) li.push(`<li class="pl-rp pl-gh"><b>${FPN[p]} gear</b>${any(p) ? ' <span class="small">(farm while you pass)</span>' : ''}${gb ? `<div class="pl-gb">${gb}</div>` : ''}${head[p] ? `<ul class="pl-ul">${head[p].join('')}</ul>` : ''}</li>`); },
       step: (li, i) => { if (bsPre[i] && li.length) li.splice(li.length - 1, 0, ...bsPre[i]); if (at[i] && li.length) li[li.length - 1] = li[li.length - 1].replace(/<\/li>$/, `<ul class="pl-ul">${at[i].join('')}</ul></li>`); },
-      end: (li, p) => { if (end[p]) { li.push(end[p]); delete end[p]; } }, fire, rw: rwP, fcl: FCL };   // FRODO ZONE: fcl
+      end: (li, p) => { if (end[p]) { li.push(end[p]); delete end[p]; } }, fire, rw: rwP, fcl: FCL, hl: p => head[p] || [] };   // FRODO ZONE: fcl // GEAR STOPS: hl = a part's head lines
   }
   /* AUDIT minor 4: a boss behind the 4,000-gold boat (PD.boat) listed before the main-quest step that buys the boat says so */
   const BOAT = new Set(PD.boat || []), BOATSTEP = ((((W.qguide || {}).steps) || []).find(x => /Boat \(4,000 gold\)/.test(String(x.do || ''))) || {}).step;
@@ -1139,6 +1137,11 @@
       if (l > 1) t += ` <span class="small">(${sl === 1 ? `${ilink('I02I')} from Anduin's Ancient Snow Beast quest, 4 per clear` : "the Orc Warlord's Water Supplies quest, 1 level per clear"})</span>`;
       if (!prev && r && Array.isArray(r.b) && r.b[sl - 1] === null) t += ` <span class="small">· the replayed run never got to hero level ${sl === 1 ? 35 : 100}</span>`;
       t += HLV.grow(b, l, n, m, sl === 1 ? 35 : 100);   // HERO LEVEL: per-level-up books
+      const bu_ = (((W.book_ups || {})[h]) || []).filter(x => x[0] === b && x[3]);   /* BOOK UPGRADES (2026-09-26): the book also changes these skills */
+      if (!prev && bu_.length) { const up_ = bu_.filter(x => x[3] > 0), k1_ = [...new Set(up_.filter(x => x[3] < 5).map(x => x[1]))],
+          k5_ = [...new Set(up_.filter(x => x[3] >= 5).map(x => x[1]))].filter(k => !k1_.includes(k)).map(k => k + ' at Lv 5'), wk_ = [...new Set(bu_.filter(x => x[3] < 0).map(x => x[1]))];
+        if (k1_.length || k5_.length) t += ` <span class="small">(also upgrades your ${andJ([...k1_, ...k5_])})</span>`;
+        if (wk_.length) t += ` <span class="small">(weakens your ${andJ(wk_)})</span>`; }
       out.push(`<b>Universal skill</b> ${t}`); });
     return out.map(x => `<div class="small">${x}</div>`).join(''); };
   const tpSkill = (h, n, m) => { const H = HERO[h]; if (!H || typeof K.hxOrder !== 'function') return '';
@@ -1206,6 +1209,52 @@
       const stops = k === secs.length - 1 && top < 20 + c.n;
       sh.insertAdjacentHTML('beforeend', `<span class="pl-sx pl-hl" title="expected hero level (estimate, your title's EXP bonus counted)">· ${stops ? 'stops' : 'ends'} ~L${HLV.r5(HLV.at(c.n, c.m, q))}</span>`); });
     return box.innerHTML; };
+  /* ---- GEAR STOPS (patch_page_gear_stops 2026-09-26, user-approved; gear_stops.md).
+     PD.gst / PD.gsf[mode|band][hero][gear level] = [[step, why, part, ids | 0]] (scripts/pending/patch_gear_stops.py; 0 = that part's list
+     as gearOf shows it). gsStops(h, n, m, L) -> [{step, why, txt, part, gear, add, own}] for this N; K.gearStops = gsStops. In the route
+     (GS_RT, one per routeHtml): a 'Start' row (carry lines), then one 'Gear at step N · why' row right after step N (up to 4) with its gear, the
+     part's pet bag / rune / books on its first stop and where to get its NEW items (farmPlan hands its lines over: GS_RT.put) */
+  const GS_WHY = (w, S, n) => { w = String(w || 'e'); if (w === 'c') return "after Frodo's chain"; if (w === 'b') return 'after the boat';
+    if (w.slice(0, 2) === 's:') return 'new shop: ' + zname(w.slice(2));
+    const nx = (PD.rqb || []).filter(r => +r[1] > S && +r[1] <= 20 + n).sort((a, b) => a[1] - b[1])[0];
+    return nx ? 'before the ' + bname(nx[0]) : 'stock up'; };
+  const gsStops = (h, n, m, L) => { if (L == null || L < 0 || !(PD.gst || PD.gsf)) return [];
+    const bk = MK[m] + '|' + band(n), rk = n + '|' + m, far = !!(G.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]);
+    const pl = ((((G.rf && PD.rpf && PD.rpf[rk] ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[eqStep(h, n, m).k], p = pl && Array.isArray(pl[L]) ? pl[L] : null;
+    const rows = (((far && !(p && String(p[0] || '').charAt(0) === 'n') ? PD.gsf : PD.gst) || {})[bk] || {})[h]; if (!rows) return [];
+    const g = gearOf(h, n, m, L), last = 20 + n, all = [];
+    for (let part = 0; part < 3; part++) { const li = p && p[1 + part] != null && +p[1 + part] >= 0 ? +p[1 + part] : L, r = rows[li];
+      (Array.isArray(r) ? r : []).filter(x => +x[2] === part).forEach(x => { const own = Array.isArray(x[3]);
+        all.push({ step: Math.min(+x[0], last - 1), why: String(x[1] || 'e'), part, own, gear: own ? x[3].slice() : (g[FPS[part]] || []).concat(g[FPS[part] + '_b'] || []) }); }); }
+    all.sort((a, b) => a.step - b.step || a.part - b.part);
+    const out = []; all.forEach(x => { if (out.length && out[out.length - 1].step === x.step) out[out.length - 1] = x; else out.push(x); });
+    let prev = ['I1TQ']; return out.filter(x => { const c = {};   /* the Solo-Play Boots are free at step 0 */ prev.forEach(i => { c[i] = (c[i] || 0) + 1; }); x.add = x.gear.filter(i => { if (c[i] > 0) { c[i]--; return false; } return true; });
+      x.txt = GS_WHY(x.why, x.step, n); prev = x.gear; return x.add.length > 0; }); };
+  K.gearStops = gsStops;
+  let GS_RT = null;
+  const gsRoute = (h, n, m, L, steps, stop) => { const ss = gsStops(h, n, m, L); if (!ss.length) return null;
+    const endS = +(steps[stop] || {}).step, vis = ss.filter(x => x.step <= endS), bs = basicSet(h, n, m), T = FW ? (FW.k[MK[m] + '|' + band(n)] || {}) : {};
+    const firstOf = {}; vis.forEach((x, k) => { if (firstOf[x.part] == null) firstOf[x.part] = k; });
+    const lines = vis.map(() => []), got = vis.map(() => new Set()), gb = {}, R = { fpl: null };
+    const chips = ids => { const c = {}; ids.forEach(x => { c[x] = (c[x] || 0) + 1; }); const f = l => l.map(x => tfLink(x) + (c[x] > 1 ? ` x${c[x]}` : '')).join(', ');
+      const a = Object.keys(c).filter(x => !bs.has(x)), b = Object.keys(c).filter(x => bs.has(x));
+      return (a.length ? f(a) : '') + (b.length ? ` <span class="small">${a.length ? '+ ' : ''}starter: ${f(b)}</span>` : ''); };
+    const split = s => { s = s || ''; const k = s.indexOf('<div class="small">'); return k < 0 ? [s, ''] : [s.slice(0, k), s.slice(k)]; };   // [part build line, pet bag / rune / books]
+    R.put = (id, p, line) => { const k = vis.findIndex(x => x.part === p && x.add.includes(id)); if (k < 0) return false; lines[k].push(line); got[k].add(id); return true; };
+    R.head = (li, p, gbh) => { gb[p] = split(gbh);
+      if (p === 0 && firstOf[0] != null) { const hl = R.fpl && R.fpl.hl ? R.fpl.hl(0) : [];   // before the first stop: the carry lines (Giant Scythe from step 1)
+        if (hl.length) li.push(`<li class="pl-rp pl-gh pl-gs"><b>Start</b><ul class="pl-ul">${hl.join('')}</ul></li>`); }
+      else if (firstOf[p] == null) { if (R.fpl) R.fpl.head(li, p, gbh); else if (gbh) li.push(`<li class="pl-rp pl-gh"><b>${FPN[p]} gear</b><div class="pl-gb">${gbh}</div></li>`); } };
+    R.step = (li, i) => { const S = +(steps[i] || {}).step; vis.forEach((x, k) => { if (x.step !== S) return;
+      const g2 = gb[x.part] || ['', ''], first = firstOf[x.part] === k;
+      const main = !x.own && g2[0] ? g2[0] : chips(x.gear), extra = first ? g2[1] : '', hl = first && x.part > 0 && R.fpl && R.fpl.hl ? R.fpl.hl(x.part) : [];
+      const pl_ = new Set((gearOf(h, n, m, L)[FPS[x.part]] || []).concat(gearOf(h, n, m, L)[FPS[x.part] + '_b'] || []));   // farmPlan covers the part's list (and skips on purpose)
+      const cnt = {}; x.add.filter(id => !got[k].has(id) && !pl_.has(id)).forEach(id => { cnt[id] = (cnt[id] || 0) + 1; });
+      const more = Object.keys(cnt).map(id => { const wi = (T[id] || [])[x.part], w = wi != null && wi >= 0 && FW ? FW.t[wi] : null;
+        return w && w[0] !== 'k' ? `<li>${ilink(id)}${cnt[id] > 1 ? ' x' + cnt[id] : ''} <span class="small">· ${whereTxt(w, cnt[id])}</span></li>` : ''; }).join('');
+      const ul = hl.join('') + lines[k].join('') + more;
+      li.push(`<li class="pl-rp pl-gh pl-gs"><b>Gear at step ${x.step} · ${esc(x.txt)}</b><div class="pl-gb">${main}${extra}</div>${ul ? `<ul class="pl-ul">${ul}</ul>` : ''}</li>`); }); };
+    return R; };
   function routeHtml(h, n, m, bosses, stopStep, L) {                // CARDS UI: an open numbered list (quest steps + boss / upgrade steps numbered)
     const steps = (((W.qguide || {}).steps) || []).filter(x => +x.step <= 20 + n);
     const need = bosses.filter(b => b && (b.id || b.txt)).map(b => Object.assign({}, b, { zo: b.id ? ZO[bzone(b.id)] : undefined }));   // txt = a pick without a boss (bossless)
@@ -1216,13 +1265,14 @@
     need.forEach(b => { if (b.last) b.at = stop; }); need.sort((a, b) => (a.last || 0) - (b.last || 0));   // ARMOR FRAGMENT SET: town-unit kills, then the upgrade, last
     FA_NEED = need; const PQX = { seen: new Set(), n, m, h, steps, stop };            // PREREQ GATES: each step before a goal once per route
     TGR = tgRoute(h, n, m, L);                                      // TIGHT: chips on the boss steps
-    const FPL = farmPlan(h, n, m, L, steps, stop);                  // FARM PLAN (null without PD.fw: the build line alone)
+    GS_RT = gsRoute(h, n, m, L, steps, stop); const FPL = farmPlan(h, n, m, L, steps, stop); if (GS_RT) GS_RT.fpl = FPL;   // GEAR STOPS (patch_page_gear_stops 2026-09-26) // FARM PLAN (null without PD.fw: the build line alone)
     const SCR = FPL ? SC_LAST : null; if (SCR && SCR.fl && !FPL.fire.includes('I0OR')) FPL.fire.push('I0OR');   // GIANT SCYTHE CARRY
     const li = [], TPS = {}; let cur = -1; HLV.set(steps, stop);   /* HERO LEVEL */                            // TPS: what the part lines already said (TESTER PAGE FIXES)
     steps.slice(0, stop + 1).forEach((x, i) => {
       const o = ZO[x.zone] || 0, pi = o > 18 ? 2 : o > 6 ? 1 : 0;
       if (pi > cur) { if (FPL && cur >= 0) FPL.end(li, cur); cur = pi; HLV.s0 = i ? +steps[i - 1].step || 0 : 0; const gb = buildRow(h, n, m, L, pi) + tpPart(h, n, m, L, pi, TPS) + (FPL ? fsTips(pi) : '');   // FARM SPOTS: Souls farm / Gold farm rows // each part opens with its full build
-        if (FPL) FPL.head(li, pi, gb); else if (gb) li.push(`<li class="pl-rp pl-gh"><b>${['Early', 'Mid', 'Late'][pi]} gear</b> <span class="small">(farm while you pass)</span><div class="pl-gb">${gb}</div></li>`); }
+        if (GS_RT) GS_RT.head(li, pi, gb); else if (FPL) FPL.head(li, pi, gb); else if (gb) li.push(`<li class="pl-rp pl-gh"><b>${['Early', 'Mid', 'Late'][pi]} gear</b> <span class="small">(farm while you pass)</span><div class="pl-gb">${gb}</div></li>`); }
+      if (GS_RT && i) GS_RT.step(li, i - 1);                          // GEAR STOPS: the stop placed after the step before
       const dT = (+S.ml || 1) > 30 ? String(x.do).replace(' and {{i:I0Y0}} (one random item, Map Level 30 or lower)', '') : x.do;   // Beginner Bonus only up to Map Level 30
       li.push(`<li class="pl-n" data-qs="${x.step}"><span class="small">${zlH(x.zone)}</span> ·${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
       if (FPL) FPL.step(li, i);
@@ -1230,6 +1280,7 @@
       if (SCR && SCR.fc && PQX.hunt && PQX.hunt.at === i && PQX.hunt.why.length) li.push(SCR.fire());   // GIANT SCYTHE CARRY: the Flame Lord kill
       need.filter(b => b.at === i).forEach(b => li.push(...pqPre(b, PQX), `<li class="pl-rb pl-n"><b>${lbH(b.label)}</b> · ${b.id ? srcA(b.id, bname(b.id)) : b.th || esc(b.txt)}${b.zo !== undefined && bzone(b.id) !== x.zone ? ' <span class="small">(' + zlH(bzone(b.id)) + ')</span>' : ''}${b.note ? ' <span class="small">· ' + esc(b.note) + '</span>' : ''}${b.id && (PD.bnote || {})[b.id] ? ' <span class="small">· ' + esc(PD.bnote[b.id]) + '</span>' : ''}${b.id && BOAT.has(b.id) && BOATSTEP != null && +x.step < +BOATSTEP ? ' <span class="small">· ' + BOATTXT + '</span>' : ''}${b.warn ? ' <span class="small warntext">' + esc(b.warn) + '</span>' : ''}${b.id ? TGR.chip(b.id) : ''}</li>`));
     });
+    if (GS_RT) GS_RT.step(li, stop); GS_RT = null;                    // GEAR STOPS: a stop after the route's last step
     if (FPL && cur >= 0) FPL.end(li, cur);
     li.push(`<li class="pl-rp pl-stop"><b>Stop here</b> <span class="small">(${stop + 1 >= steps.length ? 'run finished' : 'the rest of the run gives you nothing you planned'})</span></li>`);
     return `<h4 class="pl-rt">Route <span class="small">${stop + 1} quest step${stop ? 's' : ''}</span></h4>${tpSkill(h, n, m)}<ol class="pl-steps">${li.join('')}</ol>`;   // AUDIT minor 3: main-quest steps only

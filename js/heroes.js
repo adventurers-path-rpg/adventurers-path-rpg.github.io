@@ -81,6 +81,11 @@
     const line = [R ? nm(R) : '', ...G.map(g => g.a.map(nm).join(' <span title="same value, any order">=</span> '))].filter(Boolean).join(' › ');
     return row(line, fx.join(' · '));
   };
+  /* BOOK UPGRADES (2026-09-26, tools/pending/patch_page_book_upgrades.py): the skills a universal book changes (map values), one line
+     per skill, the book first; the same line from several books is grouped; lines without a book = a skill rule (Gnoll's R) */
+  const hxBook = id => { const L = (W.book_ups || {})[id] || []; if (!L.length) return '';
+    const G = []; for (const x of L) { const g = G.find(y => y[1] === x[2]); if (g) { if (x[0] && !g[0].includes(x[0])) g[0].push(x[0]); } else G.push([x[0] ? [x[0]] : [], x[2]]); }
+    return `<b>Skill upgrades</b><span>${G.map(([bs, t]) => `<div>${bs.length ? bs.map(K.ilink).join(', ') + ' › ' : ''}${esc(t)}</div>`).join('')}</span>`; };
   K.hxOrder = hxOrder;   /* TESTER PAGE FIXES (2026-09-25): the Run planner shows the same skill priority line */
   const hxLeg = leg => { const LL = {}; for (const l of ((W.legacy || {}).lines || [])) LL[l.root.id] = l;
     return leg.map(([r, s]) => { const l = LL[r] || { name: r, steps: [] }, st = (l.steps || []).find(x => x.id === s) || {};
@@ -159,6 +164,7 @@
           return `<div class="card guide"><h4 style="margin-top:0">Build guide</h4><div class="row2">`
             + (hxStats(g).length ? `<b>Stat priority</b><span>${hxStats(g).map(x => esc(x[0])).join(' › ')}</span>` : '')
             + hxOrder(h, gk)
+            + hxBook(h.id)
             + ['early', 'mid', 'late'].map(row).join('')
             + (leg.length ? `<b>Legacy goals</b><span>${hxLeg(leg)}</span>` : '')
             + (() => { const b = K.plan && K.plan.best6 ? K.plan.best6(h.id, gk) : null;   // LEGACY BAG (patch_legacy_bag): your save's strongest 6 by this hero's stat weights
