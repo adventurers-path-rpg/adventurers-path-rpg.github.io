@@ -140,6 +140,7 @@
         'The Curse Blade + Refined Sword refund takes both swords back. -qc now really clears ground loot (Player Red only).',
       ]],
       ['Calculators', [
+        'Run planner: the free Solo-Play Boots are always listed with the start gifts, also when the build wears stronger boots.',
         'Run planner: Mid and Late gear lines say what each new item replaces, with a Swaps row per part (sell, drop or pet bag).',
         'Run planner: Frodo’s quest chain now sits where your route reaches the last hunt boss (Centaur Khan), and Firelands steps come after it.',
         'Run planner: optional farm-rate selector for Boss Souls and gold per minute (runs and plans are unchanged).',

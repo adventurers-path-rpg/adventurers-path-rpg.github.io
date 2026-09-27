@@ -1126,7 +1126,8 @@
       const na = Object.keys(ad).length, nr = Object.keys(rm).length;
       pet = (na ? 'add ' + pl(ad) : '') + (nr ? (na ? ` <span class="small">in place of ${pl(rm)}</span>` : 'take out ' + pl(rm)) : ''); }
     TPS.pk = key; TPS.pc = pc;
-    const ex = p === 0 ? [ml >= 23 ? bpFree('pb', n, 'one random Level-7 item (Player Bonus, solo, Map Level 23+)') : '',   // BONUS PICK: your picks by name
+    const ex = p === 0 ? [`${ilink('I1TQ')} (Player Bonus, solo lobby)`,   /* SOLO BOOTS (user 2026-09-27): always named, even when the build wears stronger boots */
+      ml >= 23 ? bpFree('pb', n, 'one random Level-7 item (Player Bonus, solo, Map Level 23+)') : '',   // BONUS PICK: your picks by name
       ml >= 120 ? bpFree('m7', n, 'one random Level-7 item (Map Level 120 reward)') : '', ml <= 30 ? bpFree('bb', n, `one random ${tpBeg(n)} (Beginner Bonus)`) : ''].filter(Boolean) : [];
     if (pet || ex.length) out.push(`<b>Pet bag</b> ${pet}${ex.length ? ` <span class="small pl-pfx">· also free at the start: ${andJ(ex)}</span>` : ''}`);
     const ad = (((((W.addons || {})[h] || {})[gk]) || {})[st]) || [], rn = ad[0];
