@@ -140,6 +140,7 @@
         'The Curse Blade + Refined Sword refund takes both swords back. -qc now really clears ground loot (Player Red only).',
       ]],
       ['Calculators', [
+        'Run planner: Key item line for heroes with a signature item (e.g. Blademaster: Heart Sword), and each part shows the hero level it ends at.',
         'Run planner: the free Solo-Play Boots are always listed with the start gifts, also when the build wears stronger boots.',
         'Run planner: Mid and Late gear lines say what each new item replaces, with a Swaps row per part (sell, drop or pet bag).',
         'Run planner: Frodo’s quest chain now sits where your route reaches the last hunt boss (Centaur Khan), and Firelands steps come after it.',

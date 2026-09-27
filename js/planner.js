@@ -1138,6 +1138,7 @@
       let t = prev ? `${ilink(b)} to Lv ${l}` : `learn ${ilink(b)} at hero level ${sl === 1 ? 35 : 100} <span class="small">(free at ${tpTrainer(b)})</span>${l > 1 ? ', Lv ' + l : ''}`;
       if (l > 1) t += ` <span class="small">(${sl === 1 ? `${ilink('I02I')} from Anduin's Ancient Snow Beast quest, 4 per clear` : "the Orc Warlord's Water Supplies quest, 1 level per clear"})</span>`;
       if (!prev && r && Array.isArray(r.b) && r.b[sl - 1] === null) t += ` <span class="small">· the replayed run never got to hero level ${sl === 1 ? 35 : 100}</span>`;
+      t += HLV.grow(b, l, n, m, sl === 1 ? 35 : 100);   // HERO LEVEL: per-level-up books
       out.push(`<b>Universal skill</b> ${t}`); });
     return out.map(x => `<div class="small">${x}</div>`).join(''); };
   const tpSkill = (h, n, m) => { const H = HERO[h]; if (!H || typeof K.hxOrder !== 'function') return '';
@@ -1175,6 +1176,36 @@
     li.push(`<li class="pl-rb pl-n"><b>Frodo's Boss Hunt</b> · opens the ${zlH('z10')}, needed for ${andJ(why)}`
       + `<div class="small">Kill in this order from now on: ${TP_HUNT.map(b => srcA(b, bname(b))).join(' › ')}. Kills before this step or out of order do not count, each boss comes back 90 s after a kill.`
       + `${notes.length ? ' ' + notes.join('. ') + '.' : ''} Then back to Frodo for the <a href="#item/I03C">${K.icon('I03C')}Firelands Transfer Scroll</a>, kill the ${srcA('O003', bname('O003'))} in the ${zlH('z10')} and go back to Frodo: ${ilink('I03L')} for every player.</div></li>`); };
+  /* ---- HERO LEVEL (patch_page_hero_level 2026-09-27, user request): the expected hero level per run part. No replay field carries hero
+     levels, so the model's stage-end levels (tier_calc hero_lv): SIM_LV at quest step 12 / 20 / 20 + N, x SIM_MX for Challenge / Death
+     (cap 500), x sqrt((1 + 0.25 x your title) / (1 + 0.25 x the band's reference title 0 / 1 / 2)); linear between the stage ends (level 1
+     at step 0), shown rounded to 5. Part headers: 'ends ~L<level>' at the part's last quest step, 'stops ~L<level>' for the last part of a
+     run that stops before step 20 + N. Books that grow per level-up ('Each hero level-up:... permanent': Self Growth, Life Shield, Unstable
+     Evolution) get '~N level-ups left ≈ +X' from the learn level (or the part's start) to the run's end, at the book level on that line */
+  const HLV = { SIM: { 'N1-3': [30, 64, 100], 'N4-6': [31, 53, 114], 'N7-9': [25, 93, 123] }, MX: [32 / 31, 76 / 53, 202 / 114], REF: { 'N1-3': 0, 'N4-6': 1, 'N7-9': 2 }, end: 0, s0: 0 };
+  HLV.stage = (n, m, j) => { const b = band(n), v = HLV.SIM[b][j] * (m === 'c' || m === 'd' ? HLV.MX[j] : 1);
+    return Math.min(500, v * Math.sqrt((1 + 0.25 * (+S.rank || 0)) / (1 + 0.25 * HLV.REF[b]))); };
+  HLV.at = (n, m, qs) => { const X = [0, 12, 20, 20 + n], Y = [1, HLV.stage(n, m, 0), HLV.stage(n, m, 1), HLV.stage(n, m, 2)]; qs = Math.max(0, Math.min(20 + n, +qs || 0));
+    for (let k = 1; k < 4; k++) if (qs <= X[k]) return Y[k - 1] + (Y[k] - Y[k - 1]) * (qs - X[k - 1]) / (X[k] - X[k - 1]);
+    return Y[3]; };
+  HLV.r5 = v => Math.max(1, Math.round(v / 5) * 5);
+  HLV.set = (steps, stop) => { HLV.end = +((steps[stop] || {}).step) || 0; HLV.s0 = 0; };
+  HLV.grow = (b, l, n, m, learn) => { const t = String(((K.item || {})[b] || {}).stats || '');
+    const g = /Each hero level-up: \+(\d+) to (\d+) base (.+?), permanent/i.exec(t), c = g ? null : /Each hero level-up: (\d+) to (\d+)% chance for \+(\d+(?:\.\d+)?)% (.+?), permanent/i.exec(t);
+    if (!g && !c) return ''; const L = Math.max(1, Math.min(5, +l || 1)), e = HLV.at(n, m, HLV.end), N = Math.round(e) - Math.round(Math.max(learn, HLV.at(n, m, HLV.s0)));
+    if (N <= 0) return ` <span class="small">· no level-ups left on this run (ends ~L${HLV.r5(e)})</span>`;
+    const q = (lo, hi) => +lo + (+hi - +lo) * (L - 1) / 4;
+    const x = g ? `+${fmt(Math.round(N * q(g[1], g[2])))} base ${/strength, agility and intelligence/i.test(g[3]) ? 'all stats' : esc(g[3])}` : `+${fmt(Math.round(N * q(c[1], c[2]) / 100 * +c[3]))}% ${esc(c[4])} on average`;
+    return ` <span class="small">· ~${N} level-ups left ≈ ${x}</span>`; };
+  const hlIns = (c, html) => { if (!DCL_ON || !html || !c || !c.n || !c.m) return html; const box = DCL.box(html), f = box.querySelector('.pl-focus'), ol = f && f.querySelector('ol.pl-steps'); if (!ol) return html;
+    const secs = []; let cur = null, top = -1;
+    for (const li of ol.children) { if (li.tagName !== 'LI') continue; if (li.classList.contains('pl-sec')) { cur = { li, q: null }; secs.push(cur); continue; }
+      const q = li.dataset.qs; if (q == null || q === '' || !isFinite(+q)) continue; top = Math.max(top, +q); if (cur) cur.q = Math.max(cur.q == null ? -1 : cur.q, +q); }
+    if (!secs.length || top < 0) return html; let prev = 0;
+    secs.forEach((s, k) => { const q = s.q == null ? prev : s.q, sh = s.li.querySelector('.pl-sh'); prev = q; if (!sh) return;
+      const stops = k === secs.length - 1 && top < 20 + c.n;
+      sh.insertAdjacentHTML('beforeend', `<span class="pl-sx pl-hl" title="expected hero level (estimate, your title's EXP bonus counted)">· ${stops ? 'stops' : 'ends'} ~L${HLV.r5(HLV.at(c.n, c.m, q))}</span>`); });
+    return box.innerHTML; };
   function routeHtml(h, n, m, bosses, stopStep, L) {                // CARDS UI: an open numbered list (quest steps + boss / upgrade steps numbered)
     const steps = (((W.qguide || {}).steps) || []).filter(x => +x.step <= 20 + n);
     const need = bosses.filter(b => b && (b.id || b.txt)).map(b => Object.assign({}, b, { zo: b.id ? ZO[bzone(b.id)] : undefined }));   // txt = a pick without a boss (bossless)
@@ -1187,10 +1218,10 @@
     TGR = tgRoute(h, n, m, L);                                      // TIGHT: chips on the boss steps
     const FPL = farmPlan(h, n, m, L, steps, stop);                  // FARM PLAN (null without PD.fw: the build line alone)
     const SCR = FPL ? SC_LAST : null; if (SCR && SCR.fl && !FPL.fire.includes('I0OR')) FPL.fire.push('I0OR');   // GIANT SCYTHE CARRY
-    const li = [], TPS = {}; let cur = -1;                            // TPS: what the part lines already said (TESTER PAGE FIXES)
+    const li = [], TPS = {}; let cur = -1; HLV.set(steps, stop);   /* HERO LEVEL */                            // TPS: what the part lines already said (TESTER PAGE FIXES)
     steps.slice(0, stop + 1).forEach((x, i) => {
       const o = ZO[x.zone] || 0, pi = o > 18 ? 2 : o > 6 ? 1 : 0;
-      if (pi > cur) { if (FPL && cur >= 0) FPL.end(li, cur); cur = pi; const gb = buildRow(h, n, m, L, pi) + tpPart(h, n, m, L, pi, TPS) + (FPL ? fsTips(pi) : '');   // FARM SPOTS: Souls farm / Gold farm rows // each part opens with its full build
+      if (pi > cur) { if (FPL && cur >= 0) FPL.end(li, cur); cur = pi; HLV.s0 = i ? +steps[i - 1].step || 0 : 0; const gb = buildRow(h, n, m, L, pi) + tpPart(h, n, m, L, pi, TPS) + (FPL ? fsTips(pi) : '');   // FARM SPOTS: Souls farm / Gold farm rows // each part opens with its full build
         if (FPL) FPL.head(li, pi, gb); else if (gb) li.push(`<li class="pl-rp pl-gh"><b>${['Early', 'Mid', 'Late'][pi]} gear</b> <span class="small">(farm while you pass)</span><div class="pl-gb">${gb}</div></li>`); }
       const dT = (+S.ml || 1) > 30 ? String(x.do).replace(' and {{i:I0Y0}} (one random item, Map Level 30 or lower)', '') : x.do;   // Beginner Bonus only up to Map Level 30
       li.push(`<li class="pl-n" data-qs="${x.step}"><span class="small">${zlH(x.zone)}</span> ·${K.tok ? K.tok(dT) : tmpl(dT)}${TGR.step(x.do)}</li>`);
@@ -2406,7 +2437,66 @@
   });
   if (DCL_ON) document.addEventListener('click', e => { if (e.target.closest && e.target.closest('details.pl-bpk')) return;   // a tap outside closes an open picker
     document.querySelectorAll('details.pl-bpk[open]').forEach(o => { o.open = false; }); });
-  const focusHtml = (c, k, tot, body) => clTk(gswIns(c, bpIns(c, dclCard(focusHtml0(c, k, tot, body)))), c);   // CLARITY: the tick key; BONUS PICK row; GEAR SWAPS
+  /* ---- KEY ITEM (patch_page_key_item 2026-09-27, user-approved): a hero's signature item = an item whose stats / effect text says
+     '<hero name> only' (also 'A or B only'); sealed steps ('(Sealed)', 'after unsealing') and Points / World Points-only items left out.
+     Several: the one the card's gear lists wear (Late first), else the strongest by bpVal among the ones this N band can make, else the
+     first. One 'Key item' row in 'Before you start': the item · where it comes from (skipped when the route gets it) · when ('in your
+     <part> gear (step N)', 'start item', 'not on this run: <part> craft', 'from <part> on', 'not in N1-3 runs: from N7-9'). No row without one */
+  const KI = { m: null, BADK: new Set(['points', 'world_points']) };
+  KI.init = () => { if (KI.m) return KI.m; const m = KI.m = {}, hs = (W.heroes || []).filter(h => h && h.id && h.name).sort((a, b) => b.name.length - a.name.length);
+    if (!hs.length) return m; const ex = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), alt = hs.map(h => ex(h.name)).join('|'), byN = {}; hs.forEach(h => { byN[h.name] = h.id; });
+    const re = new RegExp("(?<![A-Za-z'\u2019])(" + alt + ")(?=(?: or (?:" + alt + "))* only\\b)", 'g');
+    (W.items || []).forEach(x => { const t = `${x.stats || ''} | ${x.effect || ''}`; if (/\(Sealed\)\s*$/.test(x.name || '') || /after unsealing/i.test(t)) return;
+      const src = x.sources || []; if (src.length && src.every(s => KI.BADK.has(String(s.kind || '').toLowerCase()))) return;
+      const seen = new Set(); let r; re.lastIndex = 0;
+      while ((r = re.exec(t))) { const h = byN[r[1]]; if (h && !seen.has(h)) { seen.add(h); (m[h] = m[h] || []).push(x.id); } } });
+    return m; };
+  KI.bi = n => n <= 3 ? 0 : n <= 6 ? 1 : 2;
+  KI.acq = (id, n) => ((W.acq || {})[id] || [])[KI.bi(n)] || null;
+  KI.part = (id, n) => { const a = KI.acq(id, n); return a && +a[0] >= 0 && +a[0] <= 2 ? +a[0] : -1; };   // the run part the model makes it in at this band, -1 none
+  KI.bandOk = (id, n) => { if (KI.part(id, n) >= 0) return true; if (KI.acq(id, n)) return false; const av = (W.avail || {})[id];
+    return !av || ['N1-3', 'N4-6', 'N7-9'].indexOf(av[0]) <= KI.bi(n); };
+  KI.pick = (c, x) => { const ids = (KI.init()[c.h] || []).filter(id => K.item[id]); if (ids.length < 2) return ids[0] || null;
+    for (let j = 2; j >= 0; j--) { const l = bpList(x, j), hit = ids.find(id => l.includes(id)); if (hit) return hit; }
+    const ok = ids.filter(id => KI.bandOk(id, c.n)), pool = ok.length ? ok : ids; let best = null, bv = -Infinity;
+    pool.forEach(id => { const v = bpVal(c.h, x.gk, id); if (v != null && isFinite(v) && v > bv) { bv = v; best = id; } });
+    return best || pool[0]; };
+  /* where from: the wiki's short availability text, plus the model's farm spots at this band; names linked */
+  KI.src = (id, n) => { const it = K.item[id] || {}, av = (W.avail || {})[id], a = KI.acq(id, n);
+    let t = av && av[2] ? String(av[2]) : String(((it.sources || [])[0] || {}).note || ''); if (!t) return '';
+    const fm = a && +a[0] <= 2 ? String(a[2] || '').replace(/^craft \+ /, '').trim() : '';
+    return HLN.str(t) + (fm && !t.includes(fm) ? ` · farm ${HLN.str(fm)}` : ''); };
+  KI.row = (f, c) => { const x = bpCtx(c), id = KI.pick(c, x); if (!id) return '';
+    const it = K.item[id] || {}, srcs = it.sources || [], kit = srcs.some(s => /hero kit/i.test(s.kind || '')), craft = srcs.some(s => s.kind === 'craft');
+    const nm = iname(id), alts = [id].concat((W.items || []).filter(y => y.name === nm + ' (Sealed)').map(y => y.id), srcs.filter(s => s.kind === 'evolves' && s.from && s.from.id).map(s => s.from.id));
+    const enc = i => `a[href="#item/${encodeURIComponent(i)}"]`, sel = s => alts.map(i => `${s} ${enc(i)}`).join(', '), ol = f.querySelector('ol.pl-steps');
+    let bd = null, gj = -1, j = -1;
+    if (ol) for (const li of ol.children) { if (li.tagName !== 'LI') continue;
+      if (li.classList.contains('pl-sec')) { const t = DCL.txt(li.querySelector('.pl-snm')).toLowerCase(), k = FPN.findIndex(p => t.startsWith(p.toLowerCase())); if (k >= 0) j = k;
+        if (gj < 0 && li.querySelector(sel('.pl-gr[data-row="gear"] .pl-gc:not(.pl-gc-off)'))) gj = j;
+        if (!bd && li.querySelector(sel('.pl-gr[data-row="first"] .pl-bd'))) bd = { j, first: 1, n: '' }; continue; }   // the part's 'Get first' row
+      if (bd && bd.first && !bd.n && li.dataset.n) bd.n = li.dataset.n;
+      if (!bd && li.dataset.n && li.querySelector(sel('.pl-bd'))) bd = { n: li.dataset.n, j }; }
+    const P = k => FPN[k] || 'Late', aj = KI.part(id, c.n), av = (W.avail || {})[id] || [];
+    let when;
+    if (kit) when = 'start item';
+    else if (bd) when = `in your ${P(gj >= 0 ? gj : bd.j)} gear ${bd.first ? `(get it first${bd.n ? `, before step ${bd.n}` : ''})` : `(step ${bd.n})`}`;
+    else if (gj >= 0) when = `in your ${P(gj)} gear`;
+    else if (aj >= 0) when = `not on this run: ${craft ? P(aj) + ' craft' : 'from ' + P(aj) + ' on'}`;
+    else if (!KI.bandOk(id, c.n) && av[0]) when = `not in ${band(c.n)} runs: from ${esc(av[0])}`;
+    else when = 'not on this run';
+    const src = bd || kit ? '' : KI.src(id, c.n);
+    return `${ilink(id)}${src ? ` <span class="small">· ${src}</span>` : ''} · ${when}`; };
+  const kiIns = (c, html) => { if (!DCL_ON || !html || !c || !c.h || !(KI.init()[c.h] || []).length) return html;
+    const box = DCL.box(html), f = box.querySelector('.pl-focus'); if (!f) return html;
+    let row = ''; try { row = KI.row(f, c); } catch (e) { if (typeof console !== 'undefined') console.warn('key item', e); row = ''; } if (!row) return html;
+    let g = f.querySelector('.pl-bys .pl-byg');
+    if (!g) { const d = document.createElement('div'); d.className = 'pl-bys pl-byc'; d.innerHTML = '<b class="pl-bt">Before you start</b><div class="pl-byg"></div>';
+      const a = f.querySelector(':scope > .pl-fw') || f.querySelector(':scope > .pl-fh'); f.insertBefore(d, a ? a.nextSibling : f.firstChild); g = d.querySelector('.pl-byg'); }
+    const r = document.createElement('div'); r.className = 'pl-byr pl-kir'; r.innerHTML = `<span class="pl-byl">Key item</span><div class="pl-byv">${row}</div>`;
+    g.insertBefore(r, g.querySelector(':scope > .pl-bpr'));   // before the Bonus item row, else last
+    return box.innerHTML; };
+  const focusHtml = (c, k, tot, body) => clTk(hlIns(c, kiIns(c, gswIns(c, bpIns(c, dclCard(focusHtml0(c, k, tot, body)))))), c);   // CLARITY: the tick key; BONUS PICK row; GEAR SWAPS; KEY ITEM; HERO LEVEL
   const focusHtml0 = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
     return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs' : `Run ${k + 1} of ${tot}`}</span></div>` + (FO ? gearSw() : '')   // GEAR LEVEL IN THE CARD
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
