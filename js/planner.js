@@ -6,6 +6,7 @@
 (function (K) {
   const { W, P, INDEX, esc, fmt, subtabs, ilink } = K;
   const PD = W.plan; if (!PD) return;
+  if (PD.abfT && !PD.abfU) { const T = PD.abfT; Object.values(PD.abf || {}).forEach(v => Object.values(v || {}).forEach(r => { if (r) Object.keys(r).forEach(k => { if (Array.isArray(r[k])) r[k] = r[k].map(x => typeof x === 'number' ? T[x] : x); }); })); PD.abfU = 1; }   // ABF PACK (build.py 2026-09-27): unpack the after-run fights string table
   const HIDX = {}; PD.heroes.forEach((h, i) => HIDX[h] = i);
   const HERO = {}; (W.heroes || []).forEach(h => HERO[h.id] = h);
   const LINES = (W.legacy || {}).lines || [];
