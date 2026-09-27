@@ -2068,7 +2068,7 @@
       gb.querySelectorAll(':scope > span.small').forEach(s => { if (/may not fit|too long to farm/.test(s.textContent)) { s.querySelectorAll('a[href^="#item/"]').forEach(a => slow.add(a.getAttribute('href'))); slowH = s.innerHTML.replace(/^\s*·\s*[^:<]*:\s*/, ''); } });
       const walk = (root, st) => [...root.childNodes].forEach(n => { if (n.nodeType !== 1) return;
         if (n.matches('a[href^="#item/"]')) { const nx = n.nextSibling, m = nx && nx.nodeType === 3 ? /^\s*x(\d+)/.exec(nx.nodeValue) : null; chips.push(clChip(n.outerHTML, m ? +m[1] : 1, st, slow.has(n.getAttribute('href')))); }
-        else if (n.matches('span.small') && /^\s*\+ starter:/.test(n.textContent)) walk(n, true); });
+        else if (n.matches('span.small') && /^\s*(\+ )?starter:/.test(n.textContent)) walk(n, true); });   /* STARTER-ONLY GEAR ROW (patch_page_gearstops_fallback 2026-09-28): a build of basic items only ('starter:...', no '+ ') keeps its Gear row */
       walk(gb, false);
       if (chips.length) G.push(['Gear', chips.join('') + (slowH ? `<div class="pl-bm">may take too long to farm: ${slowH}</div>` : ''), 'gear']);
       const sk = [];
