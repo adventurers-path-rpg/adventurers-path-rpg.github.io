@@ -1130,12 +1130,16 @@
       const na = Object.keys(ad).length, nr = Object.keys(rm).length;
       pet = (na ? 'add ' + pl(ad) : '') + (nr ? (na ? ` <span class="small">in place of ${pl(rm)}</span>` : 'take out ' + pl(rm)) : ''); }
     TPS.pk = key; TPS.pc = pc;
+    const SI_GAP = new Set(['I0M0', 'I0M2', 'I1G0']);   /* START ITEMS (patch_page_start_items_planner 2026-09-28): kit items with no gear chip of their own (findings gap_planner list) */
+    const siKit = p === 0 ? ((HERO[h] || {}).kit_items || []).filter(x => x && SI_GAP.has(x.id)).map(x => `${ilink(x.id)} (you start with it)`) : [];
     const ex = p === 0 ? [`${ilink('I1TQ')} (Player Bonus, solo lobby)`,   /* SOLO BOOTS (user 2026-09-27): always named, even when the build wears stronger boots */
+      ...siKit,
       ml >= 23 ? bpFree('pb', n, 'one random Level-7 item (Player Bonus, solo, Map Level 23+)') : '',   // BONUS PICK: your picks by name
       ml >= 120 ? bpFree('m7', n, 'one random Level-7 item (Map Level 120 reward)') : '', ml <= 30 ? bpFree('bb', n, `one random ${tpBeg(n)} (Beginner Bonus)`) : ''].filter(Boolean) : [];
     if (pet || ex.length) out.push(`<b>Pet bag</b> ${pet}${ex.length ? ` <span class="small pl-pfx">· also free at the start: ${andJ(ex)}</span>` : ''}`);
-    const ad = (((((W.addons || {})[h] || {})[gk]) || {})[st]) || [], rn = ad[0];
-    if (rn && rn !== TPS.rune) { TPS.rune = rn; const s2 = tpSrc(rn);
+    const kitRune = (W.start_rune_kit || {})[h];   /* START ITEMS: the free kit rune always wins over the model's farmed-rune pick */
+    const ad = (((((W.addons || {})[h] || {})[gk]) || {})[st]) || [], rn = kitRune || ad[0];
+    if (rn && rn !== TPS.rune) { TPS.rune = rn; const s2 = kitRune ? 'you start with it - keep it' : tpSrc(rn);
       out.push(`<b>Rune</b> ${ilink(rn)}${s2 ? ` <span class="small">(${s2})</span>` : ''}${r && r.r && !r.r[0] ? ' <span class="small">· the replayed run never got a rune: a bonus if it drops</span>' : ''}`); }
     const lv = ((((PD.bkl || {})[bk] || {})[h] || [])[p]) || null;
     [1, 2].forEach(sl => { const b = ad[sl]; if (!b) return; const l = lv ? +lv[sl - 1] || 0 : 1, k = 'b' + sl, prev = TPS[k] || 0; if (l <= prev) return; TPS[k] = l;

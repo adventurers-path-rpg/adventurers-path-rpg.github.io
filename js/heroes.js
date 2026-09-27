@@ -3,6 +3,12 @@
   const { W, P, INDEX, esc, fmt, ilink, item, link, subtabs } = K;
   const HS = W.heroes || []; const byId = Object.fromEntries(HS.map(h => [h.id, h]));
   const kit = h => (h.kit_items || []).filter(i => i && i.id).map(i => item[i.id] ? ilink(i.id) : esc(i.name)).join(', ');
+  /* ---- START ITEMS (patch_page_start_items 2026-09-28): kit_items[].blurb (build.py START_BLURB) + W.start_rune_kit (hero id -> its free Rune item id) turn the bare item link
+     into 'link - what it does', and mark the free Rune 'keep it' (user decision: never suggest swapping it for a farmed rune). */
+  const RUNE_KIT = W.start_rune_kit || {};
+  const kitFull = h => (h.kit_items || []).filter(i => i && i.id).map(i => { const lk = item[i.id] ? ilink(i.id) : esc(i.name);
+    const isRune = RUNE_KIT[h.id] === i.id, kp = isRune ? ' <span class="small">(keep it)</span>' : '';
+    return i.blurb ? `${lk}${kp} <span class="small">· ${esc(i.blurb)}</span>` : `${lk}${kp}`; }).join('; ');
   const preview = t => { const s = String(t || '').split(/(?<=[.!])\s/)[0]; return s.length > 110 ? s.slice(0, 107) + '...' : s; };
   /* hero levels to learn a skill: an even ladder (1, 3, 5... 19) prints as "1, 3 … 19" */
   const lv = a => { if (!Array.isArray(a)) return esc(a || ''); const d = a[1] - a[0];
@@ -126,7 +132,7 @@
     const sk = h.skills || [];
     const t0 = tierOf(h.id), key = t0.key.split('|');
     const bare = h.trait && !/:/.test(h.trait) && kit(h);   // ux2: trait name only = the starting item's bonus
-    const facts = [unlockOf(h) !== 'Open' ? ['Unlock', esc(h.gate)] : null, bare ? ['Trait', `${esc(h.trait)} <span class="small">· starts with</span> ${kit(h)}`] : h.trait ? ['Trait', esc(h.trait)] : null, kit(h) && !bare ? ['Starts with', kit(h)] : null, h.note ? ['Item bonus', noteHtml(h.note)] : null].filter(Boolean);
+    const facts = [unlockOf(h) !== 'Open' ? ['Unlock', esc(h.gate)] : null, bare ? ['Trait', `${esc(h.trait)} <span class="small">· starts with</span> ${kitFull(h)}`] : h.trait ? ['Trait', esc(h.trait)] : null, kit(h) && !bare ? ['Starts with', kitFull(h)] : null, h.note ? ['Item bonus', noteHtml(h.note)] : null].filter(Boolean);
     /* one header card: icon, name, stat + tavern, tier badge at the picked difficulty + mode (links to the Tier tab), then only the facts this hero has */
     const head = `<div class="card hi hr-head" data-st="${String(h.main_stat || '').toLowerCase()}"><div class="hr-top">${K.icon(h.id).replace('class="ico', 'class="ico big')}<div class="hr-id"><h2>${esc(h.name)}</h2><div class="small">${esc(h.main_stat)} hero · ${esc(h.tavern)} tavern</div>${hxKey(h.id, key[1])}</div>`
       + (t0.t ? `<a class="hr-tier" href="#tier" title="Tier list">${TL(t0.t)}<span class="small">${MODE[key[0]]} ${key[1]}</span></a>` : '') + '</div>'
@@ -159,7 +165,8 @@
             const html = G.map(([x, n]) => `<span class="gi${KEY.has(x[0]) ? ' gk' : ''}" title="${esc(KEY.has(x[0]) ? ['Key item: its hero bonus makes boss kills ' + (KI.find(k => k[0] === x[0]) || [])[1] + 'x faster', why(x) ? 'its stats: ' + why(x) : ''].filter(Boolean).join('; ') : why(x))}">${K.ilink(x[0])}${x[5] ? ` <span class="small">+${x[5]}</span>` : ''}${n > 1 ? ` <span class="small">x${n}</span>` : ''}${seen.has(x[0]) ? ' <span class="small">keep</span>' : ''}${x[1] === 'h' ? ' <span class="small">hard</span>' : x[1] === 'v' ? ' <span class="small">very hard</span>' : ''}${x[1] === 'b' ? ' <span class="small">basic</span>' : ''}</span>`).join(', ');
             L.forEach(x => seen.add(x[0]));
             const ad = ((((W.addons || {})[h.id] || {})[gk]) || {})[st] || [];
-            const adh = ad.some(Boolean) ? `<span class="gi-ad small">${ad[0] ? 'Rune: ' + K.ilink(ad[0]) : ''}${ad[1] ? (ad[0] ? ' · ' : '') + 'Universal: ' + ad.slice(1).filter(Boolean).map(K.ilink).join(', ') : ''}</span>` : '';
+            const kitRune = RUNE_KIT[h.id];   /* START ITEMS: the free kit rune always wins over the model's farmed-rune pick */
+            const adh = (kitRune || ad.some(Boolean)) ? `<span class="gi-ad small">${kitRune ? 'Rune: ' + K.ilink(kitRune) + ' <span class="small">(you start with it - keep it)</span>' : (ad[0] ? 'Rune: ' + K.ilink(ad[0]) : '')}${ad[1] ? (ad[0] || kitRune ? ' · ' : '') + 'Universal: ' + ad.slice(1).filter(Boolean).map(K.ilink).join(', ') : ''}</span>` : '';
             return `<b>${{ early: 'Early', mid: 'Mid', late: 'Late' }[st]}${where ? `<span class="small gw">${where}</span>` : ''}</b><span>${html}${petLine(st)}${adh}</span>`; };
           return `<div class="card guide"><h4 style="margin-top:0">Build guide</h4><div class="row2">`
             + (hxStats(g).length ? `<b>Stat priority</b><span>${hxStats(g).map(x => esc(x[0])).join(' › ')}</span>` : '')

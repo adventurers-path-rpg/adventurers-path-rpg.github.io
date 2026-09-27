@@ -132,6 +132,7 @@
   const CHANGES = [
     ['28 Sep 2026', [
       ['Calculators', [
+        'Heroes and Run planner: heroes that start with a free item (e.g. Mana Mage’s Evil Jaina rune) now show it with what it does, and the guide no longer tells you to swap a free rune for a farmed one.',
         'Run planner: click a hero under "Also works with" to see the same run planned for that hero, or try any hero you own on it (with warnings where that hero is not expected to win).',
       ]],
     ]],
