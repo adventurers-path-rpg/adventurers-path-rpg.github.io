@@ -465,7 +465,8 @@
      where the replay did not farm its own level's lists ('r' a replanned farm stop, 'e' it kept the lighter level's run): per part the gear
      level whose list it farmed. PD.rplf = the same for the rare-drop farmer rows; fix 'n..' = that farmer row is the normal run (PD.bb
      lists, not PD.bbf). Account step = eqStep (the step every goal replays) */
-  const gearOf = (h, n, m, L) => { const bk = MK[m] + '|' + band(n), rk = n + '|' + m, bs = basicSet(h, n, m);
+  let HS_GF = null;   // HERO SWAP (patch_page_hero_swap 2026-09-28): a forced hero without gear data shows the original hero's lists
+  const gearOf = (h, n, m, L) => { if (HS_GF && h === HS_GF.h) h = HS_GF.o; const bk = MK[m] + '|' + band(n), rk = n + '|' + m, bs = basicSet(h, n, m);
     const far = !!(G.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]), pl = ((((G.rf && PD.rpf && PD.rpf[rk] ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[eqStep(h, n, m).k];
     const p = pl && Array.isArray(pl[L]) ? pl[L] : null, bsrc = far && !(p && String(p[0] || '').charAt(0) === 'n') ? PD.bbf : PD.bb;
     const g = (((W.best_items || {})[h] || {})[band(n) + '|' + MK[m]]) || {};
@@ -2627,14 +2628,115 @@
       if (!c) return mc ? focusHtml(mc, k, R.cards.length, `<p class="small pl-note">This run does not finish with this gear level.</p>`) : '';
       if (c.wh) c.what = c.wh(null); else if (c.ids) c.what = `<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids)}`;
       c.tags.unshift(needTag({ gl: FO.need, rf: FO.nrf }));
+      if (HS_CAP) return HS_CAP(c, k, R, RL);   // HERO SWAP: a forced hero re-renders this run record
       return focusHtml(c, k, R.cards.length, RL.focus(c)); }); }
+  /* ---- HERO SWAP (patch_page_hero_swap 2026-09-28, user request). Inside the open run card: 'Also works with' heroes and the 'Try with
+     another hero' picker switch THIS card (same N, mode, goal). A hero with its own computed run in any gear-level list (hsOwn) -> FO.k points
+     at 'goal|hero|N|mode' and focusOut renders that run as if it had been the pick. Else FORCED (hsForced via HS_CAP in focusOut): the same run
+     record re-rendered for that hero (its account step, replay cell, gear level, skills, hero level, key item, gear lists; HS_GF = the original
+     hero's gear lists when that hero has none) with warnings for every required boss the planner's own checks say it does not pass.
+     State: page memory (HSM: goal|card key -> hero), this session only */
+  let HS_CAP = null; const HSM = new Map();
+  const hsHnm = k => hnmOf(k).split('|');                                  // [goal, hero, N, mode]
+  const hsOwn = (R, h, n, m) => { const R0 = (R && R.Rs) || {}; return GLV.concat(['rf']).some(g => { const x = R0[g]; return !!(x && !x.msg && x.has && x.has(h, n, m)); }); };
+  const hsApply = (F, R, goal, h2) => { const k0 = F.hs ? F.hs.k0 : F.k, q = hsHnm(k0), o = F.hs ? F.hs.o : q[1], n = +q[2], m = q[3];
+    if (!F.hs0) F.hs0 = { need: F.need, nrf: F.nrf };
+    const back = () => { F.k = k0; F.need = F.hs0.need; F.nrf = F.hs0.nrf; F.gl = null; F.rf = null; delete F.hs; delete F.hs0; delete F.hsW; HSM.delete(goal + '|' + k0); };
+    if (!h2 || h2 === o || HIDX[h2] === undefined || !unlocked(h2)) { back(); return; }
+    const own = hsOwn(R, h2, n, m); F.hs = { k0, o, h: h2, f: !own }; delete F.hsW; HSM.set(goal + '|' + k0, h2);
+    if (own) { F.k = [goal, h2, n, m].join('|'); F.need = null; F.nrf = false; }
+    else { F.k = k0; F.need = F.hs0.need; F.nrf = F.hs0.nrf; }
+    F.gl = null; F.rf = null; };
+  const hsClean = o => { const x = Object.assign({}, o); Object.keys(x).forEach(k => { if (k.charAt(0) === '_') delete x[k]; }); return x; };   // no cached _ow / _ch of the original
+  const hsForced = (c, k, R, RL) => { const h0 = c.h, h2 = FO.hs.h, n = c.n, m = c.m, i0 = HIDX[h0], i2 = HIDX[h2], nm2 = hName(h2);
+    const goal = String(c.key).split('|')[0], pts = goal === 'points', r0 = c.r, b0 = pts ? r0.best : null;
+    const lv0 = pts ? b0.k : r0.lv, L0 = pts ? b0.L : r0.L, stop = pts ? 20 + n : +r0.stop || 0, full = stop >= 20 + n;
+    const e2 = eqStep(h2, n, m), lv2 = e2.k, c2 = cellOf(n, m, i2, lv2), rmax2 = c2 ? Math.max(...c2.reach) : -1, notes = [], warn = [];
+    let L2 = c2 ? lvlFor(c2, stop) : -1; const Lok = L2 >= 0;
+    if (!c2) { L2 = L0; notes.push(`No replay for ${nm2} on this run: gear level and run length are the original plan's.`); }
+    else if (!Lok) { L2 = c2.reach.length - 1; notes.push(`${nm2} does not get through this route at any gear level in the replays: the plan shows the heaviest gear.`); }
+    const gd = (() => { const g = gearOf(h2, n, m, L2); return ['early', 'mid', 'late'].some(s => (g[s] || []).length + (g[s + '_b'] || []).length); })();
+    if (!gd) notes.push(`No gear data for ${nm2} here: the gear lists below are ${hName(h0)}'s.`);
+    /* required bosses: main quest (PD.rqb up to the stop) = bossAt before the quest step (only where the original hero passes that same
+       check) + the replay reach at this gear level; goal bosses = bossAt at all / by the step the plan fights them; hero locks; bossless */
+    const seen = new Set(), put = (b, t) => { const key = (b || '') + '|' + t; if (seen.has(key)) return; seen.add(key); warn.push({ b, t }); };
+    const c0 = cellOf(n, m, i0, lv0), reach2 = c2 && L2 >= 0 ? c2.reach[L2] : -1, reach0 = c0 && L0 != null && L0 >= 0 ? c0.reach[L0] : 99;
+    (PD.rqb || []).filter(x => +x[1] <= stop).forEach(([b, s]) => { const a2 = bossAt(b, n, m, i2, lv2), a0 = bossAt(b, n, m, i0, lv0);
+      const bad2 = a2 < 0 || a2 >= +s, bad0 = a0 < 0 || a0 >= +s;
+      if ((bad2 && !bad0) || (c2 && reach2 < +s && reach0 >= +s)) put(b, `${nm2} is not expected to beat ${bname(b)} here`); });
+    const goalBoss = (b, at) => { const a2 = bossAt(b, n, m, i2, lv2);
+      if (a2 < 0 || (c2 && a2 > rmax2)) put(b, `${nm2} is not expected to beat ${bname(b)} here`);
+      else if (at != null && a2 > +at) put(b, `${nm2} is not expected to beat ${bname(b)} here (only after quest step ${a2})`); };
+    if (goal === 'legacy') r0.got.concat(r0.ugot || []).forEach(g => { const a = g.a || [];
+      if (a[3] != null && !hasBit(a[3], i2)) put(null, `${nm2} cannot do ${iname(g.u.from)} → ${iname(g.u.to)}: the map allows it for other heroes only`);
+      if (g.nb) { let p = null; try { p = nbPlan(g.u, a, n, m, i2, lv2, rmax2, { pts: +S.pts || 0, wp: +S.wp || 0 }, !!g.nb.unv); } catch (e) { p = null; }
+        if (!p) put(null, `${nm2} is not expected to manage this here: ${g.nb.how || g.u.text}`); }
+      else (a[0] || []).forEach((b, j) => goalBoss(b, (g.at || [])[j])); });
+    else if (goal === 'start') r0.got.forEach(x => { if (x[6] && !hasBit(x[6], i2)) put(null, `${nm2} cannot start ${iname(x[1])}: the map allows it for other heroes only`);
+      if (x[5] === 'boss' && x[1] in (r0.at || {})) goalBoss(x[2], r0.at[x[1]]); });
+    if (c2 && rmax2 < stop && !warn.some(w => w.b)) put(null, `${nm2} is not expected to get through the whole route (quest step ${stop})`);
+    /* the forced card: same record, this hero */
+    const kp = String(c.key).split('|'); kp[1] = h2;
+    /* run length (only the length word is shown): the original run's minutes + (this hero's replay - the original hero's replay) */
+    let mins = 0; if (c2 && Lok) { if (pts) mins = finT(c2, L2, n, m, i2, e2) || 0;
+      else { const e0 = eqStep(h0, n, m), t0 = c0 && L0 != null && L0 >= 0 ? tMix(c0, L0, stop, n, m, i0, e0) : null, t2 = tMix(c2, L2, stop, n, m, i2, e2);
+        mins = t0 != null && isFinite(t0) && isFinite(t2) ? Math.max(0, (+r0.mins || 0) + t2 - t0) : (t2 || 0); } }
+    let c2d;
+    if (pts) { const b2 = Object.assign(hsClean(b0), { h: h2, k: lv2, L: L2, mins, ex: (b0.ex || []).filter(x => x[1] === 'Hlgr' || bossAt(x[1], n, m, i2, lv2) >= 0) });
+      c2d = Object.assign(hsClean(c), { r: Object.assign(hsClean(r0), { best: b2, fin: [b2], who: [h2] }) }); }
+    else { const r2 = Object.assign(hsClean(r0), { h: h2, lv: lv2, L: L2, others: [], fin: !!c2 && c2.jl >= 0, near: nearFin(n, m, i2, e2), mins });
+      if (goal === 'legacy') { try { r2.bag = bagPlan(h2, n, m, r0.got.concat(r0.ugot || [])); } catch (e) { r2.bag = r0.bag; } }
+      c2d = Object.assign(hsClean(c), { r: r2 }); }
+    Object.assign(c2d, { h: h2, key: kp.join('|'), mins, tags: [tagH('forced hero', 'warn', 'This plan is not tuned for this hero.')],
+      fc: Lok && full ? fcAt(n, m, i2, lv2, L2) : null, fr: Lok && !full && stop > 0 ? fcsAt(n, m, i2, lv2, L2, stop) : null });
+    FO.hsW = { warn, notes };
+    HS_GF = gd ? null : { h: h2, o: h0 };
+    try { return focusHtml(c2d, -1, R.cards.length, RL.focus(c2d)); } finally { HS_GF = null; } };
+  const hsOut = (goal, R) => { const F = FO; if (!F) return '';
+    if (!F.hsIn) { F.hsIn = 1; const h2 = HSM.get(goal + '|' + F.k); if (h2 && F.hsReq === undefined) F.hsReq = h2; }
+    if (F.hsReq !== undefined) { const q = F.hsReq; delete F.hsReq; hsApply(F, R, goal, q); }
+    const run = () => { if (!(F.hs && F.hs.f)) return focusOut(goal, R); HS_CAP = hsForced; try { return focusOut(goal, R); } finally { HS_CAP = null; } };
+    let html = ''; try { html = run(); } catch (e) { if (!F.hs) throw e; if (typeof console !== 'undefined') console.warn('hero swap', e); html = ''; }
+    if (!html && F.hs) { hsApply(F, R, goal, ''); html = focusOut(goal, R); }   // that hero's run is gone (account / filters changed): back to the picked run
+    return html ? hsDecor(html, goal, R) : html; };
+  const hsDecor = (html, goal, R) => { if (!DCL_ON) return html; const F = FO, box = DCL.box(html), f = box.querySelector('.pl-focus'); if (!f || !F) return html;
+    const q = hsHnm(F.hs ? F.hs.k0 : F.k), cur = F.hs ? F.hs.h : q[1], n = +q[2], m = q[3];
+    f.querySelectorAll('.pl-aw a[href^="#hero/"]').forEach(a => { const id = decodeURIComponent(a.getAttribute('href').slice(6)); if (HIDX[id] === undefined || id === cur) return;
+      a.setAttribute('data-hsw', id); a.title = 'Show this run with ' + hName(id); });
+    const hs = PD.heroes.filter(h => h !== cur && unlocked(h)).map(h => [h, hName(h), hsOwn(R, h, n, m)]).sort((a, b) => a[1].localeCompare(b[1]));
+    let top = '';
+    if (F.hs) top += `<div class="pl-hsl small">Plan for <b>${esc(hName(F.hs.h))}</b> (you picked it) · <button type="button" class="pl-hsb" data-hsb="1">back to ${esc(hName(F.hs.o))}</button></div>`;
+    if (F.hs && F.hs.f) { const w = F.hsW || { warn: [], notes: [] };
+      top += `<div class="pl-hsx"><b class="warntext">Forced hero: this plan is not tuned for ${esc(hName(F.hs.h))}; expect it to be slower/harder.</b>`
+        + (w.warn.length || w.notes.length ? `<ul class="pl-ul">${w.warn.map(x => `<li class="warntext">${esc(x.t)}</li>`).join('')}${w.notes.map(x => `<li class="small">${esc(x)}</li>`).join('')}</ul>` : '') + `</div>`; }
+    const row = document.createElement('div'); row.className = 'pl-hsw';
+    row.innerHTML = top + (hs.length ? `<label class="pl-hsp small">Try with another hero <select class="pl-hss" aria-label="Try this run with another hero"><option value="">pick a hero</option>${hs.map(([h, nm, own]) => `<option value="${esc(h)}">${esc(nm)}${own ? '' : ' (not tuned)'}</option>`).join('')}</select></label>` : '');
+    const fh = f.querySelector(':scope > .pl-fh'); if (fh) fh.after(row); else f.prepend(row);
+    if (F.hs && F.hs.f && F.hsW) { const ol = f.querySelector('ol.pl-steps');   // the same warning under the route row that fights the boss (a goal row first, else the first row naming it)
+      if (ol) F.hsW.warn.filter(x => x.b).forEach(x => { const id = encodeURIComponent(x.b), rows = [];
+        ol.querySelectorAll('a[href]').forEach(e => { const hr = e.getAttribute('href') || '', li = e.closest('li'); if (li && (hr === '#boss/' + id || hr === '#unit/' + id) && !rows.includes(li)) rows.push(li); });
+        const li = rows.find(r => r.classList.contains('pl-k-goal') || r.classList.contains('pl-rb')) || rows[0];
+        if (li) { li.classList.remove('pl-dim'); li.insertAdjacentHTML('beforeend', `<div class="small warntext pl-hsr">${esc(x.t)}</div>`); } }); }   // a warned row is never dimmed
+    return box.innerHTML; };
+  K.hooks.push((page, out) => { if (page !== 'planner' || !out || !FO) return; const f = out.querySelector('.pl-focus'); if (!f) return;
+    const go = h => { if (!FO) return; FO.hsReq = h; K.route(); const fe = document.querySelector('.pl-focus'); if (fe) fe.scrollIntoView({ block: 'start' }); };
+    f.querySelectorAll('a[data-hsw]').forEach(a => a.addEventListener('click', e => { if (e.button || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; e.preventDefault(); e.stopPropagation(); go(a.getAttribute('data-hsw')); }));
+    f.querySelectorAll('[data-hsb]').forEach(b => b.addEventListener('click', e => { e.preventDefault(); go(''); }));
+    const s = f.querySelector('select.pl-hss'); if (s) s.addEventListener('change', () => { if (s.value) go(s.value); }); });
+  if (DCL_ON && !document.getElementById('pl-hs-css')) { const st = document.createElement('style'); st.id = 'pl-hs-css';
+    st.textContent = '.pl-hsw{margin:4px 0 6px;min-width:0}.pl-hsp{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;text-align:left;gap:4px 6px;max-width:100%}'
+      + '.pl-hsp select.pl-hss{max-width:100%;min-width:0;font-size:13px;padding:3px 6px}.pl-hsl{margin:2px 0 4px}'
+      + '.pl-hsb{background:none;border:0;border-bottom:1px dotted var(--accent);padding:0;font:inherit;color:var(--accent);cursor:pointer}'
+      + '.pl-hsx{border:1px solid var(--warn);border-left:4px solid var(--warn);background:var(--warn-soft);border-radius:4px;padding:5px 8px;margin:4px 0 6px;font-size:13px;overflow-wrap:anywhere}'
+      + '.pl-hsx .pl-ul{margin:3px 0 0}.pl-hsr{margin-top:2px}';
+    document.head.appendChild(st); }
   function plannerOut(goal) {
     const R = mergedList(goal);
     if (R.msg) { FO = null; return R.msg; }
     /* what you get: the count + the first 2 names, the names the other cards do not share first (so similar cards stay tellable apart) */
     const fq = {}; R.cards.forEach(c => (c.ids || []).forEach(id => { fq[id] = (fq[id] || 0) + 1; }));
     R.cards.forEach(c => { if (c.wh) c.what = c.wh(fq); else if (c.ids) c.what =`<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids.slice().sort((a, b) => fq[a] - fq[b]))}`; });
-    if (FO && FO.g === goal) { const fh = focusOut(goal, R); if (fh) return fh; }
+    if (FO && FO.g === goal) { const fh = hsOut(goal, R); if (fh) return fh; }   // HERO SWAP
     const lost = !!(FO && FO.g === goal); FO = null;
     if (lost) R.note = (R.note ? R.note + ' ' : '') + 'The run you had open is not on the list any more.';
     const f = CF(), filt = f.h || f.ns.length || f.m || f.len;

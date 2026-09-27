@@ -130,6 +130,11 @@
   /* ---- changelog: one entry per DAY (date only), newest first; every category once per day, in this order:
      Map update, Zones, Monsters, Heroes, Items, Quests, Legacy, Game systems, Calculators, Whole wiki. New lines merge into today's category. ---- */
   const CHANGES = [
+    ['28 Sep 2026', [
+      ['Calculators', [
+        'Run planner: click a hero under "Also works with" to see the same run planned for that hero, or try any hero you own on it (with warnings where that hero is not expected to win).',
+      ]],
+    ]],
     ['27 Sep 2026', [
       ['Map update', [
         'Wiki follows map 1.04. Every Legacy line now evolves from the Bag or either Storage, on its difficulty or higher (mode and hero rules unchanged). The new item lands in the same bag.',
