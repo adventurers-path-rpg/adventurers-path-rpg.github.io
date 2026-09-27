@@ -579,7 +579,11 @@
       const r = { b, z, s: x ? +x.step : -1, p: Math.max(7, lo - 1), nm, opt: nm && String(x.do || '').includes('or kill {{u:' + b + '}}') }; prev = x ? +x.step : lo; return r; }); };
   const pqQS = q => `<span class="pl-qs" data-q="${q}">${+q + 1}</span>`;   // a main step's route row number (dclRoute fills in the real one)
   const pqKaT = k => k.s < 0 ? `back to ${zlH(k.z)} after step ${pqQS(k.p)}` : k.nm ? `step ${pqQS(k.s)}${k.opt ? ', the boss option' : ''}` : `${zlH(k.z)}, on the way at step ${pqQS(k.s)}`;
-  const bossAt = (b, n, m, i, lv) => { const s = bossAt0(b, n, m, i, lv); if (s < 0 || !pqHasH(b)) return s; const c = pqChain(n, m, i, lv, true); return c < 0 ? -1 : Math.max(s, c); };
+  /* GATE MONOTONE (2026-09-27, route checker 'beat'): a boss counts as beaten only when every gate boss of its prereq list (PD.pq: kill 'k',
+     spawn 'y', key item 'i') is beaten too, at that gate's step at the earliest; gates without beat rows on this N x mode are skipped */
+  const pqGate = (b, n, m, i, lv) => { let at = 0; for (const p of PQ[b] || []) { const g = p[0] === 'k' || p[0] === 'y' ? p[1] : p[0] === 'i' ? p[2] : '';
+      if (!g || g === b || !rowsOf(g + '|' + n + '|' + m, i)) continue; const s = bossAt0(g, n, m, i, lv); if (s < 0) return -1; at = Math.max(at, s); } return at; };
+  const bossAt = (b, n, m, i, lv) => { let s = bossAt0(b, n, m, i, lv); if (s >= 0) { const g = pqGate(b, n, m, i, lv); s = g < 0 ? -1 : Math.max(s, g); } if (s < 0 || !pqHasH(b)) return s; const c = pqChain(n, m, i, lv, true); return c < 0 ? -1 : Math.max(s, c); };   // GATE MONOTONE
   const pqChainHtml = (why, notes, rw) => { const ka = Array.isArray(notes) && notes.length === PQHB.length && notes[0] && typeof notes[0] === 'object' ? notes.map(pqKaT) : [];   // FRODO ZONE: each kill's route step
     return `<details class="zn-rules"><summary>Show steps</summary><ul class="pl-ul">`
     + `<li>Step ${pqQS(7)} (${ilink('I02Y')}) opens his hidden Boss Hunt: kills before it do not count.</li>`
