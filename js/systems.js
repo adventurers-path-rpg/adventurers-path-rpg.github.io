@@ -131,10 +131,21 @@
      Map update, Zones, Monsters, Heroes, Items, Quests, Legacy, Game systems, Calculators, Whole wiki. New lines merge into today's category. ---- */
   const CHANGES = [
     ['28 Sep 2026', [
+      ['Map update', [
+        'Wiki follows map 1.05. Legacy enhancing +10 to +15 now costs 15 x level Boss Souls (150 to 210, was 200 to 280): +0 to +20 is about 14,400 on average, 5,900 with Protection Stones.',
+        'Random drops: 11 quest and craft items (e.g. Archmage Staff, Ghost Blade, the three Dragon Armors) left the random pools. Ancient Ogre, Ironrock Golem, Wooden and Mithril chests and the Equipment Draw now pick from smaller lists: 6 Rare, 5 Perfect, 10 Epic items.',
+        'Golden Twinblades Fist of Justice: both modes now deal Str x 1.5 x level true damage and stun for 1s. Void Ruler’s Void Missile stuns for 1s. Fire Mage’s 3-Fireball chance is exactly 2% per level.',
+        'Mana Reset: Intelligence heroes get +10% on top of the normal chance (14 to 30%) instead of a flat 10%.',
+        'New names from the map: Bloodflame Phoenix, Original Staff, Echo Ice and Fire Sword, Mystery Potion, Titan and more.',
+      ]],
+      ['Heroes', [
+        'Phantom Sword’s Illusion Doom: the 2s blast hits for Int x 20 x level, not x 7.',
+      ]],
       ['Calculators', [
         'Run planner: Early and Mid gear rows no longer disappear when that part only uses shop gear.',
         'Heroes and Run planner: heroes that start with a free item (e.g. Mana Mage’s Evil Jaina rune) now show it with what it does, and the guide no longer tells you to swap a free rune for a farmed one.',
         'Run planner: click a hero under "Also works with" to see the same run planned for that hero, or try any hero you own on it (with warnings where that hero is not expected to win).',
+        'Run planner: a hero tried on a run it was not simulated for now shows one "Risky plan" warning instead of a long list.',
       ]],
     ]],
     ['27 Sep 2026', [
@@ -358,5 +369,5 @@
   /* newest day open, older days folded to one line (date · count · categories); categories are small labels, not headings */
   P.changelog = () => `<h2>Changelog</h2>${CHANGES.map(([d, cats], i) => { const nn = cats.reduce((a, c) => a + c[1].length, 0);
     return `<details class="cg-day"${i ? '' : ' open'}><summary><b>${esc(d)}</b><span class="small"> · ${nn} change${nn === 1 ? '' : 's'}</span><span class="small cg-cats">: ${esc(cats.map(c => c[0]).join(', '))}</span></summary>${cats.map(([c, xs]) => `<div class="cg-cat"><span class="tag">${esc(c)}</span><ul>${xs.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</details>`; }).join('')}`;
-  P.credits = () => `<h2>Credits</h2><ul><li>The Adventurer's Path RPG 1.04: original Chinese map Zhengcheng Zhi Lu by Suifeng Erdong, Reforged port by Gwelawyr.</li><li><b>Special thanks: Beast (draelokk)</b>, for tons of testing and feedback.</li><li>Built with Anthropic's Claude.</li></ul>`;
+  P.credits = () => `<h2>Credits</h2><ul><li>The Adventurer's Path RPG 1.05: original Chinese map Zhengcheng Zhi Lu by Suifeng Erdong, Reforged port by Gwelawyr.</li><li><b>Special thanks: Beast (draelokk)</b>, for tons of testing and feedback.</li><li>Built with Anthropic's Claude.</li></ul>`;
 })(window.AP);

@@ -70,7 +70,7 @@
      hero x band x mode with that hero's stat weights (PD.sw = tier_calc probe gains in % fight value, PD.probes = [name, {stat: amount}],
      PD.probe_ref = the account the gains were measured on):
      power = sum of gain x probe units (survival parts capped), for your account + Legacy and for every ladder step (PD.pl account +
-     PD.lv_ref items); s = k + fraction between the two steps around you (the ladder is made non-decreasing). Replays use k = floor(s). */
+     PD.lv_ref items); s = k + fraction between the two steps around you (the ladder is made non-decreasing). Replays use k = the nearest step (stepK). */
   const MILES = [[10, { stat_amp_pct: 30 }], [25, { armor_amp_pct: 30 }], [40, { hp_amp_pct: 30 }], [55, { crit_damage_pct: 200 }], [70, { skill_amp_pct: 30 }],
     [80, { spell_lifesteal_pct: 5 }], [100, { attack_amp_pct: 30 }], [130, { skill_amp_pct: 20, attack_amp_pct: 20, hp_amp_pct: 20 }],
     [140, { crit_chance_pct: 5, dr_pct: 5 }], [150, { skill_amp_pct: 50, attack_amp_pct: 50, hp_amp_pct: 50 }], [160, { spell_lifesteal_pct: 10 }],
@@ -213,7 +213,12 @@
     return (STV[key] = v); };
   let EQS = '', EQC = {}; const EQM = new Map();   // VIP: a few account states cached (the next-buy tip tries 2-3)
   const LADC = {};                                                   // LEGACY BAG: the ladder never depends on your account
-  const eqStep = (h, n, m, bag) => {                                     // {s: exact step, k: floor(s) for replays, f: fraction}
+  /* ---- NEAREST STEP (patch_page_nearest_step 2026-09-28, user decision; tester_shadow_shaman.md):
+     replays / beat rows / Survival waves / lab rows exist only at whole steps. k = the NEAREST step (was floor), k0 = floor(s), up = k was
+     rounded up (the run is then checked at k-1 too: 'borderline for your account'); f = blend toward k+1 (0 when rounded up) */
+  const stepK = (r, top) => { const s = +r.s || 0, k0 = Math.floor(s + 1e-9), k = top > 0 ? Math.max(0, Math.min(top - 1, Math.round(s))) : Math.round(s), up = k > s + 1e-9;
+    return { s, k, k0, up, f: up ? 0 : Math.max(0, Math.min(0.999, s - k)) }; };
+  const eqStep = (h, n, m, bag) => {                                     // {s: exact step, k: NEAREST step for replays, k0: floor, up, f}
     const sig = (+S.ml || 1) + '|' + (+S.rank || 0) + '|' + (+S.pts || 0) + '|' + vipLv() + '|' + JSON.stringify(S.own) + '|' + JSON.stringify(S.sw || {});   // ACCOUNT SWORDS
     if (sig !== EQS) { EQS = sig; EQC = EQM.get(sig) || {}; EQM.delete(sig); EQM.set(sig, EQC); if (EQM.size > 8) EQM.delete(EQM.keys().next().value); for (const x in FCUT) if (x.endsWith('y')) delete FCUT[x]; }
     const gk = band(n) + '|' + MK[m], key = h + '|' + gk + (bag ? '|' + bag.slice().sort().join(',') : ''); if (EQC[key]) return EQC[key];
@@ -227,7 +232,7 @@
       const f = k < ps.length - 1 && you > ps[k] ? Math.min(0.999, (you - ps[k]) / Math.max(1e-9, ps[k + 1] - ps[k])) : 0;
       r = { s: k + f, k, f };
     }
-    return (EQC[key] = r); };
+    return (EQC[key] = stepK(r, pl.length)); };   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
   const pStep = p => { const ss = [];                                 // one main stat: the median hero over the three bands x three modes
     PD.heroes.forEach(h => { if (((HERO[h] || {}).main_stat || 'STR') !== p) return; for (let n = 2; n <= 8; n += 3) ['m', 'c', 'd'].forEach(m => ss.push(eqStep(h, n, m))); });
     if (!ss.length) { const k = stepOf(p); return { s: k, k, f: 0 }; }
@@ -235,7 +240,7 @@
   const mlOf = sv => { const pl = PD.pl || [], k = Math.min(Math.floor(sv), pl.length - 1), a = (pl[k] || [1])[0], b = (pl[k + 1] || pl[k] || [1])[0];
     if (sv <= 0 && (+S.ml || 1) < a) return +S.ml || 1;               // AUDIT minor 7: below the ladder's first step (Map Level 5): your real Map Level
     return Math.round(a + (sv - k) * (b - a)); };
-  const topStep = e => e.k >= (PD.pl || []).length - 1;
+  const topStep = e => (e.k0 != null ? e.k0 : e.k) >= (PD.pl || []).length - 1;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
   const stepTxt = (p, h, n, m) => { const e = h ? eqStep(h, n || 5, m || 'm') : pStep(p); return topStep(e) ? 'a maxed account' : `about a Map Level ${mlOf(e.s)} account`; };
   const accTxt = () => ['STR', 'AGI', 'INT'].map((p, j) => { const e = pStep(p), x = topStep(e) ? '190+' : '~' + mlOf(e.s); return j ? `${x} for ${p}` : `Map Level ${x} account for ${p} heroes`; }).join(', ');
   const bitCache = {};
@@ -273,16 +278,22 @@
      replays that finish the whole run, pace = the last quest step a brand-new player's replay gets done; null = that level was not tested
      (nothing shown, never borrowed from another level). Both describe the NORMAL replays: not used while 'I'll farm rare drops' plays
      PD.rpf rows */
-  const labRow = (T, n, m, i, k) => G.rf && PD.rpf && PD.rpf[n + '|' + m] ? null : labOf(T, n, m, i, k);
+  const labRow = (T, n, m, i, k) => rpfUse(n, m, i, k) ? null : labOf(T, n, m, i, k);   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
   const fcAt = (n, m, i, k, L) => { let v = labRow(PD.fc, n, m, i, k); if (Array.isArray(v)) v = L == null || L < 0 ? null : v[L];
     return typeof v === 'number' && isFinite(v) ? v : null; };
   /* safe for new players: the brand-new player's replay gets to the run's stop (default: the whole run) at the SAME gear level L */
   const paceOk = (n, m, i, k, L, stop) => { const v = labRow(PD.pace, n, m, i, k), st = stop == null ? 20 + n : stop;
     if (Array.isArray(v)) { const r = L == null || L < 0 ? null : v[L]; return typeof r === 'number' && r >= st; }
     return v === true || v === 'y'; };
+  /* NEAREST STEP (patch_page_nearest_step 2026-09-28): a replay row 'x' + all-zero reach + all 'zz' minutes was never replayed = NO DATA.
+     rpfUse: the rare-drop farmer row counts only when it exists and is not such a placeholder, else the normal row of that step is used */
+  const RPH = s => typeof s === 'string' && s.length >= 1 + 3 * NL && s[0] === 'x' && /^0+$/.test(s.slice(1, 1 + NL)) && /^(zz)+$/.test(s.slice(1 + NL, 1 + 3 * NL));
+  const rpfUse = (n, m, i, k) => { const key = n + '|' + m; if (!(G.rf && PD.rpf && PD.rpf[key]) || i == null || k == null || k < 0) return false;
+    const s = (((PD.rpf[key] || {}).h || [])[i] || [])[k]; return !!s && !RPH(s); };
+  const rpfNo = (n, m, i, k) => !!(G.rf && PD.rpf && PD.rpf[n + '|' + m]) && !rpfUse(n, m, i, k);   // farmer rows exist for N|m, but not for this hero / step
   const CELLC = {};   // cellOf cache (speed): the packed replay strings never change while the page is open
   const cellOf = (n, m, i, k) => { const ck = (G.rf && PD.rpf ? 'f' : 'n') + n + '|' + m + '|' + i + '|' + k; if (ck in CELLC) return CELLC[ck]; return (CELLC[ck] = cellOf0(n, m, i, k)); };
-  const cellOf0 = (n, m, i, k) => { const key = n + '|' + m, src = G.rf && PD.rpf && PD.rpf[key] ? PD.rpf : PD.rp, s = ((((src || {})[key] || {}).h || [])[i] || [])[k]; if (!s) return null;
+  const cellOf0 = (n, m, i, k) => { const key = n + '|' + m, src = rpfUse(n, m, i, k) ? PD.rpf : PD.rp, s = ((((src || {})[key] || {}).h || [])[i] || [])[k]; if (!s || RPH(s)) return null;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     const tot = [...Array(NL).keys()].map(j => { const t = s.slice(1 + NL + 2 * j, 3 + NL + 2 * j); return t === 'zz' ? null : (B36.indexOf(t[0]) * 36 + B36.indexOf(t[1])) * 5; });
     const reach = [...s.slice(1, 1 + NL)].map(c => B36.indexOf(c));
     return { jl: s[0] === 'x' ? -1 : finL(reach, n, m, i, k), j0: s[0] === 'x' ? -1 : B36.indexOf(s[0]), reach, tot, n, m, i, k }; };   // FCS: m / i / k for stopL // LAB WIRE: j0 = first finishing replay
@@ -344,7 +355,7 @@
      not replayed). A boss the beat rows let you fight is not doable when the replay at the gear level of this run (lvlFor to the end of the
      run; no finishing level: to the fight's step) loses it with everything it holds at the end. No data / 'I'll farm rare drops' = the
      beat rows alone */
-  const abLost = (b, n, m, i, lv, st) => { if (!PD.abon || st < 0 || (G.rf && PD.rpf)) return false;
+  const abLost = (b, n, m, i, lv, st) => { if (!PD.abon || st < 0 || rpfUse(n, m, i, lv)) return false;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     const r = ((PD.abf || {})[n + '|' + m] || {})[PD.heroes[i]], row = r ? r[lv] : null; if (!row) return false;
     const c = cellOf(n, m, i, lv); if (!c) return false; let L = lvlFor(c, 20 + n); if (L < 0) L = lvlFor(c, st);
     const x = L >= 0 ? row[L] : null; return typeof x === 'string' && x !== '' && x.split(',').includes(b); };
@@ -455,7 +466,7 @@
     if (c.reach[L] >= last) return tot * fr(Math.min(stop, last));
     const fj = c.jl >= 0 && c.tot[c.jl] != null ? c.tot[c.jl] : null;   // borrow a finishing replay's pace when there is one
     return fj != null ? fj * fr(Math.min(stop, c.reach[L])) : tot * fr(Math.min(stop, c.reach[L])) / Math.max(0.05, fr(c.reach[L])); };
-  const nearFin = (n, m, i, e) => { if (e.f < 0.5) return false; const c = cellOf(n, m, i, e.k), c2 = cellOf(n, m, i, e.k + 1); return !!c && c.jl < 0 && !!c2 && c2.jl >= 0; };
+  const nearFin = (n, m, i, e) => { if (!e || !e.up || !(e.k > 0)) return false; const c = cellOf(n, m, i, e.k), c0 = cellOf(n, m, i, e.k - 1); return !!c && c.jl >= 0 && !(c0 && c0.jl >= 0); };   // NEAREST STEP (patch_page_nearest_step 2026-09-28): finishes only thanks to rounding up
   const tMix = (c, L, stop, n, m, i, e) => { PQL.L = L; const t = tAt(c, L, stop, n, m), c2 = e.f ? cellOf(n, m, i, e.k + 1) : null, L2 = lvlFor(c2, stop);
     return L2 < 0 ? t : t + e.f * (tAt(c2, L2, stop, n, m) - t); };
   const finT = (c, L, n, m, i, e) => { const t = c.tot[L] != null ? c.tot[L] : c.tot[c.jl], c2 = e.f ? cellOf(n, m, i, e.k + 1) : null;
@@ -467,7 +478,7 @@
      lists, not PD.bbf). Account step = eqStep (the step every goal replays) */
   let HS_GF = null;   // HERO SWAP (patch_page_hero_swap 2026-09-28): a forced hero without gear data shows the original hero's lists
   const gearOf = (h, n, m, L) => { if (HS_GF && h === HS_GF.h) h = HS_GF.o; const bk = MK[m] + '|' + band(n), rk = n + '|' + m, bs = basicSet(h, n, m);
-    const far = !!(G.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]), pl = ((((G.rf && PD.rpf && PD.rpf[rk] ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[eqStep(h, n, m).k];
+    const kE = eqStep(h, n, m).k, far = !!(G.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]) && !rpfNo(n, m, HIDX[h], kE), pl = ((((rpfUse(n, m, HIDX[h], kE) ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[kE];   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     const p = pl && Array.isArray(pl[L]) ? pl[L] : null, bsrc = far && !(p && String(p[0] || '').charAt(0) === 'n') ? PD.bbf : PD.bb;
     const g = (((W.best_items || {})[h] || {})[band(n) + '|' + MK[m]]) || {};
     const o = {}; ['early', 'mid', 'late'].forEach((st, i) => { const li = p && p[1 + i] != null && +p[1 + i] >= 0 ? +p[1 + i] : L, lv = ((((bsrc || {})[bk] || {})[h]) || [])[li];
@@ -982,7 +993,7 @@
     const bsAddE = (i, ups, c) => { const o = bsE[i] = bsE[i] || { ups: {}, c: 0 }; ups.forEach(([id, lv]) => { o.ups[id] = lv; }); o.c += c; };
     const bsLine = (ups, souls) => `<li class="pl-rp"><b>Enhance</b> · ${ups.map(([id, lv]) => `${tfLink(id)} to +${lv}`).join(', ')} <span class="small">(${srcA('n00G', 'Gazlowe')}${souls >= 1 ? ', ~' + fmt(Math.round(souls)) + ' Boss Souls' : ''})</span></li>`;
     const bsKills = x => [...String(x.do || '').matchAll(/(or kill )?\{\{u:([A-Za-z0-9]{4})\}\}/g)].filter(mm => !mm[1]).map(mm => mm[2]);
-    const bsEv = (() => { if (!PD.rhe || L == null || L < 0 || !PD.rh || !PD.rhR || (G.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
+    const bsEv = (() => { if (!PD.rhe || L == null || L < 0 || !PD.rh || !PD.rhR || rpfUse(n, m, HIDX[h], eqStep(h, n, m).k)) return null;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
       const e = (PD.rh[n + '|' + m] || {})[h]; if (typeof e !== 'string') return null;
       const w = +PD.rhw || 2, j = e.substr((eqStep(h, n, m).k * NL + L) * w, w); if (!j || j.charAt(0) === '-') return null;
       const R = (PD.rhR || [])[parseInt(j, 36)]; if (typeof R !== 'string') return null;
@@ -1080,7 +1091,7 @@
   const tpBeg = n => n <= 1 ? 'Level-1 artifact' : n <= 5 ? `Level-${n} item` : n <= 7 ? 'Level-6 item' : 'Level-7 item';   // Beginner Bonus by N
   /* PD.rh[N|m][hero][account step][gear level] = what that replay held: x = per part [[skipped item, copies held]], p = pet bag per part,
      r = [rune, level], b = books (planner_pack TESTER). Not for the rare-drop farmer rows */
-  const rhOf = (h, n, m, L) => { if (L == null || L < 0 || !PD.rh || (G.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
+  const rhOf = (h, n, m, L) => { if (L == null || L < 0 || !PD.rh || rpfUse(n, m, HIDX[h], eqStep(h, n, m).k)) return null;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     const e = (PD.rh[n + '|' + m] || {})[h], k = eqStep(h, n, m).k;
     if (typeof e === 'string') { const w = +PD.rhw || 2, j = e.substr((k * NL + L) * w, w); return j && j.charAt(0) !== '-' ? rhRow(parseInt(j, 36)) : null; }   // TIGHT / HELD: compact rows
     const r = (e || {})[k]; return (r && r[L]) || null; };
@@ -1229,8 +1240,8 @@
     const nx = (PD.rqb || []).filter(r => +r[1] > S && +r[1] <= 20 + n).sort((a, b) => a[1] - b[1])[0];
     return nx ? 'before the ' + bname(nx[0]) : 'stock up'; };
   const gsStops = (h, n, m, L) => { if (L == null || L < 0 || !(PD.gst || PD.gsf)) return [];
-    const bk = MK[m] + '|' + band(n), rk = n + '|' + m, far = !!(G.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]);
-    const pl = ((((G.rf && PD.rpf && PD.rpf[rk] ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[eqStep(h, n, m).k], p = pl && Array.isArray(pl[L]) ? pl[L] : null;
+    const kE = eqStep(h, n, m).k, bk = MK[m] + '|' + band(n), rk = n + '|' + m, far = !!(G.rf && PD.bbf && PD.bbf[bk] && PD.bbf[bk][h]) && !rpfNo(n, m, HIDX[h], kE);   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
+    const pl = ((((rpfUse(n, m, HIDX[h], kE) ? PD.rplf : PD.rpl) || {})[rk] || {})[h] || {})[kE], p = pl && Array.isArray(pl[L]) ? pl[L] : null;
     const rows = (((far && !(p && String(p[0] || '').charAt(0) === 'n') ? PD.gsf : PD.gst) || {})[bk] || {})[h]; if (!rows) return [];
     const g = gearOf(h, n, m, L), last = 20 + n, all = [];
     for (let part = 0; part < 3; part++) { const li = p && p[1 + part] != null && +p[1 + part] >= 0 ? +p[1 + part] : L, r = rows[li];
@@ -1642,7 +1653,7 @@
   const TG_TXT = 'Boss fights are won with little room (you live only 30-60% longer than the kill takes). A bit more gear helps.';
   const TG_TAG = `<span class="tag warn pl-tip" title="${esc(TG_TXT)}" data-tip="${esc(TG_TXT)}" tabindex="0">tight</span>`;
   const RTC = new Map(), RQB = new Set((PD.rqb || []).map(x => x[0]));
-  const rtOf = (h, n, m, k, L) => { const T = (PD.rt || {})[n + '|' + m]; if (!T || !PD.rtb || k == null || k < 0 || L == null || L < 0 || (G.rf && PD.rpf && PD.rpf[n + '|' + m])) return null;
+  const rtOf = (h, n, m, k, L) => { const T = (PD.rt || {})[n + '|' + m]; if (!T || !PD.rtb || k == null || k < 0 || L == null || L < 0 || rpfUse(n, m, HIDX[h], k)) return null;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     const key = n + m + '|' + h + '|' + k + '|' + L; if (RTC.has(key)) return RTC.get(key);
     const f = (((T[h] || '').split(',')[k] || '').split('.')[L]) || '', o = new Set([...f].map(c => PD.rtb[B36.indexOf(c)]).filter(Boolean));
     RTC.set(key, o); return o; };
@@ -1807,11 +1818,25 @@
   const finTag = n => tagH('Full clear OK', 'ok', `Beats the N${n} final boss (step ${20 + n}) if you keep playing after your goal.`);
   const newTag = () => tagH('Beginner-friendly', 'ok', 'Also finishes when played slowly by a new player.');
   const f10H = (v, reach) => { const x = f10(v); return `<span class="pl-cf pl-tip" title="Replayed 10 times with random drops: ${x} ${reach ? 'got there' : 'finished'}." data-tip="Replayed 10 times with random drops: ${x} ${reach ? 'got there' : 'finished'}." tabindex="0">${x}/10 test runs ${reach ? 'reached it' : 'finished'}</span>`; };
+  /* NEAREST STEP (patch_page_nearest_step 2026-09-28): borderline = k was rounded up and the run does not hold at step k-1 (reach to its
+     stop, its bosses, its bossless picks) */
+  const BL_TIP = 'Your account sits between two tested account steps and this plan uses the stronger one. With your real account it may fall a bit short: a bit more gear helps.';
+  const blTag = () => tagH('borderline for your account', 'warn', BL_TIP);
+  const blRun = (h, n, m, e, lv, stop, bs, nbs) => { const i = HIDX[h]; if (i == null || !e || !e.up || e.k !== lv || !(lv > 0)) return false;
+    const k = lv - 1, c = cellOf(n, m, i, k); if (!c) return true;
+    if (stop > 0 && lvlFor(c, stop) < 0) return true; const rm = Math.max(...c.reach);
+    if ((bs || []).some(b => { const a = bossAt(b, n, m, i, k); return a < 0 || a > rm; })) return true;
+    return (nbs || []).some(g => { try { return !nbPlan(g.u, g.a, n, m, i, k, rm, { pts: +S.pts || 0, wp: +S.wp || 0 }, !!(g.nb && g.nb.unv)); } catch (x) { return false; } }); };
+  const blOf = (goal, r, h, lv, stop) => { const e0 = eqStep(h, r.n, r.m), e = r.bag && r.bag.e && r.bag.e.s < e0.s - 1e-9 ? r.bag.e : e0;
+    if (goal === 'legacy') { const all = (r.got || []).concat(r.ugot || []);
+      return blRun(h, r.n, r.m, e, lv, stop, all.filter(g => !g.nb).flatMap(g => (g.a || [])[0] || []), all.filter(g => g.nb)); }
+    if (goal === 'start') return blRun(h, r.n, r.m, e, lv, stop, (r.got || []).filter(x => x[5] === 'boss' && x[1] in (r.at || {})).map(x => x[2]), []);
+    return blRun(h, r.n, r.m, e, lv, stop, [], []); };
   const TAGS_KEY = () => `<details class="pl-d pl-tagkey small"><summary>What the tags mean</summary><ul class="pl-ul">`
     + [['X/10 test runs finished', 'the run was replayed 10 times with random drops, X of them finished'], ['Full clear OK', 'beats the final boss of that N if you keep playing after your goal'],
        ['Beginner-friendly', 'also finishes when played slowly by a new player'], ['tight', 'boss fights are won with little room: a bit more gear helps'],
        ['needs: ...', 'the gear level this run needs'], ['needs rare drops', 'only works if you farm rare drops'], ['untested', 'upgrades the replays could not confirm'],
-       ['no quest steps', 'the goal needs no main quest steps'], ['spends Points', 'the run buys something with Points']]
+       ['no quest steps', 'the goal needs no main quest steps'], ['spends Points', 'the run buys something with Points'], ['borderline for your account', 'your account is between two tested steps and the plan uses the stronger one']]
       .map(([a, b]) => `<li><b>${esc(a)}</b> <span class="small">· ${esc(b)}</span></li>`).join('') + `</ul></details>`;
   const f10 = v => Math.max(0, Math.min(10, Math.round(v * 10)));
   const namesH = ids => { const nm = ids.map(iname); return ids.slice(0, 2).map(nlk).join(', ') + (nm.length > 2 ? ` <span class="small">+${nm.length - 2} more</span>` : ''); };
@@ -1845,12 +1870,13 @@
     if (nbSpend(r)) tags.push(tagH('spends Points', '', 'The run buys something with Points.'));
     if (tgCard(r.h, r.n, r.m, r.lv, r.L, r.stop, r.got.filter(g => !g.nb).flatMap(g => g.a[0]))) tags.push(TG_TAG);   // TIGHT
     if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(newTag());   // LAB WIRE: same gear level
+    if (blOf('legacy', r, r.h, r.lv, r.stop)) tags.push(blTag());   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     return { key: 'legacy|' + r.h + '|' + r.n + '|' + r.m + '|' + all.map(g => g.u.to).sort().join(','), r, h: r.h, n: r.n, m: r.m, mins: r.mins, tags,
       ids: all.map(g => g.u.to), unit: 'upgrade', wh: fq => lgWhat(r, fq), fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
   const lgFocus = c => { const r = c.r, full = r.stop >= 20 + r.n, fw = !full && r.stop > 0 ? fcAt(r.n, r.m, HIDX[r.h], r.lv, r.L) : null;
     return `<ul class="pl-ul">${r.got.concat(r.ugot || []).map(g => upLine(g, r)).join('')}</ul>`
       + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
-      + (r.stop > 0 || pqRoute0(r) ? `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after your last upgrade boss. The whole run is borderline for your account.' : 'Stop after your last upgrade boss: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
+      + (r.stop > 0 || pqRoute0(r) ? `<p class="small">${r.fin ? (r.near ? 'Can also finish the whole run (borderline for your account).' : 'Can also finish the whole run.') : r.near ? 'Stop after your last upgrade boss. The whole run is borderline for your account.' : 'Stop after your last upgrade boss: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
           + sideTxt(r) + nbSpend(r) + gearP(r.L) + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, bagNeeds(r, rtNeeds(r)).concat(chNeeds(c)), false, r.L)
         : `<p class="small">No quest steps needed: start a game on N${r.n} ${MN[r.m]} and do ${r.got.length + (r.ugot || []).length > 1 ? 'them' : 'it'} right away${stop0At(r)}.</p>` + nbSpend(r)); };   // AUDIT minor 16
   function legacyList() {
@@ -1867,11 +1893,12 @@
     if (r.fin && !full) tags.push(finTag(r.n));
     if (tgCard(r.h, r.n, r.m, r.lv, r.L, r.stop, r.got.map(x => x[2]).filter(Boolean))) tags.push(TG_TAG);   // TIGHT
     if (r.stop > 0 && paceOk(r.n, r.m, i, r.lv, r.L, r.stop)) tags.push(newTag());   // LAB WIRE: same gear level
+    if (blOf('start', r, r.h, r.lv, r.stop)) tags.push(blTag());   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     return { key: 'start|' + r.h + '|' + r.n + '|' + r.m + '|' + r.got.map(x => x[1]).sort().join(','), r, h: r.h, n: r.n, m: r.m, mins: r.mins, tags,
       ids: r.got.map(x => x[1]), unit: 'Legacy line', wh: fq => stWhat(r, fq), fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
   const stFocus = c => { const r = c.r, full = r.stop >= 20 + r.n, fw = !full ? fcAt(r.n, r.m, HIDX[r.h], r.lv, r.L) : null;
     return `<ul class="pl-ul">${r.got.map(stLi).join('')}</ul>` + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
-      + `<p class="small">${r.fin ? 'Can also finish the whole run.' : r.near ? 'Stop after the last boss you need. The whole run is borderline for your account.' : 'Stop after the last boss you need: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
+      + `<p class="small">${r.fin ? (r.near ? 'Can also finish the whole run (borderline for your account).' : 'Can also finish the whole run.') : r.near ? 'Stop after the last boss you need. The whole run is borderline for your account.' : 'Stop after the last boss you need: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
       + sideTxt(r) + gearP(r.L)
       + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, r.got.filter(x => x[1] in r.at).map(x => ({ id: x[2], label: 'Get ' + iname(x[1]), st: r.at[x[1]] })).concat(chNeeds(c), otNeeds(c)), false, r.L); };   // ON THE WAY
   function startList() {
@@ -1915,6 +1942,7 @@
   const ptCard = r => { const b = r.best, i = HIDX[b.h], tags = [];
     if (tgCard(b.h, r.n, r.m, b.k, b.L, 20 + r.n, [])) tags.push(TG_TAG);   // TIGHT
     if (paceOk(r.n, r.m, i, b.k, b.L)) tags.push(newTag());   // LAB WIRE: same gear level, whole run
+    if (blOf('points', r, b.h, b.k, 20 + r.n)) tags.push(blTag());   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     return { key: 'points|' + b.h + '|' + r.n + '|' + r.m, r, h: b.h, n: r.n, m: r.m, mins: b.mins, tags, fc: fcAt(r.n, r.m, i, b.k, b.L),
       what: `<b>${fmt(r.pay)}</b> Point${r.pay === 1 ? '' : 's'} stage boss${r.low ? ` <span class="small">+${fmt(r.low)} low Map Level bonus</span>` : ''}` }; };
   const ptFocus = c => { const r = c.r, b = r.best;   // MAP 1.03 JARVAN: no Jarvan V farm lines (his one kill is in 'Optional')
@@ -1984,7 +2012,7 @@
       let m, last = 0, h = ''; while ((m = re.exec(v))) { h += esc(v.slice(last, m.index)) + DCL_LK.map.get(m[0]); last = m.index + m[0].length; }
       if (!last) return; h += esc(v.slice(last)); const t = document.createElement('template'); t.innerHTML = h; nd.parentNode.replaceChild(t.content, nd); }); };
   /* one tag at most: warnings first; 'needs: A bit more' (every run's floor) says nothing (MAP 1.03 JARVAN: no 'Jarvan V farm' tag) */
-  const dclTags = tags => { const pr = t0 => { const t = String(t0).replace(/ (?:title|data-tip)="[^"]*"/g, ''); return /needs: A bit more/.test(t) ? -1 : /rare drops|needs: /.test(t) ? 0 : /tight/i.test(t) ? 1
+  const dclTags = tags => { const pr = t0 => { const t = String(t0).replace(/ (?:title|data-tip)="[^"]*"/g, ''); return /needs: A bit more/.test(t) ? -1 : /borderline for your account/.test(t) ? 0 : /rare drops|needs: /.test(t) ? 0.5 : /tight/i.test(t) ? 1
       : /Beginner-friendly/i.test(t) ? 2 : /no quest steps/i.test(t) ? 3 : /Full clear OK/i.test(t) ? 4 : 5; };
     return (tags || []).filter(t => pr(t) >= 0).sort((a, b) => pr(a) - pr(b)).slice(0, 1); };
   /* ---- CLARITY (patch_page_clarity 2026-09-26, user: "the compacted card is a downgrade: hidden info, crammed lines, lost structure").
@@ -2657,7 +2685,7 @@
     const lv0 = pts ? b0.k : r0.lv, L0 = pts ? b0.L : r0.L, stop = pts ? 20 + n : +r0.stop || 0, full = stop >= 20 + n;
     const e2 = eqStep(h2, n, m), lv2 = e2.k, c2 = cellOf(n, m, i2, lv2), rmax2 = c2 ? Math.max(...c2.reach) : -1, notes = [], warn = [];
     let L2 = c2 ? lvlFor(c2, stop) : -1; const Lok = L2 >= 0;
-    if (!c2) { L2 = L0; notes.push(`No replay for ${nm2} on this run: gear level and run length are the original plan's.`); }
+    if (!c2) { L2 = L0; notes.push(`No replay data for this case (${nm2} on this run): gear level and run length are the original plan's.`); }   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     else if (!Lok) { L2 = c2.reach.length - 1; notes.push(`${nm2} does not get through this route at any gear level in the replays: the plan shows the heaviest gear.`); }
     const gd = (() => { const g = gearOf(h2, n, m, L2); return ['early', 'mid', 'late'].some(s => (g[s] || []).length + (g[s + '_b'] || []).length); })();
     if (!gd) notes.push(`No gear data for ${nm2} here: the gear lists below are ${hName(h0)}'s.`);
@@ -2691,7 +2719,7 @@
     else { const r2 = Object.assign(hsClean(r0), { h: h2, lv: lv2, L: L2, others: [], fin: !!c2 && c2.jl >= 0, near: nearFin(n, m, i2, e2), mins });
       if (goal === 'legacy') { try { r2.bag = bagPlan(h2, n, m, r0.got.concat(r0.ugot || [])); } catch (e) { r2.bag = r0.bag; } }
       c2d = Object.assign(hsClean(c), { r: r2 }); }
-    Object.assign(c2d, { h: h2, key: kp.join('|'), mins, tags: [tagH('forced hero', 'warn', 'This plan is not tuned for this hero.')],
+    Object.assign(c2d, { h: h2, key: kp.join('|'), mins, tags: [tagH('forced hero', 'warn', 'This plan is not tuned for this hero.')].concat(c2 && blOf(goal, pts ? Object.assign({}, b0, { n, m }) : Object.assign({}, r0, { n, m, bag: null }), h2, lv2, stop) ? [blTag()] : []),
       fc: Lok && full ? fcAt(n, m, i2, lv2, L2) : null, fr: Lok && !full && stop > 0 ? fcsAt(n, m, i2, lv2, L2, stop) : null });
     FO.hsW = { warn, notes };
     HS_GF = gd ? null : { h: h2, o: h0 };
@@ -2711,12 +2739,12 @@
     let top = '';
     if (F.hs) top += `<div class="pl-hsl small">Plan for <b>${esc(hName(F.hs.h))}</b> (you picked it) · <button type="button" class="pl-hsb" data-hsb="1">back to ${esc(hName(F.hs.o))}</button></div>`;
     if (F.hs && F.hs.f) { const w = F.hsW || { warn: [], notes: [] };
-      top += `<div class="pl-hsx"><b class="warntext">Forced hero: this plan is not tuned for ${esc(hName(F.hs.h))}; expect it to be slower/harder.</b>`
-        + (w.warn.length || w.notes.length ? `<ul class="pl-ul">${w.warn.map(x => `<li class="warntext">${esc(x.t)}</li>`).join('')}${w.notes.map(x => `<li class="small">${esc(x)}</li>`).join('')}</ul>` : '') + `</div>`; }
+      void w;   // FORCED WARNING (patch_page_forced_warning 2026-09-28, user request): one warning instead of a per-boss list
+      top += `<div class="pl-hsx"><b class="warntext">Risky plan: ${esc(hName(F.hs.h))} was not simulated on this run.</b> <span class="small">It may not finish it; expect it to be slower and harder than the plan says.</span></div>`; }
     const row = document.createElement('div'); row.className = 'pl-hsw';
     row.innerHTML = top + (hs.length ? `<label class="pl-hsp small">Try with another hero <select class="pl-hss" aria-label="Try this run with another hero"><option value="">pick a hero</option>${hs.map(([h, nm, own]) => `<option value="${esc(h)}">${esc(nm)}${own ? '' : ' (not tuned)'}</option>`).join('')}</select></label>` : '');
     const fh = f.querySelector(':scope > .pl-fh'); if (fh) fh.after(row); else f.prepend(row);
-    if (F.hs && F.hs.f && F.hsW) { const ol = f.querySelector('ol.pl-steps');   // the same warning under the route row that fights the boss (a goal row first, else the first row naming it)
+    if (false && F.hs && F.hs.f && F.hsW) { const ol = f.querySelector('ol.pl-steps');   // FORCED WARNING: no per-row boss warnings // the same warning under the route row that fights the boss (a goal row first, else the first row naming it)
       if (ol) F.hsW.warn.filter(x => x.b).forEach(x => { const id = encodeURIComponent(x.b), rows = [];
         ol.querySelectorAll('a[href]').forEach(e => { const hr = e.getAttribute('href') || '', li = e.closest('li'); if (li && (hr === '#boss/' + id || hr === '#unit/' + id) && !rows.includes(li)) rows.push(li); });
         const li = rows.find(r => r.classList.contains('pl-k-goal') || r.classList.contains('pl-rb')) || rows[0];
