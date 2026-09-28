@@ -1283,6 +1283,165 @@
       const ul = hl.join('') + lines[k].join('') + more;
       li.push(`<li class="pl-rp pl-gh pl-gs"><b>Gear at step ${x.step} · ${esc(x.txt)}</b><div class="pl-gb">${main}${extra}</div>${ul ? `<ul class="pl-ul">${ul}</ul>` : ''}</li>`); }); };
     return R; };
+  /* ---- FULL ROUTE (patch_page_full_route 2026-09-28, user request: "the route must be self-contained, never another tab"). PRIVATE wiki
+     only: the option and the feature exist only when the page sets window.AP_FULLROUTE_DEFAULT before planner.js (personal/js/mod_planner.js:
+     true = ON by default); without it (public page) nothing here runs and the planner renders as before. State: localStorage ap_fullroute.
+     ON: routeHtml's finished html is rebuilt (nothing recomputed): every item the plan needs (gear chips, Get first lines, pet bag, rune,
+     books, Legacy bag stacks and every craft part down the tree, W.route_full.crafts) becomes its own numbered step: on the way when a quest
+     step of the route is in its spot's zone after the spot opens (W.route_full.farm earliest main step; drops / quests the first pass,
+     shops / crafts the last one), else a 'Go back to' / 'Go to' step right before the gear stop that wears it, a spot that opens later
+     right after it opens; crafts / evolutions right after their last part. Other ways to get an item ride on its step ('or buy:...').
+     A step in a new zone, a boss step and every quest step entering a new zone get a collapsible 'how to get there' (W.route_full.reach).
+     Items already on a route line (the step's own lines, Frodo's chain, Absolute Ring, goal rows) count as held there; the hero's kit,
+     kit rune, Solo-Play Boots and Map Level gifts are held from the start. The gear rows keep their grid (what to wear) without the
+     'Get first' lines (now steps); CLARITY numbers the new rows like any step. */
+  const FR = { LS: 'ap_fullroute', css: 0 };
+  FR.has = () => typeof window !== 'undefined' && typeof document !== 'undefined' && window.AP_FULLROUTE_DEFAULT !== undefined && !!W.route_full;
+  FR.on = () => { if (!FR.has()) return false; let v = null; try { v = localStorage.getItem(FR.LS); } catch (e) {} return v === '1' || v === '0' ? v === '1' : !!window.AP_FULLROUTE_DEFAULT; };
+  FR.set = on => { try { localStorage.setItem(FR.LS, on ? '1' : '0'); } catch (e) {} };
+  FR.chk = () => FR.has() ? `<label class="pl-chk" title="Every item as its own step, with where to go"><input type="checkbox" class="pl-frc" ${FR.on() ? 'checked' : ''}> Full step-by-step route</label>` : '';
+  FR.style = () => { if (FR.css || typeof document === 'undefined') return; FR.css = 1; const st = document.createElement('style');
+    st.textContent = '.pl-fr>.pl-rw .pl-zc,.pl-fr .pl-zc{outline:1px dashed var(--accent)}.pl-frd>summary{min-width:0;padding:0 7px;font-weight:600}.pl-frd[open]>div{white-space:normal}';
+    document.head.appendChild(st); };
+  FR.nmap = null;
+  FR.unit = nm => { if (!FR.nmap) { FR.nmap = {}; [W.mon || {}, W.boss || {}].forEach(o => Object.keys(o).forEach(id => { const x = (o[id] || {}).name; if (x) FR.nmap[x] = id; })); } return FR.nmap[String(nm || '').trim()] || ''; };
+  FR.shop = id => ((W.shops || []).find(s => s.id === id) || {}).name || '';
+  /* the item's source for this N: the band's own best (farm.o), a start gift behind a Map Level you do not have -> its first other way */
+  FR.src = (id, n) => { const e = ((W.route_full || {}).farm || {})[id]; if (!e) return null; let t = (e.o && e.o[band(n)]) || e.b, alts = (e.a || []).slice();
+    const ml = +S.ml || 1, lo = /Map Level (\d+)\+/.exec(t[9] || ''), hi = /Map Level (\d+) or lower/.exec(t[9] || '');
+    if ((lo && ml < +lo[1]) || (hi && ml > +hi[1])) { const k = alts.findIndex(a => a && a[0] !== 'start'); if (k >= 0) { const nt = alts.splice(k, 1)[0]; alts.unshift(t); t = nt; } }
+    if (e.o && e.o[band(n)] && e.b !== t) alts = [e.b].concat(alts.filter(a => a && a[7] !== t[7]));
+    return { t, alts: alts.filter(a => a && a[7] !== t[7]).slice(0, 2) }; };
+  FR.dir = (key, lab) => { const r = ((W.route_full || {}).reach || {})[key]; if (!r) return '';
+    const [fr, st, gt, nt] = r, body = `${fr ? 'From ' + esc(fr) + ': ' : ''}${(st || []).map(esc).join(' → ')}${gt ? `. <b>Gate</b> ${esc(gt)}` : ''}${nt ? '. ' + esc(nt) : ''}`;
+    return ` <details class="pl-q pl-frd"><summary title="how to get there">${lab || 'how to get there'}</summary><div>${body}</div></details>`; };
+  FR.kills = (q, ch) => ch > 0 && ch < 100 ? Math.ceil(q * 100 / ch) : q;
+  /* one way to get an item as a short phrase ('buy at X (zone) 150 gold', 'farm X (zone) 3%, ~40 kills'): the 'or...' notes */
+  FR.alt = (t, q) => { const [k, u, z, ch, , once, , tx, ex] = t, zn = z ? ` (${zlH(z)})` : '';
+    if ((k === 'drop' || k === 'boss') && u && ((W.mon || {})[u] || (W.boss || {})[u])) return `farm ${srcA(u, bname(u))}${zn} ${ch > 0 ? pctF(ch) + ', ' : ''}${killF(FR.kills(q, ch))}${once ? ' (once per game)' : ''}`;
+    let m = /^(Buy|Trade|Take it free) at (.+?) in ([^(:]+?)(\s*\((.+)\))?$/.exec(tx);
+    if (m) return `${m[1] === 'Take it free' ? 'free' : m[1].toLowerCase()} at ${srcA(u, FR.shop(u) || m[2])}${zn}${m[5] ? ' ' + esc(m[5]) : ''}`;
+    m = /^(Quest from|Free at) (.+?) in ([^:]+?): (.*)$/.exec(tx);
+    if (m) return `${m[1] === 'Free at' ? 'free at' : 'quest at'} ${srcA(u, FR.shop(u) || m[2])}${zn}: ${esc(m[4])}`;
+    return esc(tx.charAt(0).toLowerCase() + tx.slice(1)) + (ex ? ` (${esc(ex)})` : ''); };
+  /* the step text: verb first (CLARITY bolds it), the item, where; notes = odds / kills / what it is for / other ways */
+  FR.body = (r, n) => { const [k, u, , ch, , once, , tx, ex] = r.t, q = r.q, it = ilink(r.id) + (q > 1 ? ' x' + fmt(q) : ''), nt = [];
+    let b = '';
+    if (r.cr) { const wc = r.cr[0], pt = r.cr[1].map(([p, c]) => ilink(p) + (c * r.m > 1 ? ' x' + fmt(c * r.m) : '')).join(' + ');
+      let m = /^Evolve: (.+)$/.exec(wc);
+      if (m) b = `Evolve into ${it}: ${esc(m[1])}`;
+      else if ((m = /^Get '(.+?)' from (.+?) \((.+?)\)/.exec(wc))) { b = `Craft ${it} from ${pt}`; nt.push(`scroll: ${esc(m[1])} at ${HLN.one(m[2])} (${esc(m[3])}), keep it in the bag with the parts`); }
+      else if (/^(No scroll|Hold all parts)/.test(wc)) b = `Craft ${it} from ${pt} <span class="small">(hold the parts in one bag, it combines)</span>`;
+      else { b = `Craft ${it} from ${pt}`; if (wc) nt.push(esc(wc)); } }
+    else if ((k === 'drop' || k === 'boss') && u && ((W.mon || {})[u] || (W.boss || {})[u])) {
+      const rs = +((W.boss || {})[u] || {}).respawn_s || 0;
+      b = `Kill ${srcA(u, bname(u))} until ${it} drop${q > 1 ? '' : 's'}`;
+      nt.push(`${ch > 0 && ch < 100 ? pctF(ch) + ', ' : ''}${killF(FR.kills(q, ch))}${rs && FR.kills(q, ch) > 1 ? `, respawn ${rs} s` : ''}${once ? ', once per game' : ''}`); }
+    else { let m = /^(Buy|Trade|Take it free) at (.+?) in ([^(:]+?)(\s*\((.+)\))?$/.exec(tx);
+      if (m) { b = `${m[1] === 'Trade' ? 'Trade for' : m[1] === 'Buy' ? 'Buy' : 'Take'} ${it}${m[1] === 'Take it free' ? ' (free)' : ''} at ${srcA(u, FR.shop(u) || m[2])}`; if (m[5]) nt.push(esc(m[5]) + (q > 1 && /gold|Points|Boss Souls/.test(m[5]) ? ' each' : '')); }
+      else if ((m = /^(Quest from|Free at) (.+?) in ([^:]+?): (.*)$/.exec(tx))) { b = m[1] === 'Free at' ? `Take ${it} free at ${FR.shop(u) ? srcA(u, FR.shop(u)) : HLN.one(m[2])}` : `Quest at ${FR.shop(u) ? srcA(u, FR.shop(u)) : HLN.one(m[2])} for ${it}`; nt.push(esc(m[4]) + (ch > 0 && ch < 100 && q > 0 ? ` · ~${fmt(Math.ceil(q * 100 / ch))} clear${Math.ceil(q * 100 / ch) > 1 ? 's' : ''}` : '')); }
+      else if ((m = /^Open an? (.+?) \((.+?)\)$/.exec(tx))) { b = `Open ${esc(m[1])} until ${it} drop${q > 1 ? '' : 's'}`; nt.push(esc(m[2]) + (ex ? ` · the bag: ${esc(ex.charAt(0).toLowerCase() + ex.slice(1))}` : '')); }
+      else if (tx) { b = `Get ${it}: ${esc(tx.charAt(0).toLowerCase() + tx.slice(1))}`; if (ex) nt.push(esc(ex)); }
+      else { const s2 = tpSrc(r.id); b = `Get ${it}${s2 ? ': ' + s2 : ''}`; } }
+    if (r.late != null) nt.push(`opens at quest step ${r.late}`);
+    const fo = [...new Set(r.fo)].filter(x => x && x !== r.id);
+    if (fo.length) nt.push('for ' + fo.map(ilink).join(', '));
+    if (r.alts && r.alts.length) nt.push(r.alts.map(a => 'or ' + FR.alt(a, q)).join(' · '));
+    return b + nt.map(x => ` <span class="small">· ${x}</span>`).join(''); };
+  FR.expand = (html, h, n, m, L, steps, stop) => {
+    FR.style();
+    const box = DCL.box(html), ol = box.querySelector('ol.pl-steps'); if (!ol) return html;
+    const all = [...ol.children].filter(e => e.tagName === 'LI'); all.forEach((li, k) => { li._k = k; });
+    const Q = all.filter(li => li.classList.contains('pl-n') && li.dataset.qs != null && li.dataset.qs !== '');
+    Q.forEach(li => { const sx = steps.find(x => String(x.step) === li.dataset.qs) || {}; li._z = sx.zone || ''; li._s = +li.dataset.qs; });
+    const stopK = (all.find(li => li.classList.contains('pl-stop')) || all[all.length - 1] || {})._k;
+    const sAt = k => { let s = 0; Q.forEach(r => { if (r._k < k) s = r._s; }); return s; };
+    const idOf = a => { const mm = /#item\/([^"?]+)/.exec(a.getAttribute('href') || ''); return mm ? decodeURIComponent(mm[1]) : ''; };
+    const cnt = a => { const t = a.nextSibling, mm = t && t.nodeType === 3 ? /^\s*x([\d,]+)/.exec(t.nodeValue) : null; return mm ? +mm[1].replace(/,/g, '') : 1; };
+    /* 1. what the route needs, by deadline row: gear rows (their chips, pet bag, rune, books, Get first lines), the steps' own lines */
+    const need = [], CARRY = /carry it on your hero|keep (it|the second one) off your hero|wear one/;
+    all.forEach((li, k) => {
+      if (li.classList.contains('pl-gh')) {
+        let dk = k; if (!/^Gear at step/.test(DCL.head(li))) { const nx = all.findIndex((x, j) => j > k && (x.classList.contains('pl-gh') || x.classList.contains('pl-stop'))); dk = nx < 0 ? all.length - 1 : nx; }
+        const pe = (() => { const nx = all.findIndex((x, j) => j > k && (x.classList.contains('pl-gh') || x.classList.contains('pl-stop'))); return nx < 0 ? all.length - 1 : nx; })();   // pet bag / rune / books: by the part's end
+        const add = (a, c, e) => { const id = idOf(a); if (id && K.item[id]) need.push({ k: e ? pe : dk, id, c: c || cnt(a), how: 'self' }); };
+        li.querySelectorAll(':scope > ul.pl-ul > li').forEach(x => { const a = x.querySelector(':scope > a[href^="#item/"]'); if (a) add(a); if (!CARRY.test(DCL.txt(x))) x.remove(); });
+        li.querySelectorAll(':scope > ul.pl-ul').forEach(u => { if (!u.children.length) u.remove(); });
+        const gb = li.querySelector(':scope > .pl-gb');
+        if (gb) { [...gb.children].forEach(nd => { if (nd.matches('a[href^="#item/"]')) add(nd);
+            else if (nd.matches('span.small') && /^\s*(\+ )?starter:/.test(nd.textContent)) nd.querySelectorAll(':scope > a[href^="#item/"]').forEach(a => add(a)); });
+          gb.querySelectorAll(':scope > div.small').forEach(d => { const b = d.querySelector(':scope > b'), lab = b ? DCL.txt(b) : '', tx = DCL.txt(d).slice(lab.length).trim();
+            const as = [...d.children].filter(x => x.matches('a[href^="#item/"]'));
+            if (lab === 'Pet bag') as.forEach(a => { const nx = a.nextElementSibling; if (!(nx && nx.matches('.tag'))) add(a, 0, 1); });
+            else if (lab === 'Rune' && as[0] && !/you start with it/.test(tx)) add(as[0], 0, 1);
+            else if (/^Universal skill/.test(lab) && as[0] && /^learn /.test(tx)) add(as[0], 1, 1); }); }
+      } else if (li.classList.contains('pl-rb')) { const hd = DCL.head(li), row = id => { if (id) need.push({ k, id, c: 1, how: 'row' }); };   // what a boss / chain row brings
+        li.querySelectorAll(':scope > b a[href^="#item/"]').forEach(a => row(idOf(a)));
+        if (hd === 'Absolute Ring') row('I050'); if (/^Frodo's/.test(hd)) row('I03L'); if (hd === 'Ticket') li.querySelectorAll('a[href^="#item/"]').forEach(a => row(idOf(a))); }
+      if (li.classList.contains('pl-n') && (li.dataset.qs != null || li.classList.contains('pl-rb'))) li.querySelectorAll(':scope > ul.pl-ul > li').forEach(x => { const a = x.querySelector(':scope > a[href^="#item/"]'); if (!a) return;
+        const g = /kill-count option gives (\d+)/.exec(x.textContent); need.push({ k, id: idOf(a), c: cnt(a) + (g && !/take the kill-count option/.test(x.textContent) ? +g[1] : 0), how: 'shown' }); });
+    });
+    const onRt = new Set(need.filter(x => x.how !== 'self').map(x => x.id));   // an item a route line already brings: the line is its step
+    need.forEach((x, j) => { x.j = j; }); need.sort((a, b) => a.k - b.k || (a.how === 'self') - (b.how === 'self') || a.j - b.j);
+    /* 2. held from the start: kit items, kit rune, Solo-Play Boots, your Map Level gifts */
+    const own = {}, okey = {}, give = (id, c) => { own[id] = (own[id] || 0) + (c || 1); okey[id] = -Infinity; };
+    ((HERO[h] || {}).kit_items || []).forEach(x => { if (x && x.id) give(x.id); });
+    if ((W.start_rune_kit || {})[h]) give(W.start_rune_kit[h]);
+    give('I1TQ'); tpGifts(+S.ml || 1).forEach(id => give(id));
+    /* 3. where each copy comes from: rows {key (k - 0.5 = before row k, k + 0.5 = after it), seq, id, q, t, cr, m, fo, z, u, late, alts} */
+    const rows = []; let seq = 0;
+    const placeOf = (z, s0, dk, pref, min) => { min = min == null ? -Infinity : min;
+      const vis = z ? Q.filter(r => r._k < dk && r._k + 0.5 >= min && (s0 == null || r._s >= s0) && r._z === z) : [];
+      if (vis.length) { const r = pref === 'last' ? vis[vis.length - 1] : vis[0]; return { key: r._k + 0.5 }; }
+      if (s0 != null && s0 > sAt(dk)) { const r = Q.find(x => x._k > dk && x._s >= s0 && (!z || x._z === z)) || Q.find(x => x._k > dk && x._s >= s0); return { key: Math.max(min, r ? r._k + 0.5 : stopK - 0.5), late: s0 }; }
+      return { key: Math.max(min, dk - 0.5) }; };
+    const lastR = {}, emit = (o) => { const x = rows.find(r => r.key === o.key && r.id === o.id && !r.cr === !o.cr && !o.cr); if (x) { x.q += o.q; x.fo.push(...o.fo); lastR[o.id] = x; return x.key; }
+      const r = Object.assign({ seq: seq++ }, o); rows.push(r); lastR[o.id] = r; return r.key; };
+    const getN = (id, q, dk, fo, d, min) => {                           // q more copies of id by row dk -> the key they are held from
+      if (!(q > 0)) return -Infinity;
+      const S2 = FR.src(id, n), t = S2 && S2.t, cr = ((W.route_full || {}).crafts || {})[id];
+      if (t && t[0] === 'start') { give(id, q); return -Infinity; }
+      if (cr && (!t || t[0] === 'craft') && d < 8 && cr[1].length) {   // a craft / evolution: its parts first (down the tree), then the craft
+        let key = min == null ? -Infinity : min; const dep = [];
+        cr[1].forEach(([p, c]) => { const nd = c * q, hv = own[p] || 0;
+          if (hv >= nd) key = Math.max(key, okey[p] == null ? -Infinity : okey[p]); else { key = Math.max(key, getN(p, nd - hv, dk, [id], d + 1, min)); if (lastR[p]) dep.push(lastR[p]); }
+          own[p] = Math.max(0, (own[p] || 0) - nd); });
+        const ev = /^Evolve: .*?\bkill (?:\d+ )?([A-Z][A-Za-z'’ .-]+?)(?: x\d+)?\s*$/.exec(cr[0]), eu = ev ? FR.unit(ev[1]) : '', ez = eu ? bzone(eu) : '';
+        const z = (t && t[2]) || ez || '', pl = z ? placeOf(z, t ? t[6] : null, dk, 'last', key) : { key: Math.max(key, key === -Infinity ? dk - 0.5 : key) };
+        if (pl.key === -Infinity) pl.key = dk - 0.5;
+        const k2 = emit({ key: pl.key, id, q, t: t || ['craft', '', z, null, 1, 0, null, '', '', ''], cr, m: q, fo: fo.slice(), z, u: eu, late: pl.late, alts: S2 ? S2.alts : [], dep });
+        own[id] = (own[id] || 0) + q; okey[id] = k2; return k2; }
+      const z = t ? t[2] : '', pref = t && (t[0] === 'shop' || t[0] === 'exchange' || (t[0] === 'drop' && t[1] && !(W.mon || {})[t[1]] && !(W.boss || {})[t[1]] && FR.shop(t[1]))) ? 'last' : 'first';   // an NPC kill (Jaina): after its quests
+      const pl = t ? placeOf(z, t[6], dk, pref, min) : { key: Math.max(min == null ? -Infinity : min, dk - 0.5) };
+      const k2 = emit({ key: pl.key, id, q, t: t || ['', '', '', null, 1, 0, null, '', '', ''], fo: fo.slice(), z, u: t ? t[1] : '', late: pl.late, alts: S2 ? S2.alts : [] });
+      own[id] = (own[id] || 0) + q; okey[id] = k2; return k2; };
+    need.forEach(x => { if (!x.id || !K.item[x.id]) return;
+      if (x.how === 'row') { if (!(own[x.id] > 0)) { own[x.id] = 1; okey[x.id] = x.k + 0.5; } return; }
+      if (x.how === 'shown') { const cr = ((W.route_full || {}).crafts || {})[x.id], S2 = FR.src(x.id, n);
+        if (cr && (!S2 || S2.t[0] === 'craft')) cr[1].forEach(([p, c]) => { const nd = c * x.c, hv = own[p] || 0; if (hv < nd) getN(p, nd - hv, x.k, [x.id], 1); own[p] = Math.max(0, (own[p] || 0) - nd); });
+        own[x.id] = (own[x.id] || 0) + x.c; okey[x.id] = x.k + 0.5; return; }
+      if (onRt.has(x.id)) return; const hv = own[x.id] || 0; if (hv < x.c) getN(x.id, x.c - hv, x.k, [x.id], 0); });
+    /* 4. merge: new rows before / after their anchor rows; zone changes -> 'Go back to' / 'Go to' + directions */
+    rows.sort((a, b) => a.key - b.key || a.seq - b.seq);
+    const byKey = {}; rows.forEach(r => { (byKey[r.key] = byKey[r.key] || []).push(r); });
+    const seen = new Set(); let cz = '';
+    const mk = r => { const li = document.createElement('li'); li.className = 'pl-n pl-fr';
+      const z = r.z, go = z && z !== cz ? ((seen.has(z) || (ZO[z] || 0) < (ZO[cz] || 0)) ? 'Go back to ' : 'Go to ') + zlH(z) + ': ' : '';
+      const bd = FR.body(r, n), d = go ? FR.dir(r.u && (W.boss || {})[r.u] && ((W.route_full || {}).reach || {})[r.u] ? r.u : z) : (r.u && (W.boss || {})[r.u] ? FR.dir(r.u) : '');
+      li.innerHTML = `${z ? `<span class="small">${zlH(z)}</span> · ` : ''}${go}${go ? bd.charAt(0).toLowerCase() + bd.slice(1) : bd}${d}`;
+      if (z) { cz = z; seen.add(z); } return li; };
+    const ord = g => { const o = [], done = new Set(), left = g.slice(); let z0 = cz;   // one stop's rows: zone by zone, a craft after its parts
+      while (left.length) { const ok = left.filter(r => (r.dep || []).every(x => done.has(x) || !g.includes(x)));
+        const p = ok.find(r => r.z && r.z === z0) || ok.find(r => !r.z) || ok[0] || left[0]; o.push(p); done.add(p); left.splice(left.indexOf(p), 1); if (p.z) z0 = p.z; }
+      return o; };
+    const out = [];
+    all.forEach((li, k) => { ord(byKey[k - 0.5] || []).forEach(r => out.push(mk(r)));   // k + 0.5 (after row k) = k + 1 - 0.5: emitted before row k + 1
+      if (Q.includes(li)) { if (li._z && li._z !== cz && !li.querySelector('.pl-frd')) li.insertAdjacentHTML('beforeend', FR.dir(li._z)); if (li._z) { cz = li._z; seen.add(li._z); } }
+      else if (li.classList.contains('pl-rb') && !/^Frodo/.test(DCL.head(li))) { const a = li.querySelector('a[href^="#boss/"]'), b = a ? decodeURIComponent((a.getAttribute('href') || '').slice(6)) : '';
+        if (b && !li.querySelector('.pl-frd')) li.insertAdjacentHTML('beforeend', FR.dir(b)); }
+      out.push(li); if (k === all.length - 1) ord(byKey[k + 0.5] || []).forEach(r => out.push(mk(r))); });
+    out.forEach(li => ol.appendChild(li));
+    return box.innerHTML; };
   function routeHtml(h, n, m, bosses, stopStep, L) {                // CARDS UI: an open numbered list (quest steps + boss / upgrade steps numbered)
     const steps = (((W.qguide || {}).steps) || []).filter(x => +x.step <= 20 + n);
     const need = bosses.filter(b => b && (b.id || b.txt)).map(b => Object.assign({}, b, { zo: b.id ? ZO[bzone(b.id)] : undefined }));   // txt = a pick without a boss (bossless)
@@ -1311,7 +1470,7 @@
     if (GS_RT) GS_RT.step(li, stop); GS_RT = null;                    // GEAR STOPS: a stop after the route's last step
     if (FPL && cur >= 0) FPL.end(li, cur);
     li.push(`<li class="pl-rp pl-stop"><b>Stop here</b> <span class="small">(${stop + 1 >= steps.length ? 'run finished' : 'the rest of the run gives you nothing you planned'})</span></li>`);
-    return `<h4 class="pl-rt">Route <span class="small">${stop + 1} quest step${stop ? 's' : ''}</span></h4>${tpSkill(h, n, m)}<ol class="pl-steps">${li.join('')}</ol>`;   // AUDIT minor 3: main-quest steps only
+    return (FR.on() ? x => FR.expand(x, h, n, m, L, steps, stop) : x => x)(`<h4 class="pl-rt">Route <span class="small">${stop + 1} quest step${stop ? 's' : ''}</span></h4>${tpSkill(h, n, m)}<ol class="pl-steps">${li.join('')}</ol>`);   // FULL ROUTE (private option) // AUDIT minor 3: main-quest steps only
   }
   /* ---- Jarvan V (MAP 1.03 JARVAN, patch_page_map103 2026-09-26): disables itself on his first death: 5 x VIP
      Points on the FIRST kill after the main quest only (1.02 paid every kill; the v52 'Jarvan V farm' is gone). New data: PD.jv = {},
@@ -2609,7 +2768,7 @@
       + `<div class="pl-fg"><span class="pl-fl">Length</span>${[[0, 'Any'], [5, 'Up to 5 h'], [3, 'Up to 3 h']].map(([v, t]) => chip('len', v, t, f.len === v)).join('')}</div>`
       + (f.h || f.ns.length || f.m || f.len || dn ? chip('clr', '', 'Clear filters', false) : '') + `</div>`; };
   const ctlHtml = () => `<div class="pl-ctl"><span class="pl-fl">Gear</span>${GLN.map((t, j) => chip('gl', j, t, (+S.gl || 0) === j)).join('')}`
-    + (PD.bbf || PD.rpf ? `<label class="pl-chk"><input type="checkbox" id="pl-rf" ${S.rf ? 'checked' : ''}> I'll farm rare drops</label>` : '') + `</div>`;
+    + (PD.bbf || PD.rpf ? `<label class="pl-chk"><input type="checkbox" id="pl-rf" ${S.rf ? 'checked' : ''}> I'll farm rare drops</label>` : '') + FR.chk() + `</div>`;   // FULL ROUTE: '' on the public page
   /* ---- GEAR LEVEL IN THE CARD (patch_page_gearlevel): the list = the lightest-level list (GL_MIN) + the runs that only work at a
      heavier level (or only with rare drops), each card computed at its own level, ranked by the goal's own order; the open run is
      computed at FO.gl / FO.rf (switch in the card) */
@@ -2653,7 +2812,7 @@
   const gearSw = () => { const rfOn = !!(PD.bbf || PD.rpf);
     return `<div class="pl-ctl pl-gsw"><span class="pl-fl">Gear</span>` + GLV.map(j => { const off = j < FO.need, on = j === FO.gl;
       return `<button type="button" class="pl-chip${on ? ' on' : ''}" data-fg="${j}" aria-pressed="${on ? 'true' : 'false'}"${off ? ` aria-disabled="true" title="won't finish" style="opacity:.4;cursor:not-allowed"` : ''}>${esc(GLN[j])}</button>`; }).join('')
-      + (rfOn ? `<label class="pl-chk"${FO.nrf ? ` title="won't finish"` : ''}><input type="checkbox" id="pl-frf" ${FO.rf ? 'checked' : ''}${FO.nrf ? ' disabled' : ''}> I'll farm rare drops</label>` : '')
+      + (rfOn ? `<label class="pl-chk"${FO.nrf ? ` title="won't finish"` : ''}><input type="checkbox" id="pl-frf" ${FO.rf ? 'checked' : ''}${FO.nrf ? ' disabled' : ''}> I'll farm rare drops</label>` : '') + FR.chk()   /* FULL ROUTE */
       + `<div class="small pl-ghint" style="flex-basis:100%;margin:1px 0 0">${esc(rfOn ? GHINT : GHINT.split('. ')[0] + '.')}</div></div>`; };
   function focusOut(goal, R) {
     const hnm = hnmOf(FO.k), [, h, n, m] = hnm.split('|');
@@ -3076,6 +3235,7 @@
     const vi = out.querySelector('#pl-vip'); if (vi) vi.addEventListener('change', () => { S.vip = parseInt(vi.value, 10) || 0; save(); K.route(); });
     const ri = out.querySelector('#pl-rank'); if (ri) ri.addEventListener('change', () => { S.rank = parseInt(ri.value, 10) || 0; save(); K.route(); });
     const rf = out.querySelector('#pl-rf'); if (rf) rf.addEventListener('change', () => { S.rf = rf.checked; for (const x in FCUT) delete FCUT[x]; save(); K.route(); });
+    out.querySelectorAll('input.pl-frc').forEach(x => x.addEventListener('change', () => { FR.set(x.checked); K.route(); }));   // FULL ROUTE: private option only
     const cb = out.querySelector('#pl-clear'); if (cb) cb.addEventListener('click', () => { S.own = {}; S.src = ''; S.bp = {}; bpSave(); save(); K.route(); });
     out.querySelectorAll('select[data-line]').forEach(sel => sel.addEventListener('change', () => { if (sel.value) S.own[sel.dataset.line] = sel.value; else delete S.own[sel.dataset.line]; S.src = ''; save(); K.route(); }));
     /* CARDS UI: chips (gear level, filters), hero search, cards, back */
