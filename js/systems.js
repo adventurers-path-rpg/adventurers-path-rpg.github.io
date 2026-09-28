@@ -146,6 +146,8 @@
         'The Divine Arrow Seal 8 step and the [Ice Stone] source now list how the quest works: talk to Frodo, then Anduin/the Elder, N7+, once per game.',
       ]],
       ['Calculators', [
+        'Run planner: pick a difficulty yourself (Legacy tab) to see every run on that N ranked by upgrades, Safe runs first, Risky ones clearly marked.',
+        'Run planner: cards now say why an upgrade was left out, and when it works at a heavier gear level (e.g. “Also possible: Divine Armor at Overgeared”).',
         'Run planner: with a loaded save that sits between two tested account levels, runs that need the stronger level show up tagged “borderline for your account”, always after the safe runs.',
         'Run planner: Early and Mid gear rows no longer disappear when that part only uses shop gear.',
         'Heroes and Run planner: heroes that start with a free item (e.g. Mana Mage’s Evil Jaina rune) now show it with what it does, and the guide no longer tells you to swap a free rune for a farmed one.',

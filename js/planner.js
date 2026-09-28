@@ -359,7 +359,8 @@
      not replayed). A boss the beat rows let you fight is not doable when the replay at the gear level of this run (lvlFor to the end of the
      run; no finishing level: to the fight's step) loses it with everything it holds at the end. No data / 'I'll farm rare drops' = the
      beat rows alone */
-  const abLost = (b, n, m, i, lv, st) => { if (!PD.abon || st < 0 || rpfUse(n, m, i, lv)) return false;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
+  let AB_OFF = false;   // DIFFICULTY PICKER (patch_page_difficulty_whynot): true only inside dfAbOnly
+  const abLost = (b, n, m, i, lv, st) => { if (AB_OFF) return false; if (!PD.abon || st < 0 || rpfUse(n, m, i, lv)) return false;   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
     const r = ((PD.abf || {})[n + '|' + m] || {})[PD.heroes[i]], row = r ? r[lv] : null; if (!row) return false;
     const c = cellOf(n, m, i, lv); if (!c) return false; let L = lvlFor(c, 20 + n); if (L < 0) L = lvlFor(c, st);
     const x = L >= 0 ? row[L] : null; return typeof x === 'string' && x !== '' && x.split(',').includes(b); };
@@ -580,7 +581,7 @@
   const pqZs = () => { if (PQZ.s != null) return PQZ.s; const need = Math.max(0, ...PQHB.map(b => ZO[bzone(b)] || 0)); let mx = 0, r = -1;
     for (const x of (((W.qguide || {}).steps) || [])) { mx = Math.max(mx, ZO[x.zone] || 0, ...[...String(x.do || '').matchAll(/\{\{z:(\w+)\}\}/g)].map(q => ZO[q[1]] || 0)); if (mx >= need) { r = +x.step; break; } }
     return (PQZ.s = r < 0 ? 7 : r); };
-  const pqChain = (n, m, i, lv, fl) => { const k = n + m + '|' + i + '|' + lv + '|' + (fl ? 1 : 0) + '|' + rvSig(i) + '|' + G.gl + (G.rf ? 'f' : ''); if (PQHC.has(k)) return PQHC.get(k);
+  const pqChain = (n, m, i, lv, fl) => { const k = n + m + '|' + i + '|' + lv + '|' + (fl ? 1 : 0) + '|' + rvSig(i) + '|' + G.gl + (G.rf ? 'f' : '') + (AB_OFF ? 'A' : ''); if (PQHC.has(k)) return PQHC.get(k);
     let st = Math.max(7, pqZs()); for (const b of PQHB.concat(fl ? ['O003'] : [])) {   /* FRODO ZONE: not before the route reached every hunt zone */ if ((PD.beat || {})[b + '|' + n + '|' + m] === undefined) continue; const s = bossAt0(b, n, m, i, lv); if (s < 0) { st = -1; break; } st = Math.max(st, s); }
     const r = st >= 0 && st <= 20 + n ? st : -1; PQHC.set(k, r); return r; };
   const pqHasH = b => !!PD.pq && (PQ[b] || []).some(p => p[0] === 'h');
@@ -1333,6 +1334,7 @@
   /* ---- Legacy goal: every run (N x mode x hero) that upgrades the most of your items (ON THE WAY: same slot type allowed). v53 conflicts: an upgrade a run
      can do but whose slot type (or Points) another pick of that run holds counts as doable, boss or not (not picked in that run) */
   function legacyRuns() {
+    const DFN = difN();   // DIFFICULTY PICKER: 0 = Auto (the old list)
     const ups = [];
     for (const [line, sid] of Object.entries(S.own)) for (const [to, text, alts] of (PD.edges[sid] || [])) ups.push({ line, slot: (POS[sid] || {}).slot, from: sid, to, text, alts, nb: alts.some(a => a[0].length) ? null : NBX[sid + '>' + to] || null });
     if (!ups.length) return { ups, runs: [], stuck: [] };
@@ -1341,7 +1343,7 @@
     ups.forEach(u => u.alts.forEach(a => { const ns = [1, 2, 3, 4, 5, 6, 7, 8, 9].filter(n => fitsN(a, n)), ms = a[2] ? [a[2]] : ['m', 'c', 'd']; ns.forEach(n => ms.forEach(m => keys.add(n + '|' + m))); }));
     const runs = [], can = new Set(), canU = new Set();
     for (const key of keys) {
-      const [ns, m] = key.split('|'), n = +ns;
+      const [ns, m] = key.split('|'), n = +ns; if (DFN && n !== DFN) continue;
       PD.heroes.forEach((h, i) => {
         if (!unlocked(h) || (LSKIP && LSKIP(h, n, m))) return;   // GEAR LEVEL IN THE CARD
         const e = eqStep(h, n, m), lv = e.k, slots = {}, c = cellOf(n, m, i, lv), rmax = c ? Math.max(...c.reach) : -1;
@@ -1412,8 +1414,8 @@
     runs.forEach(fgPost); runs.forEach(chPost);                                              // FARM GOALS: chance steps farmed on = upgrades, their minutes in the run length
     runs.forEach(r => { r.bl = blOf('legacy', r, r.h, r.lv, r.stop) ? 1 : 0; });   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28): borderline runs after the safe ones
     const EASE = { m: 0, c: 1, d: 2 };
-    runs.sort((a, b) => (a.bl || 0) - (b.bl || 0) || rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
-    const cp = capRuns(runs.filter(fOK), r => r.mins), pool = cp.runs;   // CARDS UI: hero / N / mode filters, then the length cap (nothing fits: shortest first)
+    runs.sort((a, b) => (DFN ? b.got.length - a.got.length || (a.bl || 0) - (b.bl || 0) || a.mins - b.mins : 0) || (a.bl || 0) - (b.bl || 0) || rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
+    const cp = capRuns(runs.filter(DFN ? r => fOKd(r, DFN) : fOK), r => r.mins), pool = cp.runs;   // CARDS UI: hero / N / mode filters, then the length cap (nothing fits: shortest first)
     /* one option per set of upgrades (its easiest difficulty + mode, best hero first), with the other heroes that can do the same run */
     const groups = new Map();
     for (const r of pool) { const k = r.got.map(g => g.u.to).concat((r.ugot || []).map(g => g.u.to + '?')).sort().join(','); const g = groups.get(k);
@@ -1881,7 +1883,7 @@
     return { key: 'legacy|' + r.h + '|' + r.n + '|' + r.m + '|' + all.map(g => g.u.to).sort().join(','), r, h: r.h, n: r.n, m: r.m, mins: r.mins, tags,
       ids: all.map(g => g.u.to), unit: 'upgrade', wh: fq => lgWhat(r, fq), fc: full ? fcAt(r.n, r.m, i, r.lv, r.L) : null, fr: !full && r.stop > 0 ? fcsAt(r.n, r.m, i, r.lv, r.L, r.stop) : null }; };
   const lgFocus = c => { const r = c.r, full = r.stop >= 20 + r.n, fw = !full && r.stop > 0 ? fcAt(r.n, r.m, HIDX[r.h], r.lv, r.L) : null;
-    return `<ul class="pl-ul">${r.got.concat(r.ugot || []).map(g => upLine(g, r)).join('')}</ul>`
+    return `<ul class="pl-ul">${r.got.concat(r.ugot || []).map(g => upLine(g, r)).join('')}</ul>` + dfWhyHtml(r)
       + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
       + (r.stop > 0 || pqRoute0(r) ? `<p class="small">${r.fin ? (r.near ? 'Can also finish the whole run (borderline for your account).' : 'Can also finish the whole run.') : r.near ? 'Stop after your last upgrade boss. The whole run is borderline for your account.' : 'Stop after your last upgrade boss: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
           + sideTxt(r) + nbSpend(r) + gearP(r.L) + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, bagNeeds(r, rtNeeds(r)).concat(chNeeds(c)), false, r.L)
@@ -1890,7 +1892,7 @@
     if (!Object.keys(S.own).length) return { msg: '<p class="small">Load your save or pick your Legacy items above to see which run upgrades the most of them.</p>' };
     const { ups, runs, stuck, noboss, note, any, all } = legacyRuns();
     if (!ups.length) return { msg: '<p class="small">No upgrade found for the items you picked (they may be the last step of their line).</p>' };
-    return { cards: runs.map(lgCard), note, focus: c => dclRoute(lgFocus(c)), has: (h, n, m) => (all || []).some(x => x.h === h && x.n === n && x.m === m), find: (h, n, m) => { const r = (all || []).find(x => x.h === h && x.n === n && x.m === m); return r ? lgCard(Object.assign({ others: [] }, r)) : null; }, none: any ? '' : 'None of your next upgrades can be done by any hero with your current Legacy yet. Push other lines first.',
+    return { all, cards: runs.map(lgCard), note, focus: c => dclRoute(lgFocus(c)), has: (h, n, m) => (all || []).some(x => x.h === h && x.n === n && x.m === m), find: (h, n, m) => { const r = (all || []).find(x => x.h === h && x.n === n && x.m === m); return r ? lgCard(Object.assign({ others: [] }, r)) : null; }, none: any ? '' : 'None of your next upgrades can be done by any hero with your current Legacy yet. Push other lines first.',
       extra: (noboss.length ? `<details class="pl-d"><summary>Upgrades without a boss not doable yet (${noboss.length})</summary><ul class="pl-ul">${noboss.slice(0, 40).map(u => `<li>${ilink(u.from)} → ${ilink(u.to)} <span class="small">· ${esc(nbWhy(u))}</span></li>`).join('')}</ul></details>` : '')
         + (stuck.length ? `<details class="pl-d"><summary>Not doable yet with your Legacy (${stuck.length})</summary><ul class="pl-ul">${stuck.slice(0, 40).map(u => `<li>${ilink(u.from)} → ${ilink(u.to)} <span class="small">· ${esc(u.text)}</span></li>`).join('')}</ul></details>` : '') };
   }
@@ -1991,7 +1993,7 @@
       + `<div class="pl-cr"><b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span>${lenW(c.mins)} run</span>` : ''}</div>`
       + `<div class="pl-cg">${c.what}</div>` + otwCard(c) + chCard(c)   // ON THE WAY
       + (c.fc != null ? `<div>${f10H(c.fc)}</div>` : c.fr != null ? `<div>${f10H(c.fr, 1)}</div>` : '')
-      + (dclTags(c.tags).length ? `<div class="pl-ct">${dclTags(c.tags).join('')}</div>` : '') + bpTagDiv(c) + `</div>`; };   // BONUS PICK tag
+      + (dclTags(c.tags).length || dfTagOf(c) ? `<div class="pl-ct">${dfTagOf(c) + dclTags(c.tags).join('')}</div>` : '') + bpTagDiv(c) + `</div>`; };   // BONUS PICK tag
   /* ---- DECLUTTER (patch_page_declutter 2026-09-25, user: "make the planner clearer, more compact and simpler"). The open run card is
      rebuilt from the SAME html the planner wrote (nothing is recomputed here and no fact is dropped: long text moves behind a small '?'
      or a 'show all'): header + one tag; 'Before you start' (gear switch, Legacy Bag, skills, Boss Souls total, after-run / -save rule);
@@ -2597,15 +2599,15 @@
   const focusHtml0 = (c, k, tot, body) => { const t = tierOf(c.h, c.n, c.m), st = stOf(c.h);
     return `<div class="card pl-focus"${st ? ` data-st="${st}"` : ''}><div class="pl-fbar"><button type="button" class="pl-bk">← Back to all runs</button><span class="small">${k < 0 ? 'Not in the top runs' : `Run ${k + 1} of ${tot}`}</span></div>` + (FO ? gearSw() : '')   // GEAR LEVEL IN THE CARD
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
-      + `<div class="pl-fw">${c.what}${c.fc != null ? ` · ${f10H(c.fc)}` : c.fr != null ? ` · ${f10H(c.fr, 1)}` : ''}${dclTags(c.tags).length ? ' ' + dclTags(c.tags).join('') : ''}</div>`
+      + `<div class="pl-fw">${c.what}${c.fc != null ? ` · ${f10H(c.fc)}` : c.fr != null ? ` · ${f10H(c.fr, 1)}` : ''}${dclTags(c.tags).length || dfTagOf(c) ? ' ' + dfTagOf(c) + dclTags(c.tags).join('') : ''}</div>`
       + bagHtml(c) + chHtml(c) + otwHtml(c) + body + `<button type="button" class="pl-bk pl-bk2">← Back to all runs</button></div>`; };
-  const filtHtml = () => { const f = CF(), hs = PD.heroes.filter(unlocked).map(h => hName(h)).sort((a, b) => a.localeCompare(b));
-    return `<div class="pl-fb">`
+  const filtHtml = goal => { const dn = goal === 'legacy' ? difN() : 0; const f = CF(), hs = PD.heroes.filter(unlocked).map(h => hName(h)).sort((a, b) => a.localeCompare(b));
+    return `<div class="pl-fb">` + (goal === 'legacy' ? dfSel(dn) : '')
       + `<div class="pl-fg"><span class="pl-fl">Hero</span><input id="pl-fhero" class="pl-hin" list="pl-hl" placeholder="Any hero" autocomplete="off" value="${f.h ? esc(hName(f.h)) : ''}">${f.h ? chip('h', '', '✕', false) : ''}<datalist id="pl-hl">${hs.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>`
-      + `<div class="pl-fg"><span class="pl-fl">N</span>${chip('n', 0, 'Any', !f.ns.length)}${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => chip('n', n, 'N' + n, f.ns.includes(n))).join('')}</div>`
+      + (dn ? '' : `<div class="pl-fg"><span class="pl-fl">N</span>${chip('n', 0, 'Any', !f.ns.length)}${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => chip('n', n, 'N' + n, f.ns.includes(n))).join('')}</div>`)
       + `<div class="pl-fg"><span class="pl-fl">Mode</span>${[['', 'Any'], ['m', 'Main'], ['c', 'Challenge'], ['d', 'Death']].map(([v, t]) => chip('m', v, t, f.m === v)).join('')}</div>`
       + `<div class="pl-fg"><span class="pl-fl">Length</span>${[[0, 'Any'], [5, 'Up to 5 h'], [3, 'Up to 3 h']].map(([v, t]) => chip('len', v, t, f.len === v)).join('')}</div>`
-      + (f.h || f.ns.length || f.m || f.len ? chip('clr', '', 'Clear filters', false) : '') + `</div>`; };
+      + (f.h || f.ns.length || f.m || f.len || dn ? chip('clr', '', 'Clear filters', false) : '') + `</div>`; };
   const ctlHtml = () => `<div class="pl-ctl"><span class="pl-fl">Gear</span>${GLN.map((t, j) => chip('gl', j, t, (+S.gl || 0) === j)).join('')}`
     + (PD.bbf || PD.rpf ? `<label class="pl-chk"><input type="checkbox" id="pl-rf" ${S.rf ? 'checked' : ''}> I'll farm rare drops</label>` : '') + `</div>`;
   /* ---- GEAR LEVEL IN THE CARD (patch_page_gearlevel): the list = the lightest-level list (GL_MIN) + the runs that only work at a
@@ -2772,17 +2774,203 @@
       + '.pl-hsx{border:1px solid var(--warn);border-left:4px solid var(--warn);background:var(--warn-soft);border-radius:4px;padding:5px 8px;margin:4px 0 6px;font-size:13px;overflow-wrap:anywhere}'
       + '.pl-hsx .pl-ul{margin:3px 0 0}.pl-hsr{margin-top:2px}';
     document.head.appendChild(st); }
+  /* ---- DIFFICULTY PICKER (patch_page_difficulty_whynot 2026-09-28, user decisions 1-3; divine_armor_pick.md)
+     1 Difficulty (Legacy upgrades tab): Auto = the old list; N1-N9 = only runs on that N, all modes, ranked by upgrades then minutes. Safe =
+       the page's own runs (every gear-level list, rare drops too); Risky = dfRun: the map's Legacy step data for N x mode x hero (edges, hero
+       masks, Points tickets, the Bag clash rules; a boss the fight checks fail sits at the step it opens) when no Safe run of that hero holds
+       all of it. Risky runs play at the heaviest gear level and open with one warning.
+     2 Why not (open Legacy card): your Legacy upgrades the run does not take, with the first planner check that stops each; none found = not
+       listed. 3 Gear hint: an upgrade stopped only by abLost (AB_OFF re-check) -> the same run at the lightest heavier gear chip that takes it
+       (runAt = legacyRuns for that one hero / N / mode). The chosen gear level never moves. */
+  const difN = () => { const v = +(CF().dn || 0); return v >= 1 && v <= 9 ? v : 0; };
+  const fOKd = (r, N) => { const f = CF(); return r.n === N && (!f.h || r.h === f.h) && (!f.m || r.m === f.m); };
+  const dfFits = (a, n) => !a[1] || (a[4] === '>' ? n >= a[1] : n === a[1]);
+  const dfUps = () => { const ups = []; for (const [line, sid] of Object.entries(S.own)) for (const [to, text, alts] of (PD.edges[sid] || []))
+    ups.push({ line, slot: (POS[sid] || {}).slot, from: sid, to, text, alts, nb: alts.some(a => a[0].length) ? null : NBX[sid + '>' + to] || null }); return ups; };
+  const dfKd = u => ANYST.has(u.from + '>' + u.to) ? 'a' : u.nb ? u.nb[0] : 'B', dfInB = k => k !== 'b' && k !== 'e' && k !== 'a';
+  /* legacyRuns' hard / clash rules against a pick list -> the pick it clashes with, or null */
+  const dfClash = (picks, u, a, at, ch) => picks.find(p => p.u.slot === u.slot && ((p.u.line === u.line && !ch) || (dfInB(dfKd(u)) && dfInB(dfKd(p.u)) && (dfKd(p.u) === 'k' || dfKd(u) === 'k'))))
+    || picks.find(p => p.u.slot === u.slot && p.u.line !== u.line && dfInB(dfKd(u)) && dfInB(dfKd(p.u))
+      && ((((p.a || [])[0]) || []).some(b => (a[0] || []).includes(b)) || (dfKd(u) !== 'B' && dfKd(p.u) === dfKd(u) && Math.max(0, ...p.at) === at))) || null;
+  const dfClT = (c, u) => c.u.line === u.line ? `this run takes ${iname(c.u.to)} instead`
+    : dfKd(c.u) === 'k' || dfKd(u) === 'k' ? `${iname(c.u.from)} holds the Bag\u2019s ${String(u.slot || '').toLowerCase()} slot all run`
+    : `Bag clash: ${iname(c.u.from)} needs the ${String(u.slot || '').toLowerCase()} slot for that kill`;
+  const dfHero = (mask, piece) => { const t = String(piece || ''), r = /hero: ([A-Z][a-z]+(?: [A-Z][a-z]+)?) race\b/.exec(t);
+    if (r) return `needs ${/^[AEIOU]/.test(r[1]) ? 'an' : 'a'} ${r[1] === 'Other' ? 'Other race' : r[1]} hero`;
+    const q = /hero: (STR|AGI|INT)(?:,|$)/.exec(t); if (q) return `needs ${q[1] === 'STR' ? 'a' : 'an'} ${q[1]} hero`;
+    const hs = PD.heroes.filter((h, j) => hasBit(mask, j)).map(hName); if (!hs.length) return '';
+    return hs.length <= 3 ? 'needs ' + (hs.length > 1 ? hs.slice(0, -1).join(', ') + ' or ' : '') + hs[hs.length - 1] : `needs ${hs[0]}, ${hs[1]} or ${hs.length - 2} other heroes`; };
+  /* one boss of a pick: null = passes (bossAt, by the run's max reach), else the first failing check */
+  const dfBoss = (b, n, m, i, lv, rmax) => { const s = bossAt(b, n, m, i, lv); if (s >= 0 && s <= rmax) return null; const B = bname(b);
+    if (s >= 0) return { t: `${B} not reached before the run ends` };
+    if (!rowsOf(b + '|' + n + '|' + m, i)) return { t: `no fight data for ${B} on N${n} ${MN[m]}` };
+    const s0 = bossAt00(b, n, m, i, lv); if (s0 < 0) return { t: `the ${B} fight is lost at your account` };
+    if (abLost(b, n, m, i, lv, s0)) return { t: `the ${B} fight after the run is lost at your gear level`, ab: 1 };
+    for (const p of PQ[b] || []) { const g = p[0] === 'k' || p[0] === 'y' ? p[1] : p[0] === 'i' ? p[2] : '';
+      if (!g || g === b || !rowsOf(g + '|' + n + '|' + m, i)) continue; if (bossAt0(g, n, m, i, lv) < 0) return { t: `needs ${bname(g)} first, lost here` }; }
+    if (pqHasH(b) && pqChain(n, m, i, lv, true) < 0) return { t: `Frodo\u2019s boss hunt before ${B} is not doable here` };
+    return { t: '' }; };
+  const dfAbOnly = (bs, n, m, i, lv, rmax) => { AB_OFF = true; try { return bs.every(b => { const s = bossAt(b, n, m, i, lv); return s >= 0 && s <= rmax; }); } finally { AB_OFF = false; } };
+  const dfNbWhy = (u, a, r, i, lv, rmax, got) => { const x = u.nb, n = r.n, m = r.m; if (!x) return null; const bud = { pts: +S.pts || 0, wp: +S.wp || 0 };
+    let p = null; try { p = nbPlan(u, a, n, m, i, lv, rmax, bud, true); } catch (e) { p = null; }
+    if (p) { const c = dfClash(got, u, a, p.at, false); return { st: 5, t: c ? dfClT(c, u) : '' }; }
+    const k = x[0];
+    if (k === 's') return { st: 4, t: m === 'c' ? 'no Survival in Challenge mode' : `${hName(r.h)} does not reach Survival wave ${x[1]} here` };
+    if (k === 'e') return { st: 4, t: `quest step ${+((PD.e20 || [])[2]) || 17} not reached before the run ends` };
+    if (k === 'd') { if (m !== 'd') return { st: 1, t: 'needs Death mode' }; if ((S.ml || 1) < x[3]) return { st: 3, t: `needs Map Level ${x[3]}` };
+      if (bud.pts < x[2]) return { st: 3, t: `needs ${fmt(x[2])} Points, you have ${fmt(bud.pts)}` }; const f = dfBoss(PD.deb || 'O00K', n, 'd', i, lv, rmax); return { st: 4, t: f ? f.t : '' }; }
+    if (k === 'q') for (const [b] of x[1]) { const f = dfBoss(b, n, m, i, lv, rmax); if (f && f.t) return { st: 4, t: f.t }; }
+    if (k !== 'b' && k !== 'q') return { st: 4, t: '' };
+    for (const [key] of (k === 'b' ? x[1] : x[2])) { if (POS[key]) { if (!Object.values(S.own).includes(key)) return { st: 3, t: `needs ${iname(key)} in your Legacy too` }; continue; }
+      if (!nbRoute(key, n, m, i, lv, bud, true)) return { st: 4, t: `${iname(String(key).split('*')[0])} is not gettable on this run` };
+      if (PQF.has(key) && pqChain(n, m, i, lv, true) < 0) return { st: 4, t: 'Frodo\u2019s boss hunt is not doable here' }; }
+    return { st: 4, t: 'not reached before the run ends' }; };
+  /* why one upgrade is not in run r: the alt that gets furthest (N, mode, hero, Points, fights / bossless, clash) and its first failing check */
+  const dfWhyU = (u, r, i, lv, rmax, used) => { const n = r.n, m = r.m, got = r.got.filter(g => !g.u.ch), pcs = String(u.text || '').split(' OR ');
+    const br = got.find(g => g.u.from === u.from); if (br) return { st: 6, t: `this run takes ${iname(br.u.to)} instead` };
+    let best = null;
+    u.alts.forEach((a, j) => { let x;
+      if (!dfFits(a, n)) x = { st: 0, t: a[4] === '>' ? `needs N${a[1]}${+a[1] < 9 ? '+' : ''}` : `only on N${a[1]}` };
+      else if (a[2] && a[2] !== m) x = { st: 1, t: `needs ${MN[a[2]]} mode` };
+      else if (!hasBit(a[3], i)) x = { st: 2, t: dfHero(a[3], pcs.length === u.alts.length ? pcs[j] : u.alts.length === 1 ? u.text : '') };
+      else if (a[0].length) { const pp = pqPts(a[0]);
+        if (pp > (+S.pts || 0)) x = { st: 3, t: `needs ${fmt(pp)} Points for its ticket, you have ${fmt(+S.pts || 0)}` };
+        else { const f = a[0].map(b => dfBoss(b, n, m, i, lv, rmax)).filter(Boolean);
+          if (f.length) { const hd = f.find(y => !y.ab) || f[0]; x = { st: 4, t: hd.t, ab: dfAbOnly(a[0], n, m, i, lv, rmax) ? 1 : 0 }; }
+          else { const c = dfClash(got, u, a, Math.max(...a[0].map(b => bossAt(b, n, m, i, lv))), false);
+            x = { st: 5, t: c ? dfClT(c, u) : pp && used + pp > (+S.pts || 0) ? 'not enough Points left after this run\u2019s other buys' : '' }; } } }
+      else x = u.nb ? dfNbWhy(u, a, r, i, lv, rmax, got) : null;
+      if (x && (!best || x.st > best.st)) best = x; });
+    return best && best.t ? best : null; };
+  /* runAt: the planner's own run for ONE hero / N / mode at gear chip gl (legacyRuns with every other run skipped) */
+  const DFRC = new Map();
+  const runAt = (h, n, m, gl, rf) => { const k = JSON.stringify([h, n, m, +gl || 0, !!rf, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), rvSig(), SVRND() ? 1 : 0, difN()]);
+    if (DFRC.has(k)) return DFRC.get(k); const sk = LSKIP; let r = null;
+    try { r = withG({ gl, rf }, () => { LSKIP = (a, b, c) => !(a === h && b === n && c === m); const R = legacyRuns(); return ((R && R.all) || []).find(x => x.h === h && x.n === n && x.m === m) || null; }); }
+    finally { LSKIP = sk; }
+    DFRC.set(k, r); if (DFRC.size > 40) DFRC.delete(DFRC.keys().next().value); return r; };
+  const dfHint = (r, abs) => { if (!abs.length) return ''; const g0 = +G.gl || 0;
+    for (const g of GLV) { if (g <= g0) continue; let r2 = null; try { r2 = runAt(r.h, r.n, r.m, g, G.rf); } catch (e) { r2 = null; } if (!r2) continue;
+      const has = abs.filter(w => r2.got.some(x => x.u.from === w.u.from && x.u.to === w.u.to)); if (!has.length) continue;
+      const ids = has.map(w => { const ch = [w.u.from, w.u.to]; for (let c = w.u.to, k = 0; k < 8; k++) { const q = r2.got.find(x => x.u.ch && x.u.from === c); if (!q) break; ch.push(q.u.to); c = q.u.to; } return ftH(ch); });
+      const lost = (r.got || []).filter(x => !r2.got.some(y => y.u.from === x.u.from && y.u.to === x.u.to)).map(x => iname(x.u.to));
+      const d = Math.max(0, Math.round(((+r2.mins || 0) - (+r.mins || 0)) / 5) * 5);
+      return `<p class="small pl-alsop"><b>Also possible:</b> ${ids.join(', ')} at gear level ${esc(GLN[g])} (+${d} min)${lost.length ? ` <span class="small">(drops ${esc(lost.join(', '))})</span>` : ''}</p>`; }
+    return ''; };
+  const dfWhyHtml = r => { if (HS_CAP || !r || !r.got || !Object.keys(S.own).length) return ''; const i = HIDX[r.h]; if (i == null) return '';
+    const c = cellOf(r.n, r.m, i, r.lv), rmax = c ? Math.max(...c.reach) : -1, all = r.got.concat(r.ugot || []), took = new Set(all.map(g => g.u.from + '>' + g.u.to));
+    const used = all.reduce((t, g) => t + (+g.pq || 0) + (+(g.nb || {}).pts || 0), 0);
+    const L = dfUps().filter(u => !took.has(u.from + '>' + u.to)).map(u => { let w = null; try { w = dfWhyU(u, r, i, r.lv, rmax, used); } catch (e) { w = null; } return w ? Object.assign(w, { u }) : null; }).filter(Boolean);
+    if (!L.length) return '';
+    L.sort((a, b) => (b.ab || 0) - (a.ab || 0) || b.st - a.st);
+    const nm = L.map(w => iname(w.u.to)), sum = nm.slice(0, 2).map(esc).join(', ') + (nm.length > 2 ? ` +${nm.length - 2}` : '');
+    return `<details class="pl-d pl-why small"><summary>Why not: ${sum}</summary><ul class="pl-ul">${L.map(w => `<li>${ftH([w.u.from, w.u.to])} <span class="small">· ${esc(w.t)}</span></li>`).join('')}</ul></details>`
+      + (r.risky ? '' : dfHint(r, L.filter(w => w.ab))); };
+  /* Risky runs: the map's upgrades for hero i on N x m (picks + chained steps), played at the heaviest gear level (call inside withG) */
+  const dfRun = (ups, h, i, n, m) => { const e = eqStep(h, n, m), lv = e.k, c = cellOf(n, m, i, lv); if (!c) return null;
+    const rmax = Math.max(...c.reach), at0 = b => { const s = bossAt(b, n, m, i, lv); if (s >= 0) return s; const t = stopOf(b, n); return t <= 20 + n ? t : -1; };
+    const picks = []; let pts = +S.pts || 0, wp = +S.wp || 0;
+    for (const u of ups) { let pick = null, alt = null;
+      for (const a of u.alts) { if (!dfFits(a, n) || (a[2] && a[2] !== m) || !hasBit(a[3], i)) continue;
+        if (a[0].length) { const pp = pqPts(a[0]); if (pp > pts) continue; const sim = a[0].map(b => bossAt(b, n, m, i, lv));
+          if (sim.every(x => x >= 0 && x <= rmax)) { if (!dfClash(picks, u, a, Math.max(...sim), false)) { pick = pp ? { u, a, at: sim, pq: pp } : { u, a, at: sim }; break; } continue; }
+          const at = a[0].map(at0); if (!alt && at.every(x => x >= 0) && !dfClash(picks, u, a, Math.max(...at), false)) alt = pp ? { u, a, at, pq: pp } : { u, a, at };
+          continue; }
+        if (!u.nb) continue;
+        let p = null; try { p = nbPlan(u, a, n, m, i, lv, 20 + n, { pts, wp }, false); } catch (x) { p = null; }
+        if (!p && u.nb[0] === 's' && m !== 'c') p = { at: 20 + n, slot: 20 + n, sw: u.nb[1], mins: 0, pts: 0, wp: 0, how: `Survival wave ${u.nb[1]} on N${n}${u.nb[2] ? ', solo lobby' : ''}` };
+        if (p && !dfClash(picks, u, a, p.at, false)) { pick = { u, a, at: [p.at], nb: p }; break; } }
+      pick = pick || alt; if (!pick) continue; picks.push(pick); pts -= +pick.pq || 0; if (pick.nb) { pts -= pick.nb.pts || 0; wp -= pick.nb.wp || 0; } }
+    picks.filter(g => !g.nb).forEach(p0 => { let p = p0;
+      for (let g = 0; g < 8 && p && !p.nb; g++) { const s0 = Math.max(0, ...p.at), fb = p.a[0]; let q = null;
+        for (const [to, text, alts] of (PD.edges[p.u.to] || [])) { for (const a of alts) {
+            if (!a[0].length || +a[5] > 1 || !dfFits(a, n) || (a[2] && a[2] !== m) || !hasBit(a[3], i) || a[0].some(b => fb.includes(b)) || pqPts(a[0])) continue;
+            const at = a[0].map(at0), u = { line: p.u.line, slot: p.u.slot, from: p.u.to, to, text, alts, nb: null, ch: 1 };
+            if (at.every(x => x >= s0) && !picks.some(x => x.u.from === u.from && x.u.to === to) && !dfClash(picks, u, a, Math.max(...at), true)) { q = { u, a, at }; break; } }
+          if (q) break; }
+        if (q) picks.push(q); p = q; } });
+    if (!picks.length) return null;
+    const stop = Math.max(0, ...picks.flatMap(g => g.at)); let L = lvlFor(c, stop);
+    if (L < 0) { c.tot.forEach((t, x) => { if (t != null) L = x; }); if (L < 0) L = c.reach.length - 1; }
+    PQL.L = L; const re = c.reach[L], tt = c.tot[L] != null ? c.tot[L] : (c.tot.find(x => x != null) || 0);
+    const base = re >= stop ? tAt(c, L, stop, n, m) : tt * pqFr(n, m, stop) / Math.max(0.05, pqFr(n, m, re));
+    let bag = null; try { bag = bagPlan(h, n, m, picks); } catch (x) { bag = null; }
+    const r = { h, n, m, lv, got: picks, ugot: [], bag, fin: c.jl >= 0, near: nearFin(n, m, i, e), sc: score(h, n, m), stop, L, mins: nbMins(picks, base, n, stop, m, i), risky: 1 };
+    try { fgPost(r); chPost(r); } catch (x) {}
+    return r; };
+  const DF_SAFE = n => tagH('Safe', 'ok', `The replays get this plan done on N${n}.`);
+  const DF_RISKY = n => tagH('Risky', 'warn', `Not simulated to finish on N${n} with this hero: it may not finish.`);
+  const DFRK = new Map();
+  const dfRisky = (N, Rs, fin) => { const f = CF(), key = JSON.stringify([N, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), rvSig(), CF(), SVRND() ? 1 : 0, fin.map(c => c.key)]);
+    if (DFRK.has(key)) return DFRK.get(key).map(c => Object.assign({}, c, { tags: c.tags.slice() }));
+    const out = withG({ gl: GLN.length - 1, rf: false }, () => { const ups = dfUps(); if (!ups.length) return [];
+      const lists = GLV.map(g => Rs[g]).concat(Rs.rf ? [Rs.rf] : []).filter(R => R && !R.msg), mx = LENMAX[f.len] || Infinity, recs = [];
+      for (const m of ['m', 'c', 'd']) { if (f.m && f.m !== m) continue;
+        PD.heroes.forEach((h, i) => { if (!unlocked(h) || (f.h && f.h !== h)) return; let r = null; try { r = dfRun(ups, h, i, N, m); } catch (e) { r = null; }
+          if (!r || !r.got.length || !(r.mins <= mx)) return; const ids = r.got.map(g => g.u.to);
+          if (lists.some(R => (R.all || []).some(x => x.h === h && x.n === N && x.m === m && ids.every(t => x.got.concat(x.ugot || []).some(g => g.u.to === t))))) return;
+          recs.push(r); }); }
+      const EZ = { m: 0, c: 1, d: 2 };
+      recs.sort((a, b) => b.got.length - a.got.length || a.mins - b.mins || EZ[a.m] - EZ[b.m] || b.sc - a.sc);
+      const groups = new Map(); for (const r of recs) { const k = r.got.map(g => g.u.to).sort().join(','), g = groups.get(k);
+        if (!g) groups.set(k, Object.assign(r, { others: [] })); else if (g.m === r.m && g.others.length < 5) g.others.push(r.h); }
+      const res = [], inside = (c, set) => set.every(t => (c.ids || []).includes(t));
+      for (const r of groups.values()) { if (res.length >= CARDN) break; const set = r.got.map(g => g.u.to);
+        if (fin.some(c => inside(c, set)) || res.some(c => inside(c, set))) continue;
+        const c = lgCard(r); c.tags = c.tags.filter(t => /untested|spends Points|no quest steps/.test(t)); Object.assign(c, { risky: 1, gl: GLN.length - 1, rf: false, dft: DF_RISKY(N) }); res.push(c); }
+      return res; });
+    DFRK.set(key, out); if (DFRK.size > 12) DFRK.delete(DFRK.keys().next().value);
+    return out.map(c => Object.assign({}, c, { tags: c.tags.slice() })); };
+  /* the Legacy list on one difficulty: Safe cards from every gear-level list (one per upgrade set, lightest level), then Risky cards */
+  function difList(N) {
+    const goal = 'legacy', base = listAt(goal, GL_MIN, false, true); if (base.msg) return base;
+    const Rs = { [GL_MIN]: base }; GLV.slice(1).forEach(g => { Rs[g] = listAt(goal, g, false, true); });
+    if (RF_LIST && (PD.bbf || PD.rpf)) Rs.rf = listAt(goal, GL_MIN, true, true);
+    const bySet = new Map(), put = (R, gl, rf) => { if (!R || R.msg) return; (R.cards || []).forEach(c => { if (c.r && c.r.ux) return; Object.assign(c, { gl, rf, ex: gl !== GL_MIN || rf ? 1 : 0 });
+      const k = (c.ids || []).slice().sort().join(','), o = bySet.get(k); if (!o || needRk(c) < needRk(o) || (needRk(c) === needRk(o) && c.mins < o.mins)) bySet.set(k, c); }); };
+    GLV.forEach(g => put(Rs[g], g, false)); if (Rs.rf) put(Rs.rf, GL_MIN, true);
+    const cnt = c => (c.r && c.r.got ? c.r.got.length : (c.ids || []).length);
+    const safe = [...bySet.values()].sort((a, b) => cnt(b) - cnt(a) || cardBl(a) - cardBl(b) || a.mins - b.mins || EASE2[a.m] - EASE2[b.m] || ((b.r || {}).sc || 0) - ((a.r || {}).sc || 0)), fin = [];
+    for (const c of safe) { if (fin.length >= CARDN) break; if (fin.some(d => needRk(d) <= needRk(c) && (c.ids || []).every(x => (d.ids || []).includes(x)))) continue; fin.push(c); }
+    const ux = (base.cards || []).filter(c => c.r && c.r.ux).map(c => Object.assign(c, { gl: GL_MIN, rf: false }));
+    fin.concat(ux).forEach(c => { c.tags.unshift(needTag(c)); });
+    fin.forEach(c => { c.dft = DF_SAFE(N); });
+    let risky = []; try { risky = dfRisky(N, Rs, fin); } catch (e) { if (typeof console !== 'undefined') console.warn('difficulty', e); risky = []; }
+    const cards = fin.concat(ux, risky);
+    return Object.assign({}, base, { cards, Rs, SK: {}, dfn: N, none: cards.length ? '' : `No upgrade of your Legacy can be done on N${N}.` }); }
+  const dfTagOf = c => (c && c.dft) || (FO && !FO.hs && FO.dft) || '';
+  const dfKey = () => TAGS_KEY().replace(/<\/ul><\/details>$/, [['Safe', 'the replays get this plan done on that N'], ['Risky', 'not simulated to finish on that N with that hero: it may not finish']]
+    .map(([a, b]) => `<li><b>${esc(a)}</b> <span class="small">· ${esc(b)}</span></li>`).join('') + '</ul></details>');
+  const dfSel = dn => `<div class="pl-fg pl-dfg"><span class="pl-fl">Difficulty</span><select class="pl-dif" aria-label="Difficulty">`
+    + [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(v => `<option value="${v}"${v === dn ? ' selected' : ''}>${v ? 'N' + v : 'Auto'}</option>`).join('') + `</select></div>`;
+  /* a Risky card opened: the run record as computed, at the heaviest gear level, one warning, no gear switch / hero swap */
+  const dfFocus = (c, k, tot) => { FO.need = GLN.length - 1; FO.gl = FO.need; FO.rf = false; FO.nrf = false; FO.dft = '';
+    return withG({ gl: c.gl, rf: false }, () => { if (c.wh) c.what = c.wh(null);
+      const h = focusHtml(c, k, tot, dclRoute(lgFocus(c))); if (!DCL_ON || !h) return h;
+      const box = DCL.box(h), f = box.querySelector('.pl-focus'); if (!f) return h;
+      f.querySelectorAll('.pl-gsw').forEach(g => { const sp = document.createElement('span'), pv = g.parentElement; sp.textContent = gearTxt(c.r.L); g.replaceWith(sp);
+        const bm = pv && pv.querySelector(':scope > .pl-bm'); if (bm) bm.remove(); });   // no gear switch / rare-drop hint: a Risky run plays the heaviest level
+      const w = document.createElement('div'); w.className = 'pl-hsw';
+      w.innerHTML = `<div class="pl-hsx"><b class="warntext">Risky plan: not simulated to finish on N${c.n} with ${esc(hName(c.h))};</b> <span class="small">it may not finish.</span></div>`;
+      const fh = f.querySelector(':scope > .pl-fh'); if (fh) fh.after(w); else f.prepend(w); return box.innerHTML; }); };
+  K.hooks.push((page, out) => { if (page !== 'planner' || !out) return; const sl = out.querySelector('select.pl-dif'); if (!sl) return;
+    sl.addEventListener('change', () => { const f = CF(), v = +sl.value || 0; if (v >= 1 && v <= 9) f.dn = v; else delete f.dn; FO = null; save(); K.route(); }); });
+  if (DCL_ON && !document.getElementById('pl-df-css')) { const st = document.createElement('style'); st.id = 'pl-df-css';
+    st.textContent = '.pl-dfg select.pl-dif{font:600 13px/1.4 var(--body);padding:1px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:inherit;max-width:100%}'
+      + '.pl-why{margin:4px 0 6px;min-width:0;overflow-wrap:anywhere}.pl-why summary{color:var(--muted)}.pl-why .pl-ul{margin:3px 0 0}.pl-alsop{margin:4px 0 6px;overflow-wrap:anywhere}';
+    document.head.appendChild(st); }
   function plannerOut(goal) {
-    const R = mergedList(goal);
+    const DN = goal === 'legacy' ? difN() : 0, R = DN ? difList(DN) : mergedList(goal);   // DIFFICULTY PICKER
     if (R.msg) { FO = null; return R.msg; }
     /* what you get: the count + the first 2 names, the names the other cards do not share first (so similar cards stay tellable apart) */
     const fq = {}; R.cards.forEach(c => (c.ids || []).forEach(id => { fq[id] = (fq[id] || 0) + 1; }));
     R.cards.forEach(c => { if (c.wh) c.what = c.wh(fq); else if (c.ids) c.what =`<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids.slice().sort((a, b) => fq[a] - fq[b]))}`; });
-    if (FO && FO.g === goal) { const fh = hsOut(goal, R); if (fh) return fh; }   // HERO SWAP
+    if (FO && FO.g === goal) { if (DN) { const rk = R.cards.findIndex(c => c.risky && c.key === FO.k); if (rk >= 0) return dfFocus(R.cards[rk], rk, R.cards.length); const sc = R.cards.find(c => c.key === FO.k); FO.dft = sc ? sc.dft || '' : ''; }
+      const fh = hsOut(goal, R); if (fh) return fh; }   // HERO SWAP
     const lost = !!(FO && FO.g === goal); FO = null;
     if (lost) R.note = (R.note ? R.note + ' ' : '') + 'The run you had open is not on the list any more.';
     const f = CF(), filt = f.h || f.ns.length || f.m || f.len;
-    return filtHtml() + TAGS_KEY() + (R.note ? `<p class="small pl-note">${esc(R.note)}</p>` : '')
+    return filtHtml(goal) + (DN ? dfKey() : TAGS_KEY()) + (R.note ? `<p class="small pl-note">${esc(R.note)}</p>` : '')
       + (R.cards.length ? `<div class="pl-cards">${R.cards.map((c, k) => withG({ gl: c.gl, rf: c.rf }, () => cardHtml(c, k))).join('')}</div>`
         : `<p class="small">${R.none ? esc(R.none) : filt ? 'No run matches these filters.' : 'No run found.'}</p>`)
       + (R.extra || '');
