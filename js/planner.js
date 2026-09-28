@@ -216,10 +216,14 @@
   /* ---- NEAREST STEP (patch_page_nearest_step 2026-09-28, user decision; tester_shadow_shaman.md):
      replays / beat rows / Survival waves / lab rows exist only at whole steps. k = the NEAREST step (was floor), k0 = floor(s), up = k was
      rounded up (the run is then checked at k-1 too: 'borderline for your account'); f = blend toward k+1 (0 when rounded up) */
-  const stepK = (r, top) => { const s = +r.s || 0, k0 = Math.floor(s + 1e-9), k = top > 0 ? Math.max(0, Math.min(top - 1, Math.round(s))) : Math.round(s), up = k > s + 1e-9;
-    return { s, k, k0, up, f: up ? 0 : Math.max(0, Math.min(0.999, s - k)) }; };
+  /* BORDERLINE RANK (patch_page_borderline_rank 2026-09-28, bug fix): round UP only when a real save is loaded (rnd); otherwise k = floor and
+     s / k / f stay exactly the pre-nearest-step values */
+  const SVRND = () => S.src === 'save';
+  const stepK = (r, top, rnd) => { const s = +r.s || 0, k0 = +r.k || 0, kr = top > 0 ? Math.max(0, Math.min(top - 1, Math.round(s))) : Math.round(s);
+    if (!rnd || !(kr > k0)) return { s: r.s, k: r.k, k0: r.k, up: false, f: r.f };
+    return { s, k: kr, k0, up: true, f: 0 }; };
   const eqStep = (h, n, m, bag) => {                                     // {s: exact step, k: NEAREST step for replays, k0: floor, up, f}
-    const sig = (+S.ml || 1) + '|' + (+S.rank || 0) + '|' + (+S.pts || 0) + '|' + vipLv() + '|' + JSON.stringify(S.own) + '|' + JSON.stringify(S.sw || {});   // ACCOUNT SWORDS
+    const sig = (+S.ml || 1) + '|' + (+S.rank || 0) + '|' + (+S.pts || 0) + '|' + vipLv() + '|' + JSON.stringify(S.own) + '|' + JSON.stringify(S.sw || {}) + (SVRND() ? '|R' : '');   // ACCOUNT SWORDS // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28): save flag
     if (sig !== EQS) { EQS = sig; EQC = EQM.get(sig) || {}; EQM.delete(sig); EQM.set(sig, EQC); if (EQM.size > 8) EQM.delete(EQM.keys().next().value); for (const x in FCUT) if (x.endsWith('y')) delete FCUT[x]; }
     const gk = band(n) + '|' + MK[m], key = h + '|' + gk + (bag ? '|' + bag.slice().sort().join(',') : ''); if (EQC[key]) return EQC[key];
     const p = (HERO[h] || {}).main_stat || 'STR', w = swRow(h, gk), pl = PD.pl || [];
@@ -232,7 +236,7 @@
       const f = k < ps.length - 1 && you > ps[k] ? Math.min(0.999, (you - ps[k]) / Math.max(1e-9, ps[k + 1] - ps[k])) : 0;
       r = { s: k + f, k, f };
     }
-    return (EQC[key] = stepK(r, pl.length)); };   // NEAREST STEP (patch_page_nearest_step 2026-09-28)
+    return (EQC[key] = stepK(r, pl.length, SVRND())); };   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28) // NEAREST STEP (patch_page_nearest_step 2026-09-28)
   const pStep = p => { const ss = [];                                 // one main stat: the median hero over the three bands x three modes
     PD.heroes.forEach(h => { if (((HERO[h] || {}).main_stat || 'STR') !== p) return; for (let n = 2; n <= 8; n += 3) ['m', 'c', 'd'].forEach(m => ss.push(eqStep(h, n, m))); });
     if (!ss.length) { const k = stepOf(p); return { s: k, k, f: 0 }; }
@@ -466,7 +470,9 @@
     if (c.reach[L] >= last) return tot * fr(Math.min(stop, last));
     const fj = c.jl >= 0 && c.tot[c.jl] != null ? c.tot[c.jl] : null;   // borrow a finishing replay's pace when there is one
     return fj != null ? fj * fr(Math.min(stop, c.reach[L])) : tot * fr(Math.min(stop, c.reach[L])) / Math.max(0.05, fr(c.reach[L])); };
-  const nearFin = (n, m, i, e) => { if (!e || !e.up || !(e.k > 0)) return false; const c = cellOf(n, m, i, e.k), c0 = cellOf(n, m, i, e.k - 1); return !!c && c.jl >= 0 && !(c0 && c0.jl >= 0); };   // NEAREST STEP (patch_page_nearest_step 2026-09-28): finishes only thanks to rounding up
+  const nearFin = (n, m, i, e) => { if (!e) return false; // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28): not rounded up = the old rule
+    if (!e.up) { if (e.f < 0.5) return false; const c = cellOf(n, m, i, e.k), c2 = cellOf(n, m, i, e.k + 1); return !!c && c.jl < 0 && !!c2 && c2.jl >= 0; }
+    if (!(e.k > 0)) return false; const c = cellOf(n, m, i, e.k), c0 = cellOf(n, m, i, e.k - 1); return !!c && c.jl >= 0 && !(c0 && c0.jl >= 0); };   // NEAREST STEP (patch_page_nearest_step 2026-09-28): finishes only thanks to rounding up
   const tMix = (c, L, stop, n, m, i, e) => { PQL.L = L; const t = tAt(c, L, stop, n, m), c2 = e.f ? cellOf(n, m, i, e.k + 1) : null, L2 = lvlFor(c2, stop);
     return L2 < 0 ? t : t + e.f * (tAt(c2, L2, stop, n, m) - t); };
   const finT = (c, L, n, m, i, e) => { const t = c.tot[L] != null ? c.tot[L] : c.tot[c.jl], c2 = e.f ? cellOf(n, m, i, e.k + 1) : null;
@@ -1404,8 +1410,9 @@
       });
     }
     runs.forEach(fgPost); runs.forEach(chPost);                                              // FARM GOALS: chance steps farmed on = upgrades, their minutes in the run length
+    runs.forEach(r => { r.bl = blOf('legacy', r, r.h, r.lv, r.stop) ? 1 : 0; });   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28): borderline runs after the safe ones
     const EASE = { m: 0, c: 1, d: 2 };
-    runs.sort((a, b) => rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
+    runs.sort((a, b) => (a.bl || 0) - (b.bl || 0) || rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
     const cp = capRuns(runs.filter(fOK), r => r.mins), pool = cp.runs;   // CARDS UI: hero / N / mode filters, then the length cap (nothing fits: shortest first)
     /* one option per set of upgrades (its easiest difficulty + mode, best hero first), with the other heroes that can do the same run */
     const groups = new Map();
@@ -1811,7 +1818,7 @@
   /* max length: runs over it drop out; if none is left, the shortest runs anyway (with a note) */
   const capRuns = (runs, t) => { const f = CF(), mx = LENMAX[f.len] || Infinity; if (mx === Infinity) return { runs, note: '' };
     const ok = runs.filter(r => t(r) <= mx); if (ok.length || !runs.length) return { runs: ok, note: '' };
-    return { runs: runs.slice().sort((a, b) => t(a) - t(b)), note: `No run fits in ${f.len} h: the shortest ones instead.` }; };
+    return { runs: runs.slice().sort((a, b) => (a.bl || 0) - (b.bl || 0) || t(a) - t(b)), note: `No run fits in ${f.len} h: the shortest ones instead.` }; };
   const hName = h => (HERO[h] || {}).name || h, stOf = h => String((HERO[h] || {}).main_stat || '').toLowerCase();
   const tagH = (t, c, tip) => `<span class="tag${c ? ' ' + c : ''}${tip ? ' pl-tip' : ''}"${tip ? ` title="${esc(tip)}" data-tip="${esc(tip)}" tabindex="0"` : ''}>${esc(t)}</span>`;
   /* PLANNER TAGS (2026-09-26): plain names + one-line tips (tap on phones, hover on desktop); TAGS_KEY = the folded key under the filters */
@@ -1836,7 +1843,7 @@
     + [['X/10 test runs finished', 'the run was replayed 10 times with random drops, X of them finished'], ['Full clear OK', 'beats the final boss of that N if you keep playing after your goal'],
        ['Beginner-friendly', 'also finishes when played slowly by a new player'], ['tight', 'boss fights are won with little room: a bit more gear helps'],
        ['needs: ...', 'the gear level this run needs'], ['needs rare drops', 'only works if you farm rare drops'], ['untested', 'upgrades the replays could not confirm'],
-       ['no quest steps', 'the goal needs no main quest steps'], ['spends Points', 'the run buys something with Points'], ['borderline for your account', 'your account is between two tested steps and the plan uses the stronger one']]
+       ['no quest steps', 'the goal needs no main quest steps'], ['spends Points', 'the run buys something with Points']].concat(SVRND() ? [['borderline for your account', 'your account is between two tested steps and the plan uses the stronger one']] : [])
       .map(([a, b]) => `<li><b>${esc(a)}</b> <span class="small">· ${esc(b)}</span></li>`).join('') + `</ul></details>`;
   const f10 = v => Math.max(0, Math.min(10, Math.round(v * 10)));
   const namesH = ids => { const nm = ids.map(iname); return ids.slice(0, 2).map(nlk).join(', ') + (nm.length > 2 ? ` <span class="small">+${nm.length - 2} more</span>` : ''); };
@@ -1920,8 +1927,9 @@
       runs.push({ h, n, m, lv, got, at, fin: c.jl >= 0, near: nearFin(n, m, i, e), sc: score(h, n, m), stop, L, mins: tMix(c, L, stop, n, m, i, e) + more + pqStart(got, at, n, m, i, stop, L) });
     });
     runs.forEach(chPost);                                              // CHAINS: evolutions of the new items on the same run
+    runs.forEach(r => { r.bl = blOf('start', r, r.h, r.lv, r.stop) ? 1 : 0; });   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28): borderline runs after the safe ones
     const EASE = { m: 0, c: 1, d: 2 };
-    runs.sort((a, b) => rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
+    runs.sort((a, b) => (a.bl || 0) - (b.bl || 0) || rkV(b) - rkV(a) || a.mins - b.mins || a.n - b.n || EASE[a.m] - EASE[b.m] || b.sc - a.sc);   // items minus length class (user 2026-09-25)
     const cp = capRuns(runs.filter(fOK), r => r.mins), groups = new Map();   // CARDS UI: filters + length cap
     for (const r of cp.runs) { const k = r.got.map(x => x[1]).sort().join(','); const g = groups.get(k);
       if (!g) groups.set(k, Object.assign({}, r, { others: [] })); else if (g.n === r.n && g.m === r.m && g.others.length < 5) g.others.push(r.h); }
@@ -1961,16 +1969,16 @@
         const L = lvlFor(c, 20 + n), mins = finT(c, L, n, m, i, e); if (!mins) return;
         const jv = jvRate(h, n, m, e), ex = [['Shadow Monster', 'O007', vipPts(10), 'after the main quest'], ['Jarvan V', 'Hlgr', jvPer(), 'first kill after the main quest'], ['Archangel', 'H02D', arch, 'first kill'], ['Frost Lord', 'O01Q', arch, 'first kill']]
           .filter(x => x[2] && (x[1] === 'Hlgr' ? jvCan(h, n, m, e) : bossAt(x[1], n, m, i, e.k) >= 0));   // MAP 1.03 JARVAN: one kill, optional
-        fin.push({ h, k: e.k, L, mins, per: (pay + low + mins / 60 * AFKH) / (mins / 60), jv, sess: sessPts(pay + low, mins, jv), ex }); });
+        fin.push({ h, k: e.k, L, mins, per: (pay + low + mins / 60 * AFKH) / (mins / 60), jv, sess: sessPts(pay + low, mins, jv), ex, bl: blOf('points', { n, m }, h, e.k, 20 + n) ? 1 : 0 }); });   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28)
       if (!fin.length) continue;
-      fin.sort((a, b) => b.sess - a.sess || b.per - a.per);
+      fin.sort((a, b) => (a.bl || 0) - (b.bl || 0) || b.sess - a.sess || b.per - a.per);   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28)
       all.push({ n, m, pay, low, fin });
     }
     const mx = LENMAX[f.len] || Infinity; let note = '';
     let rows = all.map(r => Object.assign({}, r, { fin: r.fin.filter(x => x.mins <= mx) })).filter(r => r.fin.length);
     if (!rows.length && all.length) { note = `No run fits in ${f.len} h: the shortest ones instead.`;
-      rows = all.map(r => Object.assign({}, r, { fin: r.fin.slice().sort((a, b) => a.mins - b.mins) })).sort((a, b) => a.fin[0].mins - b.fin[0].mins); }
-    else rows.sort((a, b) => b.fin[0].sess - a.fin[0].sess);
+      rows = all.map(r => Object.assign({}, r, { fin: r.fin.slice().sort((a, b) => (a.bl || 0) - (b.bl || 0) || a.mins - b.mins) })).sort((a, b) => (a.fin[0].bl || 0) - (b.fin[0].bl || 0) || a.fin[0].mins - b.fin[0].mins); }
+    else rows.sort((a, b) => (a.fin[0].bl || 0) - (b.fin[0].bl || 0) || b.fin[0].sess - a.fin[0].sess);   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28)
     rows.forEach(r => { r.best = r.fin[0]; r.who = r.fin.slice(0, 4).map(x => x.h); });
     const anyRun = all.length || f.h || f.ns.length || f.m;
     return { cards: rows.slice(0, CARDN).map(ptCard), note, focus: c => dclRoute(ptFocus(c)), has: (h, n, m) => all.some(r => r.n === n && r.m === m && r.fin.some(y => y.h === h)), find: (h, n, m) => { const r = all.find(x => x.n === n && x.m === m), x = r && r.fin.find(y => y.h === h); return x ? ptCard(Object.assign({}, r, { fin: [x], best: x, who: [h] })) : null; }, none: anyRun ? '' : 'No run a normal player finishes with your account yet. Try Main N1.' };
@@ -2611,14 +2619,16 @@
   const LSTC = new Map();
   const listAt0 = (goal, gl, rf, deep, skip) => withG({ gl, rf }, () => { const cn = CARDN, sk = LSKIP; if (deep) CARDN = 60; LSKIP = skip || null;
     try { return LISTF[goal](); } finally { CARDN = cn; LSKIP = sk; } });
-  const listAt = (goal, gl, rf, deep, skip) => { const k = JSON.stringify([goal, +gl || 0, !!rf, !!deep, !!skip, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), rvSig(), CF()]);   // ACCOUNT SWORDS
+  const listAt = (goal, gl, rf, deep, skip) => { const k = JSON.stringify([goal, +gl || 0, !!rf, !!deep, !!skip, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), rvSig(), CF(), SVRND() ? 1 : 0]);   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28) // ACCOUNT SWORDS
     let R = LSTC.get(k); if (!R) { R = listAt0(goal, gl, rf, deep, skip); LSTC.set(k, R); if (LSTC.size > 24) LSTC.delete(LSTC.keys().next().value); }
     return R.msg ? R : Object.assign({}, R, { cards: (R.cards || []).map(c => Object.assign({}, c, { tags: (c.tags || []).slice() })),
       find: R.find ? (h, n, m) => { const c = R.find(h, n, m); return c ? Object.assign({}, c, { tags: (c.tags || []).slice() }) : c; } : R.find }); };
   const hnmOf = key => String(key || '').split('|').slice(0, 4).join('|');
   const EASE2 = { m: 0, c: 1, d: 2 };
-  const cardCmp = (goal, byLen) => byLen ? (a, b) => a.mins - b.mins : goal === 'points' ? (a, b) => b.r.best.sess - a.r.best.sess
+  const cardCmp0 = (goal, byLen) => byLen ? (a, b) => a.mins - b.mins : goal === 'points' ? (a, b) => b.r.best.sess - a.r.best.sess
     : (a, b) => rkV(b.r) - rkV(a.r) || a.r.mins - b.r.mins || a.n - b.n || EASE2[a.m] - EASE2[b.m] || (b.r.sc || 0) - (a.r.sc || 0);
+  const cardBl = c => c && c.r && (c.r.bl || (c.r.best && c.r.best.bl)) ? 1 : 0;   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28)
+  const cardCmp = (goal, byLen) => { const f = cardCmp0(goal, byLen); return (a, b) => cardBl(a) - cardBl(b) || f(a, b); };
   const needRk = c => c.rf ? 9 : c.gl;
   const needTag = c => c.rf ? tagH('needs rare drops', 'warn', 'Only works if you farm rare drops.') : tagH('needs: ' + GLN[c.gl], c.gl >= 2 ? 'warn' : '', 'Gear level this run needs: ' + GLN[c.gl] + '.');
   function mergedList(goal) {

@@ -142,6 +142,7 @@
         'Phantom Sword’s Illusion Doom: the 2s blast hits for Int x 20 x level, not x 7.',
       ]],
       ['Calculators', [
+        'Run planner: with a loaded save that sits between two tested account levels, runs that need the stronger level show up tagged “borderline for your account”, always after the safe runs.',
         'Run planner: Early and Mid gear rows no longer disappear when that part only uses shop gear.',
         'Heroes and Run planner: heroes that start with a free item (e.g. Mana Mage’s Evil Jaina rune) now show it with what it does, and the guide no longer tells you to swap a free rune for a farmed one.',
         'Run planner: click a hero under "Also works with" to see the same run planned for that hero, or try any hero you own on it (with warnings where that hero is not expected to win).',
