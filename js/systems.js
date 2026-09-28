@@ -143,6 +143,7 @@
       ]],
       ['Legacy', [
         'The Divine Arrow Seal 7 (Corrupted) step now lists how the Beast Seal quest works.',
+        'The Divine Arrow Seal 8 step and the [Ice Stone] source now list how the quest works: talk to Frodo, then Anduin/the Elder, N7+, once per game.',
       ]],
       ['Calculators', [
         'Run planner: with a loaded save that sits between two tested account levels, runs that need the stronger level show up tagged “borderline for your account”, always after the safe runs.',
