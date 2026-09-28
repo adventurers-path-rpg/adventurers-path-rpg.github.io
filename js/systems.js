@@ -141,6 +141,9 @@
       ['Heroes', [
         'Phantom Sword’s Illusion Doom: the 2s blast hits for Int x 20 x level, not x 7.',
       ]],
+      ['Legacy', [
+        'The Divine Arrow Seal 7 (Corrupted) step now lists how the Beast Seal quest works.',
+      ]],
       ['Calculators', [
         'Run planner: with a loaded save that sits between two tested account levels, runs that need the stronger level show up tagged “borderline for your account”, always after the safe runs.',
         'Run planner: Early and Mid gear rows no longer disappear when that part only uses shop gear.',
