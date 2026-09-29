@@ -2054,7 +2054,7 @@
     if (fq) E.sort((a, b) => a.f - b.f);
     const rest = E.slice(2).reduce((t, e) => t + e.n, 0);
     return `<b>${all.length}</b> upgrade${all.length > 1 ? 's' : ''} · ${E.slice(0, 2).map(e => e.h).join(' · ')}${rest ? ` <span class="small">+${rest} more</span>` : ''}`; };
-  const stSrc = x => x[5] === 'boss' ? bname(x[2]) + (+x[8] > 1 ? ' x' + x[8] : '') : (/ at (.+?)(?: \(|,|$)/.exec(x[7] || '') || /^(.+?) (?:near .+? )?drops/.exec(x[7] || '') || [0, 'free'])[1];
+  const stSrc = x => x[5] === 'survival' ? 'Survival wave ' + svStW(x) : x[5] === 'boss' ? bname(x[2]) + (+x[8] > 1 ? ' x' + x[8] : '') : (/ at (.+?)(?: \(|,|$)/.exec(x[7] || '') || /^(.+?) (?:near .+? )?drops/.exec(x[7] || '') || [0, 'free'])[1];
   const stWhat = (r, fq) => { const E = r.got.slice(); if (fq) E.sort((a, b) => (fq[a[1]] || 0) - (fq[b[1]] || 0));
     return `<b>${E.length}</b> Legacy line${E.length > 1 ? 's' : ''} · ${E.slice(0, 2).map(x => `${nlk(x[1])} (${esc(stSrc(x))})`).join(' · ')}${E.length > 2 ? ` <span class="small">+${E.length - 2} more</span>` : ''}`; };
   const gearP = L => L >= 0 ? `<p class="small">Gear: ${esc(gearTxt(L))}.</p>` : '';
@@ -2096,7 +2096,11 @@
     return `<ul class="pl-ul">${r.got.map(stLi).join('')}</ul>` + (r.others.length ? `<p class="small">Also works with: ${r.others.map(heroLink).join(', ')}</p>` : '')
       + `<p class="small">${r.fin ? (r.near ? 'Can also finish the whole run (borderline for your account).' : 'Can also finish the whole run.') : r.near ? 'Stop after the last boss you need. The whole run is borderline for your account.' : 'Stop after the last boss you need: not expected to finish this run.'}${fw != null ? ` The whole run: ${f10(fw)}/10 test runs finished.` : ''}</p>`
       + sideTxt(r) + gearP(r.L)
-      + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, r.got.filter(x => x[1] in r.at).map(x => ({ id: x[2], label: 'Get ' + iname(x[1]), st: r.at[x[1]] })).concat(chNeeds(c), otNeeds(c)), false, r.L); };   // ON THE WAY
+      + tgSet(r.lv) + routeHtml(r.h, r.n, r.m, r.got.filter(x => x[1] in r.at).map(x => x[2] ? { id: x[2], label: 'Get ' + iname(x[1]), st: r.at[x[1]] } : { txt: `Survival Challenge: reach wave ${svStW(x)} (${MN[r.m]})`, label: 'Get ' + iname(x[1]), st: r.at[x[1]] }).concat(chNeeds(c), otNeeds(c)), false, r.L); };   // ON THE WAY
+  /* SURVIVAL START (patch_page_survival_gloves 2026-09-29): a 'survival' start (Survival Gloves 1: reach wave 60 in Main or Death) is planned like nbPlan kind 's':
+     the step after which the hero reaches the wave (svAt), + wave x 0.9 arena minutes (nbMins) */
+  const svStW = x => +((/wave (\d+)/.exec(x[7] || '') || [])[1]) || 60;
+  const svStMins = (got, at) => Math.max(0, ...got.filter(x => x[5] === 'survival' && x[1] in at).map(x => svStW(x) * 0.9));
   function startList() {
     const ST = (PD.starts || []).filter(x => !S.own[x[0]]);
     if (!ST.length) return { msg: '<p class="small">You already hold an item of every Legacy line.</p>' };
@@ -2107,13 +2111,14 @@
       const e = eqStep(h, n, m), lv = e.k, c = cellOf(n, m, i, lv), rmax = c ? Math.max(...c.reach) : -1;
       const at = {};                                  // v52: boss starts at the step the run fights the boss (bossAt), then the free ones it passes
       ST.forEach(x => { if (x[5] !== 'boss' || !fitsS(x, n, m) || (x[6] && !hasBit(x[6], i))) return; const s = bossAt(x[2], n, m, i, lv); if (s >= 0 && s <= rmax) at[x[1]] = s; });
+      ST.forEach(x => { if (x[5] !== 'survival' || m === 'c' || !fitsS(x, n, m)) return; const s = svAt(n, m, i, lv, svStW(x)); if (s >= 0 && s <= rmax) at[x[1]] = s; });   // SURVIVAL START
       if (!Object.keys(at).length) return;
       const stop = Math.max(0, ...Object.values(at)), L = lvlFor(c, stop); if (L < 0) return;
       const got = ST.filter(x => x[1] in at || (x[5] === 'free' && (x[1] !== 'I04J' || (S.ml || 1) >= 3) && stop >= (+x[10] || 0)));   // Intelligence Treasure: step 9, Steel Fortress
       /* a start that needs several kills (Legacy Arrow: 15 Flame Lord kills, 30 s respawn): kills x kill time (PD.kt) + the respawn waits */
       const more = got.reduce((t, x) => { const k = +x[8] || 1; if (k <= 1) return t; const q = ktC(x[2] + '|' + n + '|' + m, i);
         return t + (k * (q ? B36.indexOf(q) * 10 : 60) + (k - 1) * (+x[9] || 0)) / 60; }, 0);
-      runs.push({ h, n, m, lv, got, at, fin: c.jl >= 0, near: nearFin(n, m, i, e), sc: score(h, n, m), stop, L, mins: tMix(c, L, stop, n, m, i, e) + more + pqStart(got, at, n, m, i, stop, L) });
+      runs.push({ h, n, m, lv, got, at, fin: c.jl >= 0, near: nearFin(n, m, i, e), sc: score(h, n, m), stop, L, mins: tMix(c, L, stop, n, m, i, e) + more + pqStart(got, at, n, m, i, stop, L) + svStMins(got, at) });   // SURVIVAL START: + the arena
     });
     runs.forEach(chPost);                                              // CHAINS: evolutions of the new items on the same run
     runs.forEach(r => { r.bl = blOf('start', r, r.h, r.lv, r.stop) ? 1 : 0; });   // BORDERLINE RANK (patch_page_borderline_rank 2026-09-28): borderline runs after the safe ones
@@ -2125,7 +2130,7 @@
     const best = [];
     for (const g of groups.values()) { if (best.some(b => g.got.every(x => b.got.includes(x)))) continue; best.push(g); if (best.length >= CARDN) break; }
     const pts = ST.filter(x => /^points:/.test(x[5])).map(x => ({ x, cost: +x[5].split(':')[1] })).sort((a, b) => a.cost - b.cost);
-    const slow = ST.filter(x => x[5] === 'farm' || x[5] === 'survival');
+    const slow = ST.filter(x => x[5] === 'farm' || (x[5] === 'survival' && !best.some(r => x[1] in r.at)));   // SURVIVAL START: a shown card plans it = not a long farm
     return { cards: best.map(stCard), note: cp.note, focus: c => dclRoute(stFocus(c)), has: (h, n, m) => runs.some(x => x.h === h && x.n === n && x.m === m), find: (h, n, m) => { const r = runs.find(x => x.h === h && x.n === n && x.m === m); return r ? stCard(Object.assign({ others: [] }, r)) : null; }, none: runs.length ? '' : 'No boss start fits your account yet: take the free ones below and play Main N1-N2.',
       extra: (pts.length ? `<div class="card"><b>Buy with Points</b> <span class="small">(you have ${fmt(S.pts || 0)})</span><ul class="pl-ul">${pts.map(({ x, cost }) => `<li>${ilink(x[1])} <span class="small">· ${esc(x[7])}${(S.pts || 0) >= cost ? ' · you can afford it' : ''}</span></li>`).join('')}</ul></div>` : '')
         + (slow.length ? `<details class="pl-d"><summary>Long farms (${slow.length})</summary><ul class="pl-ul">${slow.map(stLi).join('')}</ul></details>` : '') };

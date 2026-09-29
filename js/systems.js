@@ -146,6 +146,7 @@
         'The Divine Arrow Seal 8 step and the [Ice Stone] source now list how the quest works: talk to Frodo, then Anduin/the Elder, N7+, once per game.',
       ]],
       ['Calculators', [
+        'Run planner: First Legacy items now plans Survival Gloves 1 (Survival Challenge wave 60) instead of hiding it under long farms.',
         'Run planner: your bonus item never takes the slot of a Key item (e.g. Heart Sword), a Legacy item or a piece you still need to craft something.',
         'Run planner: pick a difficulty yourself (Legacy tab) to see every run on that N ranked by upgrades, Safe runs first, Risky ones clearly marked.',
         'Run planner: cards now say why an upgrade was left out, and when it works at a heavier gear level (e.g. “Also possible: Divine Armor at Overgeared”).',
