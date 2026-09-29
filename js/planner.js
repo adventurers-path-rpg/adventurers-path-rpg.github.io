@@ -2810,13 +2810,13 @@
       + `<div class="pl-fh">${k < 0 ? '' : `<span class="pl-rk">${k + 1}</span>`}${heroLink(c.h)}${t ? `<span class="pl-tl t-${t}" title="Tier ${t}">${t}</span>` : ''}${st ? `<span class="pl-sb ${st}">${st.toUpperCase()}</span>` : ''}<b>N${c.n} ${MN[c.m]}</b>${lenW(c.mins) ? `<span class="small">${lenW(c.mins)} run</span>` : ''}</div>`
       + `<div class="pl-fw">${c.what}${c.fc != null ? ` · ${f10H(c.fc)}` : c.fr != null ? ` · ${f10H(c.fr, 1)}` : ''}${dclTags(c.tags).length || dfTagOf(c) ? ' ' + dfTagOf(c) + dclTags(c.tags).join('') : ''}</div>`
       + bagHtml(c) + chHtml(c) + otwHtml(c) + body + `<button type="button" class="pl-bk pl-bk2">← Back to all runs</button></div>`; };
-  const filtHtml = goal => { const dn = goal === 'legacy' ? difN() : 0; const f = CF(), hs = PD.heroes.filter(unlocked).map(h => hName(h)).sort((a, b) => a.localeCompare(b));
-    return `<div class="pl-fb">` + (goal === 'legacy' ? dfSel(dn) : '')
+  const filtHtml = goal => { const dn = goal === 'legacy' ? difN() : 0, mu = goal === 'legacy' && MUP.on(); const f = CF(), hs = PD.heroes.filter(unlocked).map(h => hName(h)).sort((a, b) => a.localeCompare(b));
+    return `<div class="pl-fb">` + (goal === 'legacy' ? MUP.chk() + (mu ? '' : dfSel(dn)) : '')   // MOST UPGRADES: '' on the public page
       + `<div class="pl-fg"><span class="pl-fl">Hero</span><input id="pl-fhero" class="pl-hin" list="pl-hl" placeholder="Any hero" autocomplete="off" value="${f.h ? esc(hName(f.h)) : ''}">${f.h ? chip('h', '', '✕', false) : ''}<datalist id="pl-hl">${hs.map(x => `<option value="${esc(x)}">`).join('')}</datalist></div>`
-      + (dn ? '' : `<div class="pl-fg"><span class="pl-fl">N</span>${chip('n', 0, 'Any', !f.ns.length)}${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => chip('n', n, 'N' + n, f.ns.includes(n))).join('')}</div>`)
-      + `<div class="pl-fg"><span class="pl-fl">Mode</span>${[['', 'Any'], ['m', 'Main'], ['c', 'Challenge'], ['d', 'Death']].map(([v, t]) => chip('m', v, t, f.m === v)).join('')}</div>`
-      + `<div class="pl-fg"><span class="pl-fl">Length</span>${[[0, 'Any'], [5, 'Up to 5 h'], [3, 'Up to 3 h']].map(([v, t]) => chip('len', v, t, f.len === v)).join('')}</div>`
-      + (f.h || f.ns.length || f.m || f.len || dn ? chip('clr', '', 'Clear filters', false) : '') + `</div>`; };
+      + (dn || mu ? '' : `<div class="pl-fg"><span class="pl-fl">N</span>${chip('n', 0, 'Any', !f.ns.length)}${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => chip('n', n, 'N' + n, f.ns.includes(n))).join('')}</div>`)
+      + (mu ? '' : `<div class="pl-fg"><span class="pl-fl">Mode</span>${[['', 'Any'], ['m', 'Main'], ['c', 'Challenge'], ['d', 'Death']].map(([v, t]) => chip('m', v, t, f.m === v)).join('')}</div>`
+      + `<div class="pl-fg"><span class="pl-fl">Length</span>${[[0, 'Any'], [5, 'Up to 5 h'], [3, 'Up to 3 h']].map(([v, t]) => chip('len', v, t, f.len === v)).join('')}</div>`)
+      + ((mu ? f.h : f.h || f.ns.length || f.m || f.len || dn) ? chip('clr', '', 'Clear filters', false) : '') + `</div>`; };
   const ctlHtml = () => `<div class="pl-ctl"><span class="pl-fl">Gear</span>${GLN.map((t, j) => chip('gl', j, t, (+S.gl || 0) === j)).join('')}`
     + (PD.bbf || PD.rpf ? `<label class="pl-chk"><input type="checkbox" id="pl-rf" ${S.rf ? 'checked' : ''}> I'll farm rare drops</label>` : '') + FR.chk() + `</div>`;   // FULL ROUTE: '' on the public page
   /* ---- GEAR LEVEL IN THE CARD (patch_page_gearlevel): the list = the lightest-level list (GL_MIN) + the runs that only work at a
@@ -3168,18 +3168,71 @@
     st.textContent = '.pl-dfg select.pl-dif{font:600 13px/1.4 var(--body);padding:1px 6px;border:1px solid var(--rule);border-radius:6px;background:var(--paper);color:inherit;max-width:100%}'
       + '.pl-why{margin:4px 0 6px;min-width:0;overflow-wrap:anywhere}.pl-why summary{color:var(--muted)}.pl-why .pl-ul{margin:3px 0 0}.pl-alsop{margin:4px 0 6px;overflow-wrap:anywhere}';
     document.head.appendChild(st); }
+  /* ---- MOST UPGRADES (patch_page_most_upgrades 2026-09-29, user request). PRIVATE wiki only: exists only when the page sets
+     window.AP_PRIVATE === true before planner.js (personal/js/mod_planner.js); the public page never shows it and renders as before.
+     Legacy upgrades tab: 'Most upgrades (ignore simulation)' (localStorage ap_mostups, default OFF). ON: for the hero filter (none = every
+     unlocked hero) and your Legacy, every N1-N9 x mode run is built with dfRun (the difficulty picker's Risky run: Legacy step data, N /
+     N-or-higher, mode, hero masks, Points tickets, Bag clash rules, chained steps; no finish / beat / gear check), top CARDN by upgrade
+     count (ties: minutes, N, mode), one card per upgrade set x N x mode. Open = dfFocus; its 'Risky plan' line is dropped when every
+     pick passes the replays at that gear (muSim). */
+  const MUP = { LS: 'ap_mostups' };
+  MUP.has = () => typeof window !== 'undefined' && typeof document !== 'undefined' && window.AP_PRIVATE === true;
+  MUP.on = () => { if (!MUP.has()) return false; let v = null; try { v = localStorage.getItem(MUP.LS); } catch (e) {} return v === '1'; };
+  MUP.set = on => { try { localStorage.setItem(MUP.LS, on ? '1' : '0'); } catch (e) {} };
+  MUP.chk = () => MUP.has() ? `<div class="pl-fg pl-mug"><label class="pl-chk" title="Counts the upgrades each run can give; fights are not checked"><input type="checkbox" class="pl-muc" ${MUP.on() ? 'checked' : ''}> Most upgrades (ignore simulation)</label></div>` : '';
+  const MU_NOTE = '<span class="small pl-mun">not simulated</span>';
+  /* every upgrade of the run: from -> to (chained steps on one line), then its boss(es) or bossless source */
+  const muWhat = r => { const all = r.got.concat(r.ugot || []), roots = all.filter(g => !(g.u.ch && all.some(x => x.u.to === g.u.from)));
+    const li = roots.map(g => { const ch = [g]; for (let c = g, k = 0; k < 8 && (c = all.find(x => x.u.ch && x.u.from === c.u.to)); k++) ch.push(c);
+      const bs = [...new Set(ch.flatMap(x => x.nb ? [] : ((x.a || [])[0] || [])))].map(bname), nb = (ch.find(x => x.nb && x.nb.how) || {}).nb;
+      const src = bs.length ? bs.join(', ') : nb ? nb.how : '';
+      return `<li>${ftH([g.u.from].concat(ch.map(x => x.u.to)))}${src ? ` <span class="small">· ${esc(src)}</span>` : ''}</li>`; }).join('');
+    return `<b>${all.length}</b> upgrade${all.length > 1 ? 's' : ''}<ul class="pl-ul pl-mul">${li}</ul>`; };
+  /* does every pick pass the replays at the run's gear (call inside withG)? */
+  const muSim = r => { const i = HIDX[r.h], c = cellOf(r.n, r.m, i, r.lv); if (!c) return false; const rmax = Math.max(...c.reach), bud = { pts: +S.pts || 0, wp: +S.wp || 0 };
+    return r.got.concat(r.ugot || []).every(g => { if (g.nb) { try { return !!nbPlan(g.u, g.a, r.n, r.m, i, r.lv, rmax, bud, false); } catch (e) { return false; } }
+      return ((g.a || [])[0] || []).every(b => { const s = bossAt(b, r.n, r.m, i, r.lv); return s >= 0 && s <= rmax; }); }); };
+  const MUC = new Map();
+  function muList() {
+    if (!Object.keys(S.own).length) return legacyList();
+    const f = CF(), key = JSON.stringify([f.h, S.own, +S.ml || 1, +S.rank || 0, +S.pts || 0, +S.wp || 0, vipLv(), S.tok == null ? null : +S.tok, JSON.stringify(S.sw || {}), rvSig(), SVRND() ? 1 : 0]);
+    let out = MUC.get(key);
+    if (out === undefined) {
+      out = withG({ gl: GLN.length - 1, rf: false }, () => { const ups = dfUps(); if (!ups.length) return null; const recs = [];
+        for (let n = 1; n <= 9; n++) for (const m of ['m', 'c', 'd']) PD.heroes.forEach((h, i) => { if (!unlocked(h) || (f.h && f.h !== h)) return;
+          let r = null; try { r = dfRun(ups, h, i, n, m); } catch (e) { r = null; } if (r && r.got.length) recs.push(r); });
+        const cnt = r => r.got.length + (r.ugot || []).length;
+        recs.sort((a, b) => cnt(b) - cnt(a) || a.mins - b.mins || a.n - b.n || EASE2[a.m] - EASE2[b.m] || (b.sc || 0) - (a.sc || 0));
+        const groups = new Map(), res = [];
+        for (const r of recs) { const k = r.n + '|' + r.m + '|' + r.got.map(g => g.u.to).sort().join(','), g = groups.get(k);
+          if (g) { if (g.others.length < 5) g.others.push(r.h); continue; }
+          if (res.length >= CARDN) continue; r.others = []; groups.set(k, r); res.push(r); }
+        return res.map(r => { r.sim = muSim(r); const c = lgCard(r); c.tags = c.tags.filter(t => /spends Points|no quest steps/.test(t));
+          return Object.assign(c, { fc: null, fr: null, wh: () => muWhat(r), risky: 1, mu: 1, gl: GLN.length - 1, rf: false, dft: MU_NOTE }); }); });
+      MUC.set(key, out); if (MUC.size > 8) MUC.delete(MUC.keys().next().value); }
+    if (!out) return { msg: '<p class="small">No upgrade found for the items you picked (they may be the last step of their line).</p>' };
+    return { cards: out.map(c => Object.assign({}, c, { tags: c.tags.slice() })), note: '', none: 'None of your Legacy upgrades fits any run.', extra: '' }; }
+  const muFocus = (c, k, tot) => { const h = dfFocus(c, k, tot); if (!c.r.sim || !DCL_ON || !h) return h;
+    const box = DCL.box(h); box.querySelectorAll('.pl-focus > .pl-hsw').forEach(x => x.remove()); return box.innerHTML; };
+  if (MUP.has()) {
+    K.hooks.push((page, out) => { if (page !== 'planner' || !out) return;
+      out.querySelectorAll('input.pl-muc').forEach(x => x.addEventListener('change', () => { MUP.set(x.checked); FO = null; K.route(); })); });
+    if (DCL_ON && !document.getElementById('pl-mu-css')) { const st = document.createElement('style'); st.id = 'pl-mu-css';
+      st.textContent = '.pl-mug .pl-chk{font-weight:600}.pl-mul{margin:3px 0 0;padding-left:16px}.pl-mul li{overflow-wrap:anywhere}.pl-mun{color:var(--muted)}';
+      document.head.appendChild(st); } }
   function plannerOut(goal) {
-    const DN = goal === 'legacy' ? difN() : 0, R = DN ? difList(DN) : mergedList(goal);   // DIFFICULTY PICKER
+    const MO = goal === 'legacy' && MUP.on(), DN = goal === 'legacy' && !MO ? difN() : 0, R = MO ? muList() : DN ? difList(DN) : mergedList(goal);   // MOST UPGRADES (private only) // DIFFICULTY PICKER
     if (R.msg) { FO = null; return R.msg; }
     /* what you get: the count + the first 2 names, the names the other cards do not share first (so similar cards stay tellable apart) */
     const fq = {}; R.cards.forEach(c => (c.ids || []).forEach(id => { fq[id] = (fq[id] || 0) + 1; }));
     R.cards.forEach(c => { if (c.wh) c.what = c.wh(fq); else if (c.ids) c.what =`<b>${c.ids.length}</b> ${c.unit}${c.ids.length > 1 ? 's' : ''} · ${namesH(c.ids.slice().sort((a, b) => fq[a] - fq[b]))}`; });
-    if (FO && FO.g === goal) { if (DN) { const rk = R.cards.findIndex(c => c.risky && c.key === FO.k); if (rk >= 0) return dfFocus(R.cards[rk], rk, R.cards.length); const sc = R.cards.find(c => c.key === FO.k); FO.dft = sc ? sc.dft || '' : ''; }
+    if (FO && FO.g === goal && MO) { const rk = R.cards.findIndex(c => c.key === FO.k); if (rk >= 0) return muFocus(R.cards[rk], rk, R.cards.length); }
+    if (FO && FO.g === goal && !MO) { if (DN) { const rk = R.cards.findIndex(c => c.risky && c.key === FO.k); if (rk >= 0) return dfFocus(R.cards[rk], rk, R.cards.length); const sc = R.cards.find(c => c.key === FO.k); FO.dft = sc ? sc.dft || '' : ''; }
       const fh = hsOut(goal, R); if (fh) return fh; }   // HERO SWAP
     const lost = !!(FO && FO.g === goal); FO = null;
     if (lost) R.note = (R.note ? R.note + ' ' : '') + 'The run you had open is not on the list any more.';
     const f = CF(), filt = f.h || f.ns.length || f.m || f.len;
-    return filtHtml(goal) + (DN ? dfKey() : TAGS_KEY()) + (R.note ? `<p class="small pl-note">${esc(R.note)}</p>` : '')
+    return filtHtml(goal) + (MO ? '' : DN ? dfKey() : TAGS_KEY()) + (R.note ? `<p class="small pl-note">${esc(R.note)}</p>` : '')
       + (R.cards.length ? `<div class="pl-cards">${R.cards.map((c, k) => withG({ gl: c.gl, rf: c.rf }, () => cardHtml(c, k))).join('')}</div>`
         : `<p class="small">${R.none ? esc(R.none) : filt ? 'No run matches these filters.' : 'No run found.'}</p>`)
       + (R.extra || '');
