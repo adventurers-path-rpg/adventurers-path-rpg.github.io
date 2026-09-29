@@ -2540,7 +2540,7 @@
     return t.length ? t.join(' · ') + ' <span class="small">· shown in the route below</span>' + DCL.q(V[0]) : ''; };
   BPI.route = (f, c, np) => { if (!DCL_ON || !BPI.D.length) return; const ol = f.querySelector('ol.pl-steps'); if (!ol) return; BPI.css();
     const x = bpCtx(c), enc = id => `a[href="#item/${encodeURIComponent(id)}"]`;
-    const secs = FR.on() ? FR.bsecs(ol, c, np) : [...ol.querySelectorAll(':scope > li.pl-sec')].map(li => ({ li, j: FPN.findIndex(p => DCL.txt(li.querySelector('.pl-snm')).toLowerCase().startsWith(p.toLowerCase())) })).filter(s => s.j >= 0 && s.j < np);   // FULL ROUTE OWNED: gear stops = their part
+    const secs = FR.bsecs(ol, c, np);   // BONUS GEAR ROWS (patch_page_bonus_gearrows 2026-09-29, user decision): 'Gear at step N' stops = their run part in the normal route too (was full route only)
     const grid = s => { let g = s.li.querySelector(':scope > .pl-sg'); if (!g) { s.li.insertAdjacentHTML('beforeend', '<div class="pl-sg"></div>'); g = s.li.querySelector(':scope > .pl-sg'); } return g; };
     const gearV = s => { let v = s.li.querySelector('.pl-gr[data-row="gear"] > .pl-gv'); if (v) return v;
       grid(s).insertAdjacentHTML('afterbegin', '<div class="pl-gr" data-row="gear"><span class="pl-gk">Gear</span><div class="pl-gv"></div></div>'); return s.li.querySelector('.pl-gr[data-row="gear"] > .pl-gv'); };
