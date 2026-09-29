@@ -1307,14 +1307,40 @@
   FR.unit = nm => { if (!FR.nmap) { FR.nmap = {}; [W.mon || {}, W.boss || {}].forEach(o => Object.keys(o).forEach(id => { const x = (o[id] || {}).name; if (x) FR.nmap[x] = id; })); } return FR.nmap[String(nm || '').trim()] || ''; };
   FR.shop = id => ((W.shops || []).find(s => s.id === id) || {}).name || '';
   /* the item's source for this N: the band's own best (farm.o), a start gift behind a Map Level you do not have -> its first other way */
-  FR.src = (id, n) => { const e = ((W.route_full || {}).farm || {})[id]; if (!e) return null; let t = (e.o && e.o[band(n)]) || e.b, alts = (e.a || []).slice();
+  FR.src = (id, n, h) => { const e = ((W.route_full || {}).farm || {})[id]; if (!e) return null; let t = (e.o && e.o[band(n)]) || e.b, alts = (e.a || []).slice();
     const ml = +S.ml || 1, lo = /Map Level (\d+)\+/.exec(t[9] || ''), hi = /Map Level (\d+) or lower/.exec(t[9] || '');
-    if ((lo && ml < +lo[1]) || (hi && ml > +hi[1])) { const k = alts.findIndex(a => a && a[0] !== 'start'); if (k >= 0) { const nt = alts.splice(k, 1)[0]; alts.unshift(t); t = nt; } }
+    if ((lo && ml < +lo[1]) || (hi && ml > +hi[1]) || (t[0] === 'start' && !FR.stOk(t, h))) { const k = alts.findIndex(a => a && a[0] !== 'start'); if (k >= 0) { const nt = alts.splice(k, 1)[0]; alts.unshift(t); t = nt; } }
     if (e.o && e.o[band(n)] && e.b !== t) alts = [e.b].concat(alts.filter(a => a && a[7] !== t[7]));
     return { t, alts: alts.filter(a => a && a[7] !== t[7]).slice(0, 2) }; };
   FR.dir = (key, lab) => { const r = ((W.route_full || {}).reach || {})[key]; if (!r) return '';
     const [fr, st, gt, nt] = r, body = `${fr ? 'From ' + esc(fr) + ': ' : ''}${(st || []).map(esc).join(' → ')}${gt ? `. <b>Gate</b> ${esc(gt)}` : ''}${nt ? '. ' + esc(nt) : ''}`;
     return ` <details class="pl-q pl-frd"><summary title="how to get there">${lab || 'how to get there'}</summary><div>${body}</div></details>`; };
+  /* ---- FULL ROUTE: OWNED (patch_page_full_route_owned 2026-09-29, user: the full route must use the picked bonus items in its
+     steps). Held from step 1: your bonus picks, your Legacy items (S.own), your saved Points Merchant start items (swIds). The gift's
+     slot per run part (bpVerdict + BPI.state, as BONUS INLINE shows it): the item it replaces is needed one copy fewer in that part's
+     gear rows. stOk: a 'start' source counts only when it is certain for you (no random roll, this hero, your Map Level) */
+  FR.OWN = {};
+  FR.stOk = (t, h) => { if (!t || t[0] !== 'start') return false; if ((t[3] != null && t[3] < 100) || /\brandom\b/i.test(t[7] || '')) return false;
+    const pm = /^play (.+)$/.exec(t[9] || ''); if (pm && h && pm[1].trim() !== String((HERO[h] || {}).name || '').trim()) return false;
+    const ml = +S.ml || 1, lo = /Map Level (\d+)\+/.exec(t[9] || ''), hi = /Map Level (\d+) or lower/.exec(t[9] || '');
+    return !((lo && ml < +lo[1]) || (hi && ml > +hi[1])); };
+  FR.mine = id => FR.OWN[id] ? ` <span class="small">(${esc(FR.OWN[id])})</span>` : '';
+  FR.part = (h, n, m, L) => { const gs = gsStops(h, n, m, L), fj = t => FPN.findIndex(p => t.toLowerCase().startsWith(p.toLowerCase()));
+    return t => { t = String(t || ''); const j = fj(t); if (j >= 0) return j; const g = /^Gear at step (\d+)/.exec(t), s = g ? gs.find(y => y.step === +g[1]) : null; return s ? s.part : -1; }; };
+  FR.owned = (h, n, m, L, all) => { const held = [], lab = {}, x = { h, n, m, L: L == null || L < 0 ? 3 : +L, gk: band(n) + '|' + MK[m] }; x.g = gearOf(h, n, m, x.L);
+    const fj = t => FPN.findIndex(p => t.toLowerCase().startsWith(p.toLowerCase()));
+    const ps = all.filter(li => li.classList.contains('pl-gh')).map(li => fj(DCL.head(li)) + 1).filter(y => y > 0), np = ps.length ? Math.max(...ps) : 3;   // as bpIns
+    const U = {}, bp = [];
+    try { bpPicks(n).forEach(p => { const V = bpVerdict(x, p.id, np, U); bp.push({ p, st: BPI.state(x, p, V, np) }); held.push(p.id); lab[p.id] = lab[p.id] || 'your ' + p.nm; }); } catch (e) { if (typeof console !== 'undefined') console.warn('full route: bonus picks', e); }
+    Object.values(S.own || {}).forEach(id => { if (K.item[id]) { held.push(id); lab[id] = lab[id] || 'your Legacy item'; } });
+    const sw = swIds(S.sw); sw.c.concat(sw.a).forEach(id => { if (K.item[id]) { held.push(id); lab[id] = lab[id] || 'your start item'; } });
+    const pOf = FR.part(h, n, m, x.L);
+    const cut = (li, id) => { const j = pOf(DCL.head(li)); if (j < 0) return 0; let c = 0; bp.forEach(b => { const q = b.st[j]; if (q && q.on && q.rep === id) c++; }); return c; };
+    FR.OWN = lab; return { held, cut }; };
+  /* BONUS INLINE in full-route mode: the 'Gear at step N' sections count as their run part (first = the part's first section) */
+  FR.bsecs = (ol, c, np) => { const pOf = FR.part(c.h, c.n, c.m, bpCtx(c).L), seen = new Set();
+    return [...ol.querySelectorAll(':scope > li.pl-sec')].map(li => ({ li, j: pOf(DCL.txt(li.querySelector('.pl-snm'))) })).filter(s => s.j >= 0 && s.j < np)
+      .map(s => { s.first = !seen.has(s.j); seen.add(s.j); return s; }); };
   FR.kills = (q, ch) => ch > 0 && ch < 100 ? Math.ceil(q * 100 / ch) : q;
   /* one way to get an item as a short phrase ('buy at X (zone) 150 gold', 'farm X (zone) 3%, ~40 kills'): the 'or...' notes */
   FR.alt = (t, q) => { const [k, u, z, ch, , once, , tx, ex] = t, zn = z ? ` (${zlH(z)})` : '';
@@ -1327,7 +1353,7 @@
   /* the step text: verb first (CLARITY bolds it), the item, where; notes = odds / kills / what it is for / other ways */
   FR.body = (r, n) => { const [k, u, , ch, , once, , tx, ex] = r.t, q = r.q, it = ilink(r.id) + (q > 1 ? ' x' + fmt(q) : ''), nt = [];
     let b = '';
-    if (r.cr) { const wc = r.cr[0], pt = r.cr[1].map(([p, c]) => ilink(p) + (c * r.m > 1 ? ' x' + fmt(c * r.m) : '')).join(' + ');
+    if (r.cr) { const wc = r.cr[0], pt = r.cr[1].map(([p, c]) => ilink(p) + (c * r.m > 1 ? ' x' + fmt(c * r.m) : '') + FR.mine(p)).join(' + ');   // OWNED: '(your Player Bonus)'
       let m = /^Evolve: (.+)$/.exec(wc);
       if (m) b = `Evolve into ${it}: ${esc(m[1])}`;
       else if ((m = /^Get '(.+?)' from (.+?) \((.+?)\)/.exec(wc))) { b = `Craft ${it} from ${pt}`; nt.push(`scroll: ${esc(m[1])} at ${HLN.one(m[2])} (${esc(m[3])}), keep it in the bag with the parts`); }
@@ -1359,12 +1385,13 @@
     const idOf = a => { const mm = /#item\/([^"?]+)/.exec(a.getAttribute('href') || ''); return mm ? decodeURIComponent(mm[1]) : ''; };
     const cnt = a => { const t = a.nextSibling, mm = t && t.nodeType === 3 ? /^\s*x([\d,]+)/.exec(t.nodeValue) : null; return mm ? +mm[1].replace(/,/g, '') : 1; };
     /* 1. what the route needs, by deadline row: gear rows (their chips, pet bag, rune, books, Get first lines), the steps' own lines */
+    const OW = FR.owned(h, n, m, L, all);   // OWNED: bonus picks, Legacy items, start items + the gift's slot per part
     const need = [], CARRY = /carry it on your hero|keep (it|the second one) off your hero|wear one/;
     all.forEach((li, k) => {
       if (li.classList.contains('pl-gh')) {
         let dk = k; if (!/^Gear at step/.test(DCL.head(li))) { const nx = all.findIndex((x, j) => j > k && (x.classList.contains('pl-gh') || x.classList.contains('pl-stop'))); dk = nx < 0 ? all.length - 1 : nx; }
         const pe = (() => { const nx = all.findIndex((x, j) => j > k && (x.classList.contains('pl-gh') || x.classList.contains('pl-stop'))); return nx < 0 ? all.length - 1 : nx; })();   // pet bag / rune / books: by the part's end
-        const add = (a, c, e) => { const id = idOf(a); if (id && K.item[id]) need.push({ k: e ? pe : dk, id, c: c || cnt(a), how: 'self' }); };
+        const add = (a, c, e) => { const id = idOf(a); if (id && K.item[id]) { const c2 = (c || cnt(a)) - (e ? 0 : OW.cut(li, id)); if (c2 > 0) need.push({ k: e ? pe : dk, id, c: c2, how: 'self' }); } };   // OWNED: your bonus takes a slot
         li.querySelectorAll(':scope > ul.pl-ul > li').forEach(x => { const a = x.querySelector(':scope > a[href^="#item/"]'); if (a) add(a); if (!CARRY.test(DCL.txt(x))) x.remove(); });
         li.querySelectorAll(':scope > ul.pl-ul').forEach(u => { if (!u.children.length) u.remove(); });
         const gb = li.querySelector(':scope > .pl-gb');
@@ -1388,6 +1415,7 @@
     ((HERO[h] || {}).kit_items || []).forEach(x => { if (x && x.id) give(x.id); });
     if ((W.start_rune_kit || {})[h]) give(W.start_rune_kit[h]);
     give('I1TQ'); tpGifts(+S.ml || 1).forEach(id => give(id));
+    OW.held.forEach(id => give(id)); const own0 = Object.assign({}, own);   // OWNED: held from step 1
     /* 3. where each copy comes from: rows {key (k - 0.5 = before row k, k + 0.5 = after it), seq, id, q, t, cr, m, fo, z, u, late, alts} */
     const rows = []; let seq = 0;
     const placeOf = (z, s0, dk, pref, min) => { min = min == null ? -Infinity : min;
@@ -1399,8 +1427,8 @@
       const r = Object.assign({ seq: seq++ }, o); rows.push(r); lastR[o.id] = r; return r.key; };
     const getN = (id, q, dk, fo, d, min) => {                           // q more copies of id by row dk -> the key they are held from
       if (!(q > 0)) return -Infinity;
-      const S2 = FR.src(id, n), t = S2 && S2.t, cr = ((W.route_full || {}).crafts || {})[id];
-      if (t && t[0] === 'start') { give(id, q); return -Infinity; }
+      const S2 = FR.src(id, n, h), t = S2 && S2.t, cr = ((W.route_full || {}).crafts || {})[id];
+      if (t && t[0] === 'start' && FR.stOk(t, h)) { give(id, q); return -Infinity; }   // OWNED: only a certain start item
       if (cr && (!t || t[0] === 'craft') && d < 8 && cr[1].length) {   // a craft / evolution: its parts first (down the tree), then the craft
         let key = min == null ? -Infinity : min; const dep = [];
         cr[1].forEach(([p, c]) => { const nd = c * q, hv = own[p] || 0;
@@ -1417,8 +1445,8 @@
       own[id] = (own[id] || 0) + q; okey[id] = k2; return k2; };
     need.forEach(x => { if (!x.id || !K.item[x.id]) return;
       if (x.how === 'row') { if (!(own[x.id] > 0)) { own[x.id] = 1; okey[x.id] = x.k + 0.5; } return; }
-      if (x.how === 'shown') { const cr = ((W.route_full || {}).crafts || {})[x.id], S2 = FR.src(x.id, n);
-        if (cr && (!S2 || S2.t[0] === 'craft')) cr[1].forEach(([p, c]) => { const nd = c * x.c, hv = own[p] || 0; if (hv < nd) getN(p, nd - hv, x.k, [x.id], 1); own[p] = Math.max(0, (own[p] || 0) - nd); });
+      if (x.how === 'shown') { const cr = ((W.route_full || {}).crafts || {})[x.id], S2 = FR.src(x.id, n, h);
+        if (cr && (!S2 || S2.t[0] === 'craft') && !((own0[x.id] || 0) >= x.c)) cr[1].forEach(([p, c]) => { const nd = c * x.c, hv = own[p] || 0; if (hv < nd) getN(p, nd - hv, x.k, [x.id], 1); own[p] = Math.max(0, (own[p] || 0) - nd); });
         own[x.id] = (own[x.id] || 0) + x.c; okey[x.id] = x.k + 0.5; return; }
       if (onRt.has(x.id)) return; const hv = own[x.id] || 0; if (hv < x.c) getN(x.id, x.c - hv, x.k, [x.id], 0); });
     /* 4. merge: new rows before / after their anchor rows; zone changes -> 'Go back to' / 'Go to' + directions */
@@ -2450,20 +2478,37 @@
       return (p.count > 1 ? p.count + ' ' : '') + ilink(p.id) + (t ? ` <span class="small">(${t})</span>` : ''); });
     const sc = r.scroll && r.scroll.id ? ` + ${ilink(r.scroll.id)}${r.scroll_from && r.scroll_from.id ? ` <span class="small">(${K.ulink(r.scroll_from.id, r.scroll_from.name)})</span>` : ''}` : '';
     return `${ilink(id)} + ${ps.join(' + ')}${sc} → ${ilink(r.result.id)}`; };
+  /* ---- BONUS GUARD (patch_page_bonus_guard 2026-09-29, user bug report: the gift replaced Heart Sword on a Blademaster run). A gift
+     never takes the slot of: a Legacy item, this hero's Key item, the Giant Scythe carry line (and what is made from it), or an item
+     that feeds (recipe part / evolution, any depth) an item of this or a later part's gear list. bpDesc(id) = every item id feeds */
+  const BPD = new Map();
+  const bpDesc = id => { if (BPD.has(id)) return BPD.get(id); const o = new Set(), q = [id], E = (W.evo || {}).e || {};
+    while (q.length) { const y = q.pop(), nx = [];
+      (E[y] || []).forEach(e => { if (e && e[0]) nx.push(e[0]); });
+      (BP_REC[y] || []).forEach(r => [r.result].concat(r.results || []).forEach(z => { if (z && z.id) nx.push(z.id); }));
+      nx.forEach(z => { if (z !== id && !o.has(z)) { o.add(z); q.push(z); } }); }
+    BPD.set(id, o); return o; };
+  const bpKeep = (x, y, j, np) => { if (POS[y] || LST[y] || SC_ST.includes(y)) return true;
+    try { if ((KI.init()[x.h] || []).includes(y)) return true; const s = scNeed(y); if (s.s >= 0 || s.g) return true; } catch (e) {}
+    const d = bpDesc(y); if (!d.size) return false;
+    for (let k = j; k < np; k++) if (bpList(x, k).some(z => z !== y && d.has(z))) return true;
+    return false; };
   /* one gift on one run: [verdict html, tag kind 'use' | 'fit' | ''] */
   /* used = {part: [slots a gift picked before already took]}: a second gift competes for the next weakest slot */
   const bpVerdict = (x, id, np, used) => { const v = bpVal(x.h, x.gk, id), it = (K.item || {})[id] || {}, j0 = bpIn(x, id, np), cr = bpCraft(x, id, np), out = [], U = used || {}; let tag = '';
-    const fit = []; for (let j = 0; j < np; j++) { const u0 = U[j] || [], l = bpList(x, j).filter(y => y.charAt(0) !== '~'), free = l.length + u0.length < 6;
+    const fit = [], blk = []; for (let j = 0; j < np; j++) { const u0 = U[j] || [], l = bpList(x, j).filter(y => y.charAt(0) !== '~'), free = l.length + u0.length < 6;
       const take = y => { if (j0 < 0 || j < j0) (U[j] = U[j] || []).push(y); };   // BONUS INLINE: worn before the build's own copy = a slot taken (a 2nd gift picks another)
       if (v == null) { if (free) { fit.push([j, null]); take(null); } continue; } if (free) { if (v > 0) { fit.push([j, null]); take(null); } continue; }
-      let lo = null; l.forEach((y, q) => { if (u0.includes(y) && u0.filter(z => z === y).length > l.slice(0, q).filter(z => z === y).length) return;
-        const u = bpVal(x.h, x.gk, y); if (u != null && (lo == null || u < lo[1])) lo = [y, u]; });
-      if (lo && v > lo[1] * 1.02) { fit.push([j, lo[0]]); take(lo[0]); } }
+      let lo = null, kl = null; l.forEach((y, q) => { if (u0.includes(y) && u0.filter(z => z === y).length > l.slice(0, q).filter(z => z === y).length) return;
+        const u = bpVal(x.h, x.gk, y); if (bpKeep(x, y, j, np)) { if (u != null && (kl == null || u < kl)) kl = u; return; }   // BONUS GUARD: key / Legacy / chain items keep their slot
+        if (u != null && (lo == null || u < lo[1])) lo = [y, u]; });
+      if (lo && v > lo[1] * 1.02) { fit.push([j, lo[0]]); take(lo[0]); } else if (!lo && kl != null && v > kl * 1.02) blk.push(j); }
     if (j0 >= 0) { tag = 'use'; out.push(j0 ? `your build gets it for the ${bpPartW(j0)} gear: you already have it, skip getting it` : 'your build wears it: you already have it, skip getting it');
       if (j0 > 0 && fit.some(f => f[0] < j0)) out.push('wear it from the start'); }
     else if (fit.length) { tag = 'fit'; const ws = [...new Set(fit.map(f => f[1]).filter(Boolean))];
       out.push((fit.length === np ? 'wear it all run' : `wear it in your ${fit.map(f => bpPartW(f[0])).join(' and ')} gear`)
         + (ws.length ? ` <span class="small">(in place of ${ws.map(ilink).join(', ')})</span>` : fit.some(f => !f[1]) ? ' <span class="small">(a free slot)</span>' : '')); }
+    else if (v != null && blk.length) out.push(`no slot for it: it only beats key and chain items in your ${blk.map(bpPartW).join(' and ')} gear <span class="small">· keep it in the pet bag</span>`);   // BONUS GUARD
     else if (v != null) out.push('your build gear is stronger on this run');
     if (!Object.keys(it.st || {}).length) out.push('<span class="small">its effect is not counted by the planner</span>');
     if (cr.keep) { tag = 'use'; out.push(`keep it: your build crafts ${ilink(cr.keep.r.result.id)} from it for the ${bpPartW(cr.keep.j)} gear <span class="small">(${bpCraftTxt(id, cr.keep.r)})</span>`); }
@@ -2495,7 +2540,7 @@
     return t.length ? t.join(' · ') + ' <span class="small">· shown in the route below</span>' + DCL.q(V[0]) : ''; };
   BPI.route = (f, c, np) => { if (!DCL_ON || !BPI.D.length) return; const ol = f.querySelector('ol.pl-steps'); if (!ol) return; BPI.css();
     const x = bpCtx(c), enc = id => `a[href="#item/${encodeURIComponent(id)}"]`;
-    const secs = [...ol.querySelectorAll(':scope > li.pl-sec')].map(li => ({ li, j: FPN.findIndex(p => DCL.txt(li.querySelector('.pl-snm')).toLowerCase().startsWith(p.toLowerCase())) })).filter(s => s.j >= 0 && s.j < np);
+    const secs = FR.on() ? FR.bsecs(ol, c, np) : [...ol.querySelectorAll(':scope > li.pl-sec')].map(li => ({ li, j: FPN.findIndex(p => DCL.txt(li.querySelector('.pl-snm')).toLowerCase().startsWith(p.toLowerCase())) })).filter(s => s.j >= 0 && s.j < np);   // FULL ROUTE OWNED: gear stops = their part
     const grid = s => { let g = s.li.querySelector(':scope > .pl-sg'); if (!g) { s.li.insertAdjacentHTML('beforeend', '<div class="pl-sg"></div>'); g = s.li.querySelector(':scope > .pl-sg'); } return g; };
     const gearV = s => { let v = s.li.querySelector('.pl-gr[data-row="gear"] > .pl-gv'); if (v) return v;
       grid(s).insertAdjacentHTML('afterbegin', '<div class="pl-gr" data-row="gear"><span class="pl-gk">Gear</span><div class="pl-gv"></div></div>'); return s.li.querySelector('.pl-gr[data-row="gear"] > .pl-gv'); };
@@ -2522,7 +2567,7 @@
       /* (2) the build's own copy of the gift */
       if (d.j0 >= 0) { const bs = acq(id); bs.forEach(b => note(b, `<b>bonus</b> skip it: you already have ${ilink(id)} (${who})`, true)); if (bs.length) dimNote(id); }
       /* (3) in / out rows */
-      secs.forEach(s => { const q = st[s.j], pv = s.j ? st[s.j - 1] : null; if (!q) return; let h = '';
+      secs.forEach(s => { const q = st[s.j], pv = s.j ? st[s.j - 1] : null; if (!q || s.first === false) return; let h = '';
         if (q.on && !q.inB && (!pv || !pv.on)) h = `${s.j ? 'swap in' : 'wear from the start:'} ${ilink(id)} <span class="small">(${who})</span>${q.rep ? ` in place of ${ilink(q.rep)}` : ' in a free slot'}`;
         else if (!q.on && pv && pv.on) h = pv.rep && bpList(x, s.j).includes(pv.rep) ? `swap ${ilink(id)} out for ${ilink(pv.rep)}` : `swap ${ilink(id)} out: your ${bpPartW(s.j)} gear is stronger`;
         if (h && !q.on && d.cr && d.cr.keep && d.cr.keep.j >= s.j) h += ` · keep it in the pet bag for ${ilink(d.cr.keep.r.result.id)}`;
